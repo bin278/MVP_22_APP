@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>认证持久化测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 CloudBase认证持久化测试</h1>
+
+    <div class="test-section">
+        <h2>1. 手动设置测试数据</h2>
+        <button onclick="setTestData()">设置测试认证数据</button>
+        <button onclick="clearTestData()">清除测试数据</button>
+        <div id="setResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. 查看当前localStorage状态</h2>
+        <button onclick="checkLocalStorage()">检查本地存储</button>
+        <div id="storageResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 模拟页面刷新测试</h2>
+        <button onclick="simulatePageRefresh()">模拟页面刷新</button>
+        <div id="refreshResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Session过期测试</h2>
+        <button onclick="setExpiredSession()">设置过期Session</button>
+        <button onclick="testExpiration()">测试过期处理</button>
+        <div id="expirationResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. 实际应用测试</h2>
+        <p>现在可以测试实际的应用程序：</p>
+        <ol>
+            <li>访问 <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></li>
+            <li>登录账号</li>
+            <li>刷新页面 - 应该保持登录状态</li>
+            <li>等待1小时后刷新 - 应该自动登出</li>
+        </ol>
+    </div>
+
+    <script>
+        // 测试用户数据
+        const testUser = {
+            uid: 'test-user-123',
+            email: 'test@example.com',
+            fullName: '测试用户'
+        };
+
+        // 测试会话数据（1小时后过期）
+        function createValidSession() {
+            return {
+                accessToken: 'test-access-token-' + Date.now(),
+                refreshToken: 'test-refresh-token-' + Date.now(),
+                accessTokenExpire: Date.now() + 3600000, // 1小时后过期
+                refreshTokenExpire: Date.now() + 86400000 // 24小时后过期
+            };
+        }
+
+        // 设置测试数据
+        function setTestData() {
+            try {
+                localStorage.setItem('cloudbase_user', JSON.stringify(testUser));
+                localStorage.setItem('cloudbase_session', JSON.stringify(createValidSession()));
+                document.getElementById('setResult').innerHTML =
+                    '<span class="success">✅ 测试数据已设置到localStorage</span>';
+            } catch (error) {
+                document.getElementById('setResult').innerHTML =
+                    '<span class="error">❌ 设置失败: ' + error.message + '</span>';
+            }
+        }
+
+        // 清除测试数据
+        function clearTestData() {
+            try {
+                localStorage.removeItem('cloudbase_user');
+                localStorage.removeItem('cloudbase_session');
+                document.getElementById('setResult').innerHTML =
+                    '<span class="info">🗑️ 测试数据已清除</span>';
+            } catch (error) {
+                document.getElementById('setResult').innerHTML =
+                    '<span class="error">❌ 清除失败: ' + error.message + '</span>';
+            }
+        }
+
+        // 检查localStorage状态
+        function checkLocalStorage() {
+            const user = localStorage.getItem('cloudbase_user');
+            const session = localStorage.getItem('cloudbase_session');
+
+            let result = '<h3>localStorage状态:</h3>';
+
+            if (user) {
+                const userData = JSON.parse(user);
+                result += '<p><strong>用户数据:</strong></p>';
+                result += '<ul>';
+                result += '<li>UID: ' + userData.uid + '</li>';
+                result += '<li>邮箱: ' + userData.email + '</li>';
+                result += '<li>全名: ' + (userData.fullName || '未设置') + '</li>';
+                result += '</ul>';
+            } else {
+                result += '<p class="error">❌ 未找到用户数据</p>';
+            }
+
+            if (session) {
+                const sessionData = JSON.parse(session);
+                result += '<p><strong>会话数据:</strong></p>';
+                result += '<ul>';
+                result += '<li>AccessToken: ' + sessionData.accessToken.substring(0, 20) + '...</li>';
+                result += '<li>过期时间: ' + new Date(sessionData.accessTokenExpire).toLocaleString() + '</li>';
+                result += '<li>是否过期: ' + (sessionData.accessTokenExpire > Date.now() ? '否' : '是') + '</li>';
+                result += '</ul>';
+            } else {
+                result += '<p class="error">❌ 未找到会话数据</p>';
+            }
+
+            document.getElementById('storageResult').innerHTML = result;
+        }
+
+        // 模拟页面刷新测试
+        function simulatePageRefresh() {
+            const user = localStorage.getItem('cloudbase_user');
+            const session = localStorage.getItem('cloudbase_session');
+
+            let result = '<h3>页面刷新模拟结果:</h3>';
+
+            if (!user || !session) {
+                result += '<p class="error">❌ 未找到认证数据，请先设置测试数据</p>';
+            } else {
+                try {
+                    const userData = JSON.parse(user);
+                    const sessionData = JSON.parse(session);
+
+                    const now = Date.now();
+                    if (sessionData.accessTokenExpire > now) {
+                        result += '<p class="success">✅ 认证状态有效，页面刷新后会保持登录</p>';
+                        result += '<p><strong>恢复的用户:</strong> ' + userData.email + '</p>';
+                        result += '<p><strong>剩余时间:</strong> ' +
+                            Math.round((sessionData.accessTokenExpire - now) / 1000 / 60) + ' 分钟</p>';
+                    } else {
+                        result += '<p class="info">ℹ️ Session已过期，页面刷新后会要求重新登录</p>';
+                    }
+                } catch (error) {
+                    result += '<p class="error">❌ 数据解析失败: ' + error.message + '</p>';
+                }
+            }
+
+            document.getElementById('refreshResult').innerHTML = result;
+        }
+
+        // 设置过期Session
+        function setExpiredSession() {
+            try {
+                const expiredSession = {
+                    accessToken: 'expired-token',
+                    refreshToken: 'expired-refresh',
+                    accessTokenExpire: Date.now() - 1000, // 已过期
+                    refreshTokenExpire: Date.now() - 1000
+                };
+                localStorage.setItem('cloudbase_session', JSON.stringify(expiredSession));
+                document.getElementById('expirationResult').innerHTML =
+                    '<span class="info">⏰ 已设置过期Session</span>';
+            } catch (error) {
+                document.getElementById('expirationResult').innerHTML =
+                    '<span class="error">❌ 设置失败: ' + error.message + '</span>';
+            }
+        }
+
+        // 测试过期处理
+        function testExpiration() {
+            const session = localStorage.getItem('cloudbase_session');
+
+            if (!session) {
+                document.getElementById('expirationResult').innerHTML =
+                    '<span class="error">❌ 未找到会话数据</span>';
+                return;
+            }
+
+            try {
+                const sessionData = JSON.parse(session);
+                const now = Date.now();
+
+                if (sessionData.accessTokenExpire > now) {
+                    document.getElementById('expirationResult').innerHTML =
+                        '<span class="success">✅ Session仍然有效</span>';
+                } else {
+                    document.getElementById('expirationResult').innerHTML =
+                        '<span class="info">ℹ️ Session已过期，会被自动清除</span>';
+                }
+            } catch (error) {
+                document.getElementById('expirationResult').innerHTML =
+                    '<span class="error">❌ 解析失败: ' + error.message + '</span>';
+            }
+        }
+
+        // 页面加载时自动检查状态
+        window.onload = function() {
+            checkLocalStorage();
+        };
+    </script>
+</body>
+</html>
+
+
+
+

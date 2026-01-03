@@ -1,0 +1,28 @@
+1完成实时预览,完成了对话修改代码，会重新生成代码
+2完善布局
+3修复中英文切换bug
+4.完成github功能，但是还有一些bug待完善。
+5.完成google登录
+6.初步完成支付
+7.完成历史对话的存储和生成的文件的存储
+8.进一步完善7
+9.集成腾讯云CloudBase认证系统，支持邮箱注册登录、第三方登录、JWT令牌验证
+10.移除Google登录功能，保留微信登录
+11.修复CloudBase SDK在客户端使用fs模块的问题，创建认证API路由
+12.将认证系统正式切换到腾讯云CloudBase，不再使用Supabase登录
+13.保留Supabase作为数据库选项，强制使用CloudBase作为认证提供商
+14.修复CloudBase认证API错误，实现前后端分离的认证架构
+15.创建CloudBase前端SDK集成指南，解决用户认证功能
+16.实现完整的CloudBase前端认证集成，修复注册和登录功能
+17.修复CloudBase Web SDK认证状态监听API错误
+18.修复CloudBase Web SDK注册和登录API方法名错误
+19.改进CloudBase认证错误处理和调试信息
+20.发现并修复CloudBase环境变量配置问题
+21.实现CloudBase邮箱验证码注册流程
+22.修复注册页面React未定义错误
+23.启用CloudBase邮箱验证码发送功能
+24.创建云函数实现邮箱验证码发送
+25.分析并解释CloudBase前端SDK功能限制
+26.更新支付服务使用CloudBase文档数据库
+27.简化注册流程，直接保存用户数据到CloudBase文档数据库
+28.完成个人资料功能迁移到CloudBase

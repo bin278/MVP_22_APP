@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "app/api/create-code-task/route.ts": {
+      "maxDuration": 55
+    },
+    "app/api/query-code-task/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/generate-stream/route.ts": {
+      "maxDuration": 55
+    },
+    "app/api/generate-async/route.ts": {
+      "maxDuration": 55
+    }
+  },
+  "regions": ["hkg1"]
+}

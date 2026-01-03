@@ -1,0 +1,55 @@
+<svg width="400" height="225" viewBox="0 0 400 225" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="225" fill="#f8fafc"/>
+  
+  <!-- Blog Card -->
+  <rect x="50" y="30" width="300" height="165" rx="12" fill="white" stroke="#e2e8f0" stroke-width="2"/>
+  
+  <!-- Featured Image -->
+  <rect x="60" y="40" width="280" height="100" rx="8" fill="#f1f5f9"/>
+  <rect x="80" y="60" width="60" height="40" rx="4" fill="#cbd5e1"/>
+  <rect x="150" y="60" width="60" height="40" rx="4" fill="#cbd5e1"/>
+  <rect x="220" y="60" width="60" height="40" rx="4" fill="#cbd5e1"/>
+  
+  <!-- Category Badge -->
+  <rect x="60" y="50" width="60" height="18" rx="9" fill="#3b82f6"/>
+  <text x="90" y="62" font-family="Arial" font-size="10" fill="white" text-anchor="middle">Tech</text>
+  
+  <!-- Title -->
+  <rect x="60" y="150" width="200" height="10" rx="5" fill="#e2e8f0"/>
+  <rect x="60" y="165" width="180" height="10" rx="5" fill="#cbd5e1"/>
+  
+  <!-- Author Info -->
+  <circle cx="70" cy="190" r="8" fill="#cbd5e1"/>
+  <rect x="85" y="186" width="60" height="6" rx="3" fill="#cbd5e1"/>
+  
+  <!-- Reading Time -->
+  <rect x="260" y="186" width="70" height="18" rx="9" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
+  <circle cx="275" cy="195" r="3" fill="#64748b"/>
+  <rect x="285" y="192" width="40" height="4" rx="2" fill="#94a3b8"/>
+  
+  <!-- Date -->
+  <rect x="60" y="205" width="80" height="6" rx="3" fill="#cbd5e1"/>
+  
+  <!-- Read More Arrow -->
+  <rect x="320" y="195" width="20" height="20" rx="4" fill="#3b82f6"/>
+  <path d="M 325 205 L 335 205 M 330 200 L 335 205 L 330 210" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(dos2unix:*)",
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(while:*)",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npx cap init:*)",
+      "Bash(npx cap add:*)",
+      "Bash(set:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx cap sync:*)",
+      "Bash(dir:*)",
+      "Bash(./gradlew:*)",
+      "Bash(java:*)",
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx dotenv-cli -e .env.local -- node:*)",
+      "Bash(timeout:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)",
+      "Bash(del:*)",
+      "Bash(rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}

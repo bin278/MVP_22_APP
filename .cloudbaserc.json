@@ -1,0 +1,42 @@
+{
+  "version": "2.0",
+  "envId": "{{env.NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID}}",
+  "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
+  "region": "ap-guangzhou",
+  "framework": {
+    "name": "nextjs",
+    "plugins": {
+      "nextjs": {
+        "useNodeVersion": "20",
+        "installCommand": "pnpm install --frozen-lockfile --force || rm -f pnpm-lock.yaml && pnpm install || npm install",
+        "buildCommand": "CLOUDBASE_BUILD=true pnpm build",
+        "outputDir": ".next/standalone"
+      }
+    }
+  },
+  "hosting": {
+    "publicPath": "/",
+    "rewrites": [
+      {
+        "source": "**",
+        "target": "/index.html"
+      }
+    ]
+  },
+  "functionRoot": "./cloud-functions",
+  "functions": [
+    {
+      "name": "sendEmailVerification",
+      "runtime": "Nodejs20",
+      "handler": "index.main",
+      "memorySize": 128,
+      "timeout": 30,
+      "envVariables": {},
+      "vpc": {},
+      "triggers": []
+    }
+  ]
+}
+
+
+

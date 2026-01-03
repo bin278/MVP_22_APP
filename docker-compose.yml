@@ -1,0 +1,81 @@
+# ===========================================
+# Docker Compose 配置
+# 用于本地开发和腾讯云部署测试
+# ===========================================
+
+version: '3.8'
+
+services:
+  mvp22:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID: ${NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID}
+        NEXT_PUBLIC_WECHAT_CLOUDBASE_ID: ${NEXT_PUBLIC_WECHAT_CLOUDBASE_ID}
+        CLOUDBASE_SECRET_ID: ${CLOUDBASE_SECRET_ID}
+        CLOUDBASE_SECRET_KEY: ${CLOUDBASE_SECRET_KEY}
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - DEPLOYMENT_REGION=cn
+      - AUTH_PROVIDER=cloudbase
+      - DATABASE_PROVIDER=cloudbase
+      - NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID=${NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID}
+      - NEXT_PUBLIC_WECHAT_CLOUDBASE_ID=${NEXT_PUBLIC_WECHAT_CLOUDBASE_ID}
+      - CLOUDBASE_SECRET_ID=${CLOUDBASE_SECRET_ID}
+      - CLOUDBASE_SECRET_KEY=${CLOUDBASE_SECRET_KEY}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+
+      # 支付配置 (可选)
+      - WECHAT_PAY_APPID=${WECHAT_PAY_APPID}
+      - WECHAT_PAY_MCHID=${WECHAT_PAY_MCHID}
+      - WECHAT_PAY_SERIAL_NO=${WECHAT_PAY_SERIAL_NO}
+      - WECHAT_PAY_PRIVATE_KEY=${WECHAT_PAY_PRIVATE_KEY}
+      - WECHAT_PAY_API_V3_KEY=${WECHAT_PAY_API_V3_KEY}
+      - ALIPAY_APP_ID=${ALIPAY_APP_ID}
+      - ALIPAY_PRIVATE_KEY=${ALIPAY_PRIVATE_KEY}
+      - ALIPAY_PUBLIC_KEY=${ALIPAY_PUBLIC_KEY}
+      - PAYMENT_TEST_MODE=${PAYMENT_TEST_MODE:-false}
+
+      # 其他配置
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # 可选：添加 Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - mvp22
+    restart: unless-stopped
+    profiles:
+      - "with-nginx"
+

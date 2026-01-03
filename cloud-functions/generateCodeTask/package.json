@@ -1,0 +1,11 @@
+{
+  "name": "generate-code-task",
+  "version": "1.0.0",
+  "description": "CloudBase 云函数异步AI代码生成",
+  "main": "index.js",
+  "dependencies": {
+    "openai": "4.20.1",
+    "@cloudbase/node-sdk": "3.16.0"
+  }
+}
+

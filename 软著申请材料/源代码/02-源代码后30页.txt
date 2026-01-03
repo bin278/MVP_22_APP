@@ -1,0 +1,1594 @@
+========================================
+       AI智能代码生成系统
+         源代码（后30页）
+========================================
+
+
+// ========== 文件: app\profile\page.tsx ==========
+
+    }
+
+    loadCodeUsage()
+  }, [session])
+
+  // Check GitHub connection status
+  useEffect(() => {
+    const checkGithubStatus = async () => {
+      if (!session?.accessToken) {
+        setGithubConnected(false)
+        setGithubUsername(null)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/github/status', {
+          headers: {
+            'Authorization': `Bearer ${session.accessToken}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setGithubConnected(data.connected)
+          setGithubUsername(data.username || null)
+        } else {
+          setGithubConnected(false)
+          setGithubUsername(null)
+        }
+      } catch (error) {
+        console.error('Error checking GitHub status:', error)
+        setGithubConnected(false)
+        setGithubUsername(null)
+      }
+    }
+    checkGithubStatus()
+  }, [session])
+
+  const getUserInitials = (email: string) => {
+    return email.substring(0, 2).toUpperCase()
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString(language === "en" ? "en-US" : "zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  }
+
+
+// ========== 文件: app\profile\page.tsx ==========
+
+  const getSubscriptionIcon = (tier: SubscriptionTier) => {
+    switch (tier) {
+      case 'free': return <Zap className="h-3 w-3" />
+      case 'basic': return <Sparkles className="h-3 w-3" />
+      case 'pro': return <Crown className="h-3 w-3" />
+      case 'premium': return <Star className="h-3 w-3" />
+      default: return <Zap className="h-3 w-3" />
+    }
+  }
+
+  const getSubscriptionColor = (tier: SubscriptionTier) => {
+    switch (tier) {
+      case 'free': return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+      case 'basic': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+      case 'pro': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+      case 'premium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+    }
+  }
+
+  const getSubscriptionDisplayName = (tier: SubscriptionTier) => {
+    const tierNames = {
+      free: language === "en" ? "Free" : "免费版",
+      basic: language === "en" ? "Basic" : "基础版",
+      pro: language === "en" ? "Professional" : "专业版",
+      premium: language === "en" ? "Premium" : "旗舰版",
+    }
+    return tierNames[tier] || tierNames.free
+  }
+
+  // 计算订阅剩余时间
+  const calculateRemainingTime = (endDate: string | null): string | null => {
+    if (!endDate) return null
+    
+    const now = new Date()
+    const end = new Date(endDate)
+    const diff = end.getTime() - now.getTime()
+    
+    if (diff <= 0) {
+      return language === "en" ? "Expired" : "已过期"
+    }
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    
+    if (days > 0) {
+      return language === "en" 
+        ? `${days} day${days > 1 ? 's' : ''} ${hours} hour${hours !== 1 ? 's' : ''}`
+        : `${days}天${hours}小时`
+
+// ========== 文件: app\profile\page.tsx ==========
+
+    } else if (hours > 0) {
+      return language === "en"
+        ? `${hours} hour${hours > 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`
+        : `${hours}小时${minutes}分钟`
+    } else {
+      return language === "en"
+        ? `${minutes} minute${minutes !== 1 ? 's' : ''}`
+        : `${minutes}分钟`
+    }
+  }
+
+  // 实时更新剩余时间
+  const [remainingTime, setRemainingTime] = useState<string | null>(null)
+  
+  useEffect(() => {
+    if (subscriptionEndDate && subscriptionStatus === 'active') {
+      const updateRemainingTime = () => {
+        setRemainingTime(calculateRemainingTime(subscriptionEndDate))
+      }
+      
+      updateRemainingTime()
+      const interval = setInterval(updateRemainingTime, 60000) // 每分钟更新一次
+      
+      return () => clearInterval(interval)
+    } else {
+      setRemainingTime(null)
+    }
+  }, [subscriptionEndDate, subscriptionStatus, language])
+
+  const handleConnectGithub = async () => {
+    if (!session?.accessToken) {
+      alert(language === "en" ? "Please log in first" : "请先登录")
+      return
+    }
+
+    // 如果已经连接了 GitHub，提示用户需要先解绑
+    if (githubConnected) {
+      const confirmMessage = language === "en"
+        ? `You are already connected to GitHub as @${githubUsername}. To connect a different account, you need to unbind first. Would you like to unbind now?`
+        : `您已经连接到 GitHub 账户 @${githubUsername}。要连接其他账户，需要先解绑当前账户。要现在解绑吗？`
+
+      const shouldUnbind = confirm(confirmMessage)
+      if (shouldUnbind) {
+        await handleUnbindGithub()
+        return
+      } else {
+        return
+      }
+    }
+
+
+// ========== 文件: app\profile\page.tsx ==========
+
+    setIsGithubLoading(true)
+    try {
+      const response = await fetch('/api/github/auth', {
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.authUrl) {
+          window.open(data.authUrl, '_blank')
+        } else if (data.setupUrl) {
+          alert(data.message || (language === "en" ? "GitHub OAuth not configured." : "GitHub OAuth 未配置。"))
+          window.open(data.setupUrl, '_blank')
+        }
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error || (language === "en" ? "Failed to connect GitHub" : "连接 GitHub 失败"))
+      }
+    } catch (error: any) {
+      console.error('Error connecting GitHub:', error)
+      alert(language === "en" ? `Failed to connect GitHub: ${error.message}` : `连接 GitHub 失败: ${error.message}`)
+    } finally {
+      setIsGithubLoading(false)
+    }
+  }
+
+
+
+  const handleUnbindGithub = async () => {
+    if (!session?.accessToken) {
+      alert(language === "en" ? "Please log in first" : "请先登录")
+      return
+    }
+
+    if (!confirm(language === "en"
+      ? "Are you sure you want to unbind your GitHub account? This will remove your ability to push code to GitHub."
+      : "确定要解绑 GitHub 账户吗？这将移除您推送到 GitHub 的能力。")) {
+      return
+    }
+
+    setIsUnbinding(true)
+    try {
+      const response = await fetch('/api/github/unbind', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+        },
+      })
+
+// ========== 文件: app\profile\page.tsx ==========
+
+
+      if (response.ok) {
+        const data = await response.json()
+        setGithubConnected(false)
+        setGithubUsername(null)
+        alert(language === "en" ? "GitHub account unbound successfully" : "GitHub 账户解绑成功")
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error || (language === "en" ? "Failed to unbind GitHub account" : "解绑 GitHub 账户失败"))
+      }
+    } catch (error: any) {
+      console.error('Error unbinding GitHub:', error)
+      alert(language === "en" ? `Failed to unbind GitHub: ${error.message}` : `解绑 GitHub 失败: ${error.message}`)
+    } finally {
+      setIsUnbinding(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header language={language} setLanguage={setLanguage} />
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold">
+              {language === "en" ? "Profile" : "个人资料"}
+            </h1>
+            {!isLoadingSubscription && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className={`flex items-center gap-1 ${getSubscriptionColor(subscriptionTier)}`}>
+                  {getSubscriptionIcon(subscriptionTier)}
+                  {getSubscriptionDisplayName(subscriptionTier)}
+                  {subscriptionStatus === 'active' && subscriptionEndDate && (
+                    <span className="text-xs ml-1">
+                      ({language === "en" ? "Active" : "活跃"})
+                    </span>
+                  )}
+                </Badge>
+                {subscriptionStatus === 'active' && remainingTime && (
+                  <Badge variant="outline" className="flex items-center gap-1 text-primary border-primary">
+                    <Sparkles className="h-3 w-3" />
+                    <span className="text-xs">
+                      {language === "en" ? "Remaining" : "剩余"}: {remainingTime}
+                    </span>
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+
+
+// ========== 文件: app\profile\page.tsx ==========
+
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Profile Overview */}
+            <Card className="md:col-span-1">
+              <CardHeader className="text-center">
+                <Avatar className="w-24 h-24 mx-auto mb-4">
+                  <AvatarImage src="" alt={user.email || ""} />
+                  <AvatarFallback className="text-2xl bg-accent">
+                    {getUserInitials(user.email || "")}
+                  </AvatarFallback>
+                </Avatar>
+                <CardTitle className="text-xl">
+                  {user.fullName || user.user_metadata?.full_name || "User"}
+                </CardTitle>
+                <CardDescription className="flex items-center justify-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  {user.email}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span>
+                      {language === "en" ? "Joined" : "加入时间"}: {formatDate(user.createdAt || user.created_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    <span>
+                      {language === "en" ? "Last sign in" : "最后登录"}: {formatDate(user.lastSignInAt || user.last_sign_in_at || user.createdAt || user.created_at)}
+                    </span>
+                  </div>
+                  {!isLoadingSubscription && subscriptionStatus === 'active' && subscriptionEndDate && (
+                    <>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>
+                          {language === "en" ? "Subscription ends" : "订阅到期"}: {formatDate(subscriptionEndDate)}
+                        </span>
+                      </div>
+                      {remainingTime && (
+                        <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                          <Sparkles className="h-4 w-4" />
+                          <span>
+                            {language === "en" ? "Remaining time" : "剩余时间"}: {remainingTime}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+// ========== 文件: app\profile\page.tsx ==========
+
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Account Settings */}
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>
+                  {language === "en" ? "Account Settings" : "账户设置"}
+                </CardTitle>
+                <CardDescription>
+                  {language === "en"
+                    ? "Manage your account information and preferences"
+                    : "管理您的账户信息和偏好设置"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">
+                    {language === "en" ? "Full Name" : "全名"}
+                  </Label>
+                  <Input
+                    id="fullName"
+                    defaultValue={user.fullName || user.user_metadata?.full_name || ""}
+                    placeholder={language === "en" ? "Enter your full name" : "输入您的全名"}
+                    disabled={!isEditing}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">
+                    {language === "en" ? "Email" : "邮箱"}
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={user.email || ""}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === "en"
+                      ? "Email cannot be changed. Contact support if needed."
+                      : "邮箱无法修改。如需修改请联系支持。"}
+                  </p>
+                </div>
+
+                {/* GitHub Integration */}
+                <div className="space-y-3 border-t pt-4">
+                  <Label className="text-base font-medium flex items-center gap-2">
+
+// ========== 文件: app\profile\page.tsx ==========
+
+                    <Github className="h-4 w-4" />
+                    {language === "en" ? "GitHub Integration" : "GitHub 集成"}
+                  </Label>
+
+                  {githubConnected ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <div className="flex items-center gap-2">
+                          <Github className="h-5 w-5 text-green-600 dark:text-green-400" />
+                          <div>
+                            <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                              {language === "en" ? "Connected" : "已连接"}
+                            </p>
+                            {githubUsername && (
+                              <p className="text-xs text-green-600 dark:text-green-400">
+                                @{githubUsername}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`https://github.com/${githubUsername}`, '_blank')}
+                          className="flex items-center gap-2"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {language === "en" ? "View Profile" : "查看资料"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleUnbindGithub}
+                          disabled={isUnbinding}
+                          className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        >
+                          {isUnbinding ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Unlink className="h-3 w-3" />
+                          )}
+                          {language === "en" ? "Unbind" : "解绑"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+
+// ========== 文件: app\profile\page.tsx ==========
+
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-950/20 rounded-lg border border-gray-200 dark:border-gray-800">
+                        <div className="flex items-center gap-2">
+                          <Github className="h-5 w-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                              {language === "en" ? "Not Connected" : "未连接"}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              {language === "en"
+                                ? "Connect your GitHub account to push code to repositories"
+                                : "连接您的 GitHub 账户以推送到代码仓库"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handleConnectGithub}
+                        disabled={isGithubLoading}
+                        className="flex items-center gap-2"
+                      >
+                        {isGithubLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Github className="h-4 w-4" />
+                        )}
+                        {language === "en" ? "Connect GitHub Account" : "连接 GitHub 账户"}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {language === "en"
+                          ? "Each user can connect one GitHub account at a time. To switch accounts, unbind first."
+                          : "每个用户同时只能连接一个 GitHub 账户。要切换账户，请先解绑。"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setIsEditing(!isEditing)}
+                    variant={isEditing ? "outline" : "default"}
+                  >
+                    {isEditing
+                      ? (language === "en" ? "Cancel" : "取消")
+                      : (language === "en" ? "Edit Profile" : "编辑资料")}
+                  </Button>
+                  {isEditing && (
+                    <Button>
+
+// ========== 文件: app\profile\page.tsx ==========
+
+                      {language === "en" ? "Save Changes" : "保存更改"}
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Usage Statistics */}
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {language === "en" ? "Usage Statistics" : "使用统计"}
+              </CardTitle>
+              <CardDescription>
+                {language === "en"
+                  ? "Your code generation usage this month"
+                  : "本月代码生成使用情况"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Code Generation Usage */}
+                <div className="text-center p-6 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-950/40 dark:to-blue-900/40 rounded-lg border-2 border-blue-300 dark:border-blue-700 shadow-sm">
+                  {isLoadingUsage ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
+                    </div>
+                  ) : codeUsage ? (
+                    <>
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <Code className="h-6 w-6 text-blue-700 dark:text-blue-300" />
+                        <div className="text-4xl font-bold text-blue-900 dark:text-blue-100">
+                          {codeUsage.isUnlimited
+                            ? (language === "en" ? "∞" : "无限")
+                            : codeUsage.remaining}
+                        </div>
+                      </div>
+                      <div className="text-base font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                        {language === "en" ? "Remaining Generations" : "剩余生成次数"}
+                      </div>
+                      {!codeUsage.isUnlimited && (
+                        <div className="w-full bg-blue-200 dark:bg-blue-950 rounded-full h-3 mt-3 border border-blue-300 dark:border-blue-700">
+                          <div
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 h-3 rounded-full transition-all shadow-sm"
+                            style={{ width: `${Math.min((codeUsage.current / codeUsage.limit) * 100, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                      <div className="text-sm text-blue-900 dark:text-blue-100 font-medium mt-3">
+
+// ========== 文件: app\profile\page.tsx ==========
+
+                        {codeUsage.isUnlimited
+                          ? (language === "en" ? "Unlimited code generation" : "无限次代码生成")
+                          : language === "en"
+                            ? `${codeUsage.current} / ${codeUsage.limit} used this month`
+                            : `本月已使用 ${codeUsage.current} / ${codeUsage.limit} 次`}
+                        </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">-</div>
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        {language === "en" ? "Unable to load usage data" : "无法加载使用数据"}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Subscription Status */}
+                <div className="text-center p-6 bg-gradient-to-br from-emerald-100 to-green-200 dark:from-emerald-950/40 dark:to-green-900/40 rounded-lg border-2 border-emerald-300 dark:border-emerald-700 shadow-sm">
+                  {isLoadingSubscription ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        {getSubscriptionIcon(subscriptionTier)}
+                        <div className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
+                          {getSubscriptionDisplayName(subscriptionTier)}
+                        </div>
+                      </div>
+                      <div className="text-base font-semibold text-emerald-800 dark:text-emerald-200 mb-2">
+                        {language === "en" ? "Current Plan" : "当前计划"}
+                      </div>
+                      {subscriptionStatus === 'active' && subscriptionEndDate && (
+                        <>
+                          <div className="text-sm text-emerald-900 dark:text-emerald-100 font-medium mt-3">
+                            {language === "en" ? "Expires on" : "到期于"}: {formatDate(subscriptionEndDate)}
+                          </div>
+                          {remainingTime && (
+                            <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300 mt-2">
+                              {language === "en" ? "Remaining" : "剩余"}: {remainingTime}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+// ========== 文件: app\profile\page.tsx ==========
+
+
+              {/* Monthly quota details */}
+              {!isLoadingUsage && codeUsage && !codeUsage.isUnlimited && (
+                <div className="mt-6 p-4 bg-secondary/20 rounded-lg">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {language === "en" ? "Monthly Quota" : "本月配额"}
+                    </span>
+                    <span className="font-medium">
+                      {language === "en" ? "Resets on 1st of each month" : "每月1号重置"}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+
+
+
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Sparkles, Mail, Lock, User, Eye, EyeOff, CheckCircle, Shield } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { Separator } from "@/components/ui/separator"
+
+export default function RegisterPage() {
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    fullName: "",
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+// ========== 文件: app\register\page.tsx ==========
+
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
+  const [acceptTerms, setAcceptTerms] = useState(false)
+
+  const { signUp } = useAuth()
+  const router = useRouter()
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    if (error) setError("")
+  }
+
+  // 邮箱验证函数
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  const validateForm = () => {
+    if (!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName) {
+      setError("请填写所有字段")
+      return false
+    }
+
+    if (formData.password.length < 6) {
+      setError("密码长度至少6位")
+      return false
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("两次密码输入不一致")
+      return false
+    }
+
+    if (!acceptTerms) {
+      setError("请同意服务条款和隐私政策")
+      return false
+    }
+
+    return true
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!validateForm()) return
+
+    setIsLoading(true)
+    setError("")
+
+
+// ========== 文件: app\register\page.tsx ==========
+
+    try {
+      console.log('开始注册，邮箱:', formData.email)
+
+      // 调用直接注册API
+      const result = await signUp(formData.email, formData.password, {
+        full_name: formData.fullName
+      })
+
+      if (result.success) {
+        console.log('注册成功:', result.user)
+        setSuccess(true)
+      } else {
+        console.error('注册失败:', result.error)
+        setError(result.error)
+      }
+
+    } catch (err: any) {
+      console.error('注册异常:', err)
+      setError("注册失败，请稍后重试")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 成功页面
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="h-16 w-16 text-green-500" />
+            </div>
+            <CardTitle className="text-2xl text-green-700">注册成功！</CardTitle>
+            <CardDescription className="text-base">
+              欢迎加入！您的账户已成功注册。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                您现在可以使用您的邮箱和密码登录系统。
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => router.push("/login")} className="w-full">
+              前往登录
+            </Button>
+          </CardFooter>
+
+// ========== 文件: app\register\page.tsx ==========
+
+        </Card>
+      </div>
+    )
+  }
+
+  // 基本信息填写步骤
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent">
+              <Sparkles className="h-6 w-6 text-accent-foreground" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl">创建账户</CardTitle>
+          <CardDescription>
+            加入CodeGen AI，开始构建精彩的UI界面
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={formData.fullName}
+                  onChange={(e) => handleInputChange("fullName", e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  className="pl-10"
+                  required
+
+// ========== 文件: app\register\page.tsx ==========
+
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="请输入密码（至少6位）"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange("password", e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">确认密码</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="请再次输入密码"
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+
+// ========== 文件: app\register\page.tsx ==========
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="terms"
+                checked={acceptTerms}
+                onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+              />
+              <label htmlFor="terms" className="text-sm text-muted-foreground">
+                我同意{" "}
+                <Link href="/terms" className="text-accent hover:underline">
+                  服务条款
+                </Link>{" "}
+                和{" "}
+                <Link href="/privacy" className="text-accent hover:underline">
+                  隐私政策
+                </Link>
+              </label>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "注册中..." : "注册账户"}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter className="text-center">
+          <div className="text-sm text-muted-foreground">
+            已有账户？{" "}
+            <Link href="/login" className="text-accent hover:underline">
+              立即登录
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}
+
+
+
+
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
+
+// ========== 文件: app\settings\page.tsx ==========
+
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft, CreditCard, User, Crown, Edit2, Save, X } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/components/language-provider"
+import { useTranslations } from "@/lib/i18n"
+import { BillingHistory } from "@/components/payment/billing-history"
+import { fetchWithAuth } from "@/lib/auth/fetch-with-auth"
+import { isChinaDeployment } from "@/lib/config/deployment.config"
+
+// 根据区域获取定价配置
+const isCN = isChinaDeployment()
+const PRICING = {
+  pro: {
+    monthly: isCN ? 19.9 : 2.99,
+    yearly: isCN ? 199 : 29.99,
+  },
+  enterprise: {
+    monthly: isCN ? 49.9 : 6.99,
+    yearly: isCN ? 499 : 69.99,
+  },
+  currency: isCN ? "CNY" : "USD",
+  symbol: isCN ? "¥" : "$",
+}
+
+export default function SettingsPage() {
+  const { user, isAuthenticated, isLoading, refresh } = useAuth()
+  const router = useRouter()
+  const { toast } = useToast()
+  const { language } = useLanguage()
+  const t = useTranslations(language)
+
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [overridePlan, setOverridePlan] = useState<"free" | "pro" | "enterprise" | null>(null)
+  const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedName, setEditedName] = useState("")
+  const [isUpdatingName, setIsUpdatingName] = useState(false)
+
+  const normalizePlan = (plan?: string | null) => {
+    const val = (plan || "").toLowerCase()
+    if (val.includes("enterprise")) return "enterprise"
+    if (val.includes("pro")) return "pro"
+    return "free"
+  }
+
+
+// ========== 文件: app\settings\page.tsx ==========
+
+  // 优先使用 subscription_plan（来自 token 验证，已通过 getUserPlan 获取真实值）
+  // 其次使用 subscriptionTier（来自数据库 users 表）
+  const currentPlan = overridePlan ?? (user?.subscription_plan ? normalizePlan(user.subscription_plan) : (user?.subscriptionTier ? normalizePlan(user.subscriptionTier) : "free"))
+  const isEnterprise = currentPlan === "enterprise"
+  const isPro = currentPlan === "pro"
+  const subscriptionTitle = isEnterprise
+    ? t.settingsPage.subscription.enterprisePlan || t.settingsPage.subscription.title
+    : t.settingsPage.subscription.title
+  const subscriptionSubtitle = isEnterprise
+    ? t.settingsPage.subscription.enterpriseDescription || t.settingsPage.subscription.subtitle
+    : t.settingsPage.subscription.subtitle
+
+  // Fetch subscription info on mount for paid users
+  useEffect(() => {
+    const fetchSubscriptionInfo = async () => {
+      if (!isAuthenticated || !user) return
+
+      // 优先使用 subscription_plan
+      const plan = user?.subscription_plan ? normalizePlan(user.subscription_plan) : (user?.subscriptionTier ? normalizePlan(user.subscriptionTier) : "free")
+      if (plan === "free") return
+
+      try {
+        const response = await fetchWithAuth("/api/auth/refresh-subscription", {
+          method: "POST",
+        })
+
+        const contentType = response.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) return
+
+        const data = await response.json()
+        if (response.ok && data.success) {
+          const planFromDb = normalizePlan(data.subscription?.plan_type)
+          const resolvedPlan = planFromDb !== "free" ? planFromDb : normalizePlan(data.subscriptionPlan)
+          setOverridePlan(resolvedPlan)
+
+          if (data.subscription?.subscription_end) {
+            setSubscriptionEnd(data.subscription.subscription_end)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch subscription info:", error)
+      }
+    }
+
+    fetchSubscriptionInfo()
+    // 只依赖 user.id 而不是整个 user 对象，避免无限循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id])
+
+  if (isLoading) {
+
+// ========== 文件: app\settings\page.tsx ==========
+
+    return (
+      <div className="min-h-screen bg-[#F7F9FC] flex items-center justify-center">
+        <p>{t.settingsPage.loading}</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    router.push("/login")
+    return null
+  }
+
+  const handleRefreshSubscription = async () => {
+    setIsRefreshing(true)
+
+    try {
+      const response = await fetchWithAuth("/api/auth/refresh-subscription", {
+        method: "POST",
+      })
+
+      // Check if the response is actually JSON
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error(`Server returned non-JSON response (${response.status}): ${await response.text()}`)
+      }
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        const planFromDb = normalizePlan(data.subscription?.plan_type)
+        const resolvedPlan = planFromDb !== "free" ? planFromDb : normalizePlan(data.subscriptionPlan)
+        setOverridePlan(resolvedPlan)
+
+        // 保存订阅到期时间
+        if (data.subscription?.subscription_end) {
+          setSubscriptionEnd(data.subscription.subscription_end)
+        }
+
+        // 更新本地缓存 - 根据环境选择不同的缓存管理器
+        if (isCN) {
+          // CN 环境使用 auth-state-manager
+          const { getStoredAuthState, saveAuthState } = await import("@/lib/auth/auth-state-manager")
+          const authState = getStoredAuthState()
+          if (authState && user) {
+            // 更新用户的订阅信息
+            const updatedUser = {
+              ...authState.user,
+              subscription_plan: resolvedPlan,
+              subscription_status: data.subscriptionStatus,
+            }
+
+// ========== 文件: app\settings\page.tsx ==========
+
+            saveAuthState(
+              authState.accessToken,
+              authState.refreshToken,
+              updatedUser,
+              authState.tokenMeta
+            )
+          }
+        } else {
+          // INTL 环境使用 auth-state-manager-intl
+          const { clearSupabaseUserCache, saveSupabaseUserCache } = await import("@/lib/auth/auth-state-manager-intl")
+
+          // 先清除缓存，确保获取最新数据
+          clearSupabaseUserCache()
+
+          // 更新缓存中的订阅信息
+          if (user) {
+            saveSupabaseUserCache({
+              id: user.id,
+              email: user.email || "",
+              name: user.name,
+              avatar: user.avatar,
+              subscription_plan: resolvedPlan,
+              subscription_status: data.subscriptionStatus,
+            })
+          }
+        }
+
+        // 刷新用户认证状态
+        await refresh()
+
+        const planLabel = resolvedPlan === "enterprise" 
+          ? (language === "zh" ? "企业版" : "Enterprise")
+          : resolvedPlan === "pro"
+          ? (language === "zh" ? "专业版" : "Pro")
+          : (language === "zh" ? "免费版" : "Free")
+
+        toast({
+          title: language === "zh" ? "订阅已更新" : "Subscription Updated",
+          description: language === "zh"
+            ? `您的订阅状态已更新为：${planLabel}`
+            : `Your subscription has been updated to: ${planLabel}`,
+        })
+      } else {
+        toast({
+          title: language === "zh" ? "更新失败" : "Update Failed",
+          description: data.error || (language === "zh" ? "无法更新订阅状态" : "Failed to update subscription"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+
+// ========== 文件: app\settings\page.tsx ==========
+
+      console.error("Refresh subscription error:", error)
+
+      // Provide more specific error messages
+      let errorMessage = language === "zh" ? "网络错误，请重试" : "Network error, please try again"
+      if (error instanceof Error) {
+        if (error.message.includes("502")) {
+          errorMessage = language === "zh" ? "服务器暂时不可用，请稍后重试" : "Server temporarily unavailable, please try again later"
+        } else if (error.message.includes("non-JSON")) {
+          errorMessage = language === "zh" ? "服务器响应异常，请联系技术支持" : "Server response error, please contact support"
+        }
+      }
+
+      toast({
+        title: language === "zh" ? "更新失败" : "Update Failed",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  const handleEditName = () => {
+    setEditedName(user?.name || "")
+    setIsEditingName(true)
+  }
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false)
+    setEditedName("")
+  }
+
+  const handleSaveName = async () => {
+    if (!editedName.trim()) {
+      toast({
+        title: language === "zh" ? "错误" : "Error",
+        description: language === "zh" ? "姓名不能为空" : "Name cannot be empty",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsUpdatingName(true)
+
+    try {
+      const response = await fetchWithAuth("/api/profile/update", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+// ========== 文件: app\settings\page.tsx ==========
+
+        body: JSON.stringify({
+          full_name: editedName.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update name")
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        if (user) {
+          user.name = editedName.trim()
+        }
+
+        // Update user cache
+        try {
+          const { updateSupabaseUserCache } = await import("@/lib/auth/auth-state-manager-intl")
+          updateSupabaseUserCache({
+            ...user,
+            name: editedName.trim(),
+          })
+        } catch (error) {
+          console.error("Failed to update user cache:", error)
+        }
+
+        setIsEditingName(false)
+        setEditedName("")
+
+        toast({
+          title: language === "zh" ? "更新成功" : "Success",
+          description: language === "zh" ? "姓名已更新" : "Name updated successfully",
+        })
+      }
+    } catch (error) {
+      console.error("Update name error:", error)
+      toast({
+        title: language === "zh" ? "更新失败" : "Update Failed",
+        description: error instanceof Error ? error.message : (language === "zh" ? "请重试" : "Please try again"),
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingName(false)
+    }
+  }
+
+  return (
+
+// ========== 文件: app\settings\page.tsx ==========
+
+    <div className="min-h-screen bg-[#F7F9FC] p-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center mb-8 pt-8">
+          <Link href="/">
+            <Button variant="ghost" size="sm" className="mr-4">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {t.settingsPage.back}
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-800">{t.settingsPage.title}</h1>
+        </div>
+
+        <Tabs defaultValue="account" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="account">
+              <User className="h-4 w-4 mr-2" />
+              {t.settingsPage.tabs.account}
+            </TabsTrigger>
+            <TabsTrigger value="payment">
+              <CreditCard className="h-4 w-4 mr-2" />
+              {t.settingsPage.tabs.payment}
+            </TabsTrigger>
+            <TabsTrigger value="subscription">
+              <Crown className="h-4 w-4 mr-2" />
+              {t.settingsPage.tabs.pro}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Account Tab */}
+          <TabsContent value="account" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settingsPage.account.title}</CardTitle>
+                <CardDescription>
+                  {t.settingsPage.account.subtitle}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>{t.settingsPage.account.name}</Label>
+                    {!isEditingName && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleEditName}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit2 className="h-4 w-4" />
+
+// ========== 文件: app\settings\page.tsx ==========
+
+                      </Button>
+                    )}
+                  </div>
+                  {isEditingName ? (
+                    <div className="flex gap-2">
+                      <Input
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        placeholder={language === "zh" ? "输入您的姓名" : "Enter your name"}
+                        className="flex-1"
+                        disabled={isUpdatingName}
+                        maxLength={100}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleSaveName}
+                        disabled={isUpdatingName || !editedName.trim()}
+                        className="px-3"
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEditName}
+                        disabled={isUpdatingName}
+                        className="px-3"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Input value={user?.name || t.settingsPage.account.na} disabled />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.settingsPage.account.email}</Label>
+                  <Input value={user?.email || ""} disabled />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>{t.settingsPage.account.subscriptionTier}</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefreshSubscription}
+                      disabled={isRefreshing}
+                    >
+                      {isRefreshing
+                        ? (language === "zh" ? "刷新中..." : "Refreshing...")
+
+// ========== 文件: app\settings\page.tsx ==========
+
+                        : (language === "zh" ? "刷新状态" : "Refresh Status")
+                      }
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {currentPlan === "enterprise" && (
+                      <span className="px-3 py-1 text-sm rounded-full bg-purple-100 text-purple-700 font-medium">
+                        {t.settingsPage.account.tiers.enterprise}
+                      </span>
+                    )}
+                    {currentPlan === "pro" && (
+                      <span className="px-3 py-1 text-sm rounded-full bg-green-100 text-green-700 font-medium">
+                        {t.settingsPage.account.tiers.pro}
+                      </span>
+                    )}
+                    {currentPlan === "free" && (
+                      <span className="px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-700 font-medium">
+                        {t.settingsPage.account.tiers.free}
+                      </span>
+                    )}
+                  </div>
+                  {/* Subscription Expiry Date */}
+                  {(currentPlan === "pro" || currentPlan === "enterprise") && (
+                    <div className="text-sm text-gray-600 mt-2">
+                      {subscriptionEnd ? (
+                        <span>
+                          {language === "zh" ? "到期时间：" : "Expires: "}
+                          {new Date(subscriptionEnd).toLocaleDateString(language === "zh" ? "zh-CN" : "en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {language === "zh" ? "点击\"刷新状态\"查看到期时间" : "Click \"Refresh Status\" to see expiry date"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Payment Tab */}
+          <TabsContent value="payment" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settingsPage.paymentTab.title}</CardTitle>
+
+// ========== 文件: app\settings\page.tsx ==========
+
+                <CardDescription>
+                  {language === "zh"
+                    ? "管理您的订阅和支付方式"
+                    : "Manage your subscription and payment methods"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                    <CreditCard className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">
+                    {language === "zh" ? "安全支付" : "Secure Payment"}
+                  </h3>
+                  <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                    {language === "zh"
+                      ? isCN 
+                        ? "我们使用支付宝和微信支付进行安全支付处理。您可以在订阅页面选择您偏好的支付方式。"
+                        : "我们使用 Stripe 和 PayPal 进行安全支付处理。您可以在订阅页面选择您偏好的支付方式。"
+                      : "We use Stripe and PayPal for secure payment processing. You can choose your preferred payment method on the subscription page."}
+                  </p>
+
+                  <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                    <p className="text-sm text-blue-800">
+                      {t.settingsPage.paymentTab.securityNote}
+                    </p>
+                  </div>
+
+                  <Link href="/pro">
+                    <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                      {currentPlan === "free"
+                        ? (language === "zh" ? "升级到 Pro" : "Upgrade to Pro")
+                        : (language === "zh" ? "管理订阅" : "Manage Subscription")}
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Subscription Tab */}
+          <TabsContent value="subscription" className="mt-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{subscriptionTitle}</CardTitle>
+                <CardDescription>
+                  {subscriptionSubtitle}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+// ========== 文件: app\settings\page.tsx ==========
+
+                {isEnterprise ? (
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 mb-4">
+                      <Crown className="h-8 w-8 text-purple-700" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">
+                      {t.settingsPage.subscription.youAreEnterprise || t.settingsPage.subscription.youArePro}
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      {t.settingsPage.subscription.enterpriseDescription || t.settingsPage.subscription.proDescription}
+                    </p>
+                    <div className="mt-6 p-4 bg-purple-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-lg font-bold text-purple-800">
+                          {t.settingsPage.subscription.enterprisePlan || t.settingsPage.subscription.proPlan}
+                        </h4>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-purple-700">{PRICING.symbol}{PRICING.enterprise.monthly}</div>
+                          <div className="text-sm text-purple-600">{t.settingsPage.subscription.perMonth}</div>
+                        </div>
+                      </div>
+                      <ul className="space-y-2 text-left text-sm text-purple-800">
+                        <li>✓ {t.settingsPage.subscription.features.unlimited}</li>
+                        <li>✓ {t.settingsPage.subscription.features.aiPersonalization}</li>
+                        <li>✓ {t.settingsPage.subscription.features.favorites}</li>
+                        <li>✓ {t.settingsPage.subscription.features.support}</li>
+                        <li>✓ {t.settingsPage.subscription.features.adFree}</li>
+                      </ul>
+                      <Button
+                        variant="outline"
+                        onClick={handleRefreshSubscription}
+                        disabled={isRefreshing}
+                        className="w-full mt-4"
+                      >
+                        {t.settingsPage.subscription.manageButton || t.settingsPage.subscription.upgradeButton}
+                      </Button>
+                    </div>
+                  </div>
+                ) : isPro ? (
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+                      <Crown className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">{t.settingsPage.subscription.youArePro}</h3>
+                    <p className="text-gray-600 mb-4">
+                      {t.settingsPage.subscription.proDescription}
+                    </p>
+                    {/* Current Plan Details */}
+                    <div className="mt-4 p-4 bg-green-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+
+// ========== 文件: app\settings\page.tsx ==========
+
+                        <h4 className="text-lg font-bold text-green-800">
+                          {t.settingsPage.subscription.proPlan}
+                        </h4>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-green-700">{PRICING.symbol}{PRICING.pro.monthly}</div>
+                          <div className="text-sm text-green-600">{t.settingsPage.subscription.perMonth}</div>
+                        </div>
+                      </div>
+                      {subscriptionEnd && (
+                        <div className="text-sm text-green-800 mb-3 p-2 bg-green-100 rounded">
+                          {language === "zh" ? "到期时间：" : "Expires: "}
+                          <span className="font-semibold">
+                            {new Date(subscriptionEnd).toLocaleDateString(language === "zh" ? "zh-CN" : "en-US", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      <ul className="space-y-2 text-left text-sm text-green-800">
+                        <li>✓ {t.settingsPage.subscription.features.unlimited}</li>
+                        <li>✓ {t.settingsPage.subscription.features.aiPersonalization}</li>
+                        <li>✓ {t.settingsPage.subscription.features.favorites}</li>
+                        <li>✓ {t.settingsPage.subscription.features.support}</li>
+                        <li>✓ {t.settingsPage.subscription.features.adFree}</li>
+                      </ul>
+                    </div>
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-800 mb-3">
+                        {language === "zh"
+                          ? "如果刚刚完成支付但订阅状态未更新，请点击下方按钮刷新。"
+                          : "If you've just completed payment but your subscription hasn't updated, click below to refresh."
+                        }
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={handleRefreshSubscription}
+                        disabled={isRefreshing}
+                        className="w-full"
+                      >
+                        {isRefreshing
+                          ? (language === "zh" ? "刷新中..." : "Refreshing...")
+                          : (language === "zh" ? "刷新订阅状态" : "Refresh Subscription Status")
+                        }
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+
+// ========== 文件: app\settings\page.tsx ==========
+
+                    <div className="border-2 border-blue-200 rounded-lg p-6 bg-gradient-to-br from-blue-50 to-purple-50">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold">{t.settingsPage.subscription.proPlan}</h3>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold text-blue-600">{PRICING.symbol}{PRICING.pro.monthly}</div>
+                          <div className="text-sm text-gray-600">{t.settingsPage.subscription.perMonth}</div>
+                        </div>
+                      </div>
+                      <ul className="space-y-2 mb-6">
+                        <li className="flex items-center text-sm">
+                          <span className="mr-2">✓</span>
+                          {t.settingsPage.subscription.features.unlimited}
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <span className="mr-2">✓</span>
+                          {t.settingsPage.subscription.features.aiPersonalization}
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <span className="mr-2">✓</span>
+                          {t.settingsPage.subscription.features.favorites}
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <span className="mr-2">✓</span>
+                          {t.settingsPage.subscription.features.support}
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <span className="mr-2">✓</span>
+                          {t.settingsPage.subscription.features.adFree}
+                        </li>
+                      </ul>
+                      <Link href="/pro">
+                        <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                          {t.settingsPage.subscription.upgradeButton}
+                        </Button>
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Billing History */}
+            <BillingHistory />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}

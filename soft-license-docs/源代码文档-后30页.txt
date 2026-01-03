@@ -1,0 +1,1499 @@
+                                title={language === "en" ? "Close Preview" : "关闭预览"}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div
+                            className={`flex-1 overflow-hidden bg-gray-100 ${previewDevice === 'desktop' ? 'flex items-stretch' : 'flex items-center justify-center'}`}
+                            style={{
+                              minHeight: previewDevice === 'mobile' ? '667px' : previewDevice === 'tablet' ? '1024px' : 'calc(66vh - 80px)',
+                              height: previewDevice === 'desktop' ? 'calc(66vh - 80px)' : 'auto',
+                              maxHeight: previewDevice === 'desktop' ? undefined : 'calc(100vh - 200px)',
+                              padding: previewDevice === 'desktop' ? '0' : '1rem'
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: deviceSizes[previewDevice].width,
+                                height: previewDevice === 'desktop' ? '100%' : deviceSizes[previewDevice].height,
+                                minHeight: previewDevice === 'desktop' ? '100%' : deviceSizes[previewDevice].height,
+                                transform: previewDevice === 'desktop' ? 'none' : `scale(${previewScale})`,
+                                transformOrigin: previewDevice === 'desktop' ? 'center center' : 'center top',
+                                transition: 'transform 0.2s ease',
+                                border: previewDevice !== 'desktop' ? '8px solid #1f2937' : 'none',
+                                borderRadius: previewDevice !== 'desktop' ? '12px' : '0',
+                                boxShadow: previewDevice !== 'desktop' ? '0 20px 60px rgba(0,0,0,0.3)' : 'none',
+                                overflow: previewDevice === 'desktop' ? 'hidden' : 'auto',
+                                backgroundColor: '#fff',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                flex: previewDevice === 'desktop' ? '1' : 'none',
+                                position: previewDevice === 'desktop' ? 'relative' : 'static'
+                              }}
+                            >
+                              <iframe
+                                src={previewUrl}
+                                className="w-full h-full border-0"
+                                title="Live Preview"
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                                onLoad={() => {
+                                  console.log('Preview iframe loaded successfully')
+                                  setPreviewError(null)
+                                  setIsPreviewLoading(false)
+
+                                  // Check if iframe has content
+                                  setTimeout(() => {
+                                    try {
+                                      const iframe = document.querySelector('iframe[title="Live Preview"]') as HTMLIFrameElement
+                                      if (iframe && iframe.contentWindow) {
+                                        console.log('Iframe content loaded, checking for App component...')
+                                        // Try to access iframe content
+                                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
+                                        if (iframeDoc) {
+                                          const rootEl = iframeDoc.getElementById('root')
+                                          const loadingEl = iframeDoc.getElementById('loading')
+                                          console.log('Iframe root element:', rootEl, 'loading element:', loadingEl)
+                                          if (rootEl && loadingEl && loadingEl.style.display === 'none') {
+                                            console.log('Preview appears to be working correctly')
+                                          } else {
+                                            console.log('Preview may not be displaying correctly')
+                                          }
+                                        }
+                                      }
+                                    } catch (e) {
+                                      console.error('Error checking iframe content:', e)
+                                    }
+                                  }, 2000) // Wait 2 seconds for rendering to complete
+                                }}
+                                onError={() => {
+                                  console.error('Preview iframe failed to load')
+                                  setPreviewError(language === "en" ? "Failed to load preview" : "加载预览失败")
+                                  setIsPreviewLoading(false)
+                                }}
+                              />
+                            </div>
+                          </div>
+                          {isPreviewLoading && (
+                            <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                                <p className="text-sm text-gray-600">
+                                  {language === "en" ? "Loading preview... (This may take a few seconds)" : "加载预览中... (可能需要几秒钟)"}
+                                </p>
+                                <p className="text-xs text-gray-500 text-center max-w-xs">
+                                  {language === "en"
+                                    ? "Compiling React code and loading libraries..."
+                                    : "正在编译React代码并加载相关库..."
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-[200px_1fr] h-full">
+                        {/* File Browser */}
+                        <div className="border-r border-border bg-secondary/20 p-2 overflow-y-auto">
+                          <div className="space-y-1">
+                            {Object.keys(generatedProject.files).map((filePath) => (
+                              <button
+                                key={filePath}
+                                onClick={() => setSelectedFile(filePath)}
+                                className={`w-full text-left px-3 py-2 rounded text-sm hover:bg-secondary transition-colors ${
+                                  selectedFile === filePath
+                                    ? "bg-secondary font-medium"
+                                    : ""
+                                }`}
+                              >
+                                {filePath}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Code Display */}
+                        <div className="overflow-auto">
+                          <pre className="p-6 text-sm">
+                            <code className="text-foreground">
+                              {isModifying && modifyingCode ? (
+                                <>
+                                  {modifyingCode}
+                                  <span className="animate-pulse">▊</span>
+                                </>
+                              ) : (
+                                generatedProject.files[selectedFile]
+                              )}
+                            </code>
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-[76vh] items-center justify-center rounded-xl border border-dashed border-border bg-card/50">
+                  <div className="text-center">
+                    <Sparkles className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
+                    <p className="text-muted-foreground">
+                      {language === "en" ? "Your generated code will appear here" : "生成的代码将显示在这里"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+        </SidebarInset>
+    </div>
+    </SidebarProvider>
+  )
+
+
+
+
+  // 删除重复的handleAsyncTaskCompleted函数定义（已在前面定义）
+
+  // 复杂度评估函数
+  const assessPromptComplexity = (prompt: string): number => {
+    let complexity = prompt.length
+
+    // 关键词权重
+    const keywords = [
+      'dashboard', 'complex', 'multiple', 'advanced', 'full-featured',
+      '完整的', '复杂的', '多组件', '高级', '完整功能'
+    ]
+    keywords.forEach(keyword => {
+      if (prompt.toLowerCase().includes(keyword.toLowerCase())) {
+        complexity += 200
+      }
+    })
+
+    // 组件数量估算
+    const componentIndicators = ['component', 'page', 'screen', 'modal', 'form', '组件', '页面', '界面', '弹窗']
+    componentIndicators.forEach(indicator => {
+      const matches = prompt.toLowerCase().match(new RegExp(indicator.toLowerCase(), 'g'))
+      if (matches) {
+        complexity += matches.length * 100
+      }
+    })
+
+    return complexity
+  }
+
+
+
+
+
+
+
+
+
+}
+
+================================================================================
+
+
+================================================================================
+文件: lib/download-helper.ts
+描述: 项目文件下载功能
+================================================================================
+
+import JSZip from 'jszip'
+import type { GeneratedProject } from './code-generator'
+
+export function downloadAsZip(project: GeneratedProject) {
+  // Fallback to text file if JSZip fails
+  downloadAsTextFile(project)
+}
+
+export async function downloadAsProperZip(project: GeneratedProject) {
+  try {
+    const zip = new JSZip()
+    
+    // Create directory structure and add files
+    Object.entries(project.files).forEach(([filePath, content]) => {
+      zip.file(filePath, content)
+    })
+    
+    // Generate the ZIP file
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    
+    // Create download link
+    const url = URL.createObjectURL(zipBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${project.projectName}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    console.log(`Downloaded ${project.projectName}.zip with ${Object.keys(project.files).length} files`)
+  } catch (error) {
+    console.error('Error creating ZIP:', error)
+    // Fallback to text file
+    downloadAsTextFile(project)
+  }
+}
+
+function downloadAsTextFile(project: GeneratedProject) {
+  // Create a simple text representation for download
+  const filesContent = Object.entries(project.files)
+    .map(([path, content]) => {
+      const separator = '='.repeat(60)
+      return `${separator}\nFile: ${path}\n${separator}\n\n${content}\n\n`
+    })
+    .join('\n')
+
+  const fullContent = `PROJECT: ${project.projectName}
+Generated by mornFront - mornhub.dev
+
+INSTALLATION INSTRUCTIONS:
+1. Create a new directory: mkdir ${project.projectName}
+2. Navigate to it: cd ${project.projectName}
+3. Create each file below with its content
+4. Run: npm install
+5. Run: npm run dev
+
+${'='.repeat(80)}
+
+${filesContent}
+${'='.repeat(80)}
+
+To use this properly:
+- Copy each file section above into the respective file path
+- Make sure directory structures are created (e.g., src/)
+- Run npm install to install all dependencies
+- Run npm run dev to start the development server
+
+Thank you for using mornFront!
+Visit: https://mornhub.dev
+`
+
+  // Create blob and download
+  const blob = new Blob([fullContent], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${project.projectName}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+
+
+================================================================================
+
+
+================================================================================
+文件: lib/cloudbase-frontend.ts
+描述: CloudBase前端集成
+================================================================================
+
+import cloudbase from '@cloudbase/js-sdk';
+
+// CloudBase应用实例
+let app: any = null;
+// CloudBase认证实例
+let authInstance: any = null;
+
+// 初始化CloudBase应用
+export async function initializeCloudBase(): Promise<any> {
+  console.log('🚀 开始CloudBase初始化...');
+  if (!app && typeof window !== 'undefined') {
+    try {
+      console.log('📡 正在获取环境变量...');
+      // 从API异步获取环境变量
+      const { getPublicEnv } = await import('./env-client');
+      const env = await getPublicEnv();
+      const envId = env.NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID;
+
+      console.log('🔍 CloudBase初始化 - 环境变量检查:');
+      console.log('   NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID:', envId);
+      console.log('   NEXT_PUBLIC_APP_URL:', env.NEXT_PUBLIC_APP_URL);
+      console.log('   WECHAT_APP_ID:', env.WECHAT_APP_ID);
+
+ 
+
+      console.log('🔧 使用CloudBase环境ID:', envId);
+
+      app = cloudbase.init({
+        env: envId,
+        region: 'ap-guangzhou', // 广州地域
+      });
+      console.log('CloudBase前端SDK初始化成功，环境ID:', envId);
+
+    } catch (error) {
+      console.error('CloudBase初始化失败:', error);
+      return null;
+    }
+  }
+  return app;
+}
+
+// 获取CloudBase应用实例
+export async function getCloudBaseApp(): Promise<any> {
+  if (!app) {
+    return await initializeCloudBase();
+  }
+  return app;
+}
+
+// 获取认证实例（确保只有一个实例）
+export async function getAuth(): Promise<any> {
+  if (!authInstance) {
+    const app = await getCloudBaseApp();
+    if (app) {
+      authInstance = app.auth();
+      console.log('CloudBase认证实例创建成功');
+    } else {
+      console.error('无法创建认证实例：CloudBase应用未初始化');
+    }
+  }
+  return authInstance;
+}
+
+// 获取数据库实例
+export async function getDatabase(): Promise<any> {
+  const app = await getCloudBaseApp();
+  return app?.database();
+}
+
+
+================================================================================
+
+
+================================================================================
+文件: lib/cloudbase.ts
+描述: CloudBase后端集成
+================================================================================
+
+// 腾讯云CloudBase SDK配置（服务端使用）
+let cloudbase: any;
+if (typeof window === 'undefined') {
+  cloudbase = require('@cloudbase/node-sdk');
+}
+
+// 获取CloudBase配置
+function getCloudBaseConfig() {
+  const secretId = process.env.TENCENT_CLOUD_SECRET_ID;
+  const secretKey = process.env.TENCENT_CLOUD_SECRET_KEY;
+  const envId = process.env.TENCENT_CLOUD_ENV_ID;
+
+  if (!secretId || !secretKey || !envId) {
+    console.warn('腾讯云CloudBase配置不完整');
+    return null;
+  }
+
+  return {
+    secretId,
+    secretKey,
+    envId,
+  };
+}
+
+// CloudBase 应用实例
+let app: any = null;
+
+/**
+ * 获取CloudBase应用实例
+ */
+export function getCloudBaseApp() {
+  if (typeof window !== 'undefined') {
+    console.warn('CloudBase SDK不可在客户端使用');
+    return null;
+  }
+
+  if (!app) {
+    const config = getCloudBaseConfig();
+    if (!config) {
+      console.error('无法获取腾讯云CloudBase配置');
+      return null;
+    }
+
+    if (!cloudbase) {
+      console.error('CloudBase SDK未加载');
+      return null;
+    }
+
+    try {
+      app = cloudbase.init({
+        secretId: config.secretId,
+        secretKey: config.secretKey,
+        env: config.envId,
+      });
+      console.log('📊 腾讯云CloudBase连接已建立');
+    } catch (error) {
+      console.error('❌ 创建CloudBase应用实例失败:', error);
+      return null;
+    }
+  }
+
+  return app;
+}
+
+/**
+ * 获取数据库实例
+ */
+export function database() {
+  const app = getCloudBaseApp();
+  if (!app) {
+    throw new Error('CloudBase应用实例不可用');
+  }
+
+  try {
+    return app.database();
+  } catch (error) {
+    console.error('❌ 获取CloudBase数据库实例失败:', error);
+    throw error;
+  }
+}
+
+// 导出CloudBase SDK
+export { cloudbase };
+
+
+
+
+
+
+
+================================================================================
+
+
+================================================================================
+文件: lib/auth-context.tsx
+描述: 用户认证上下文
+================================================================================
+
+"use client"
+
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { initializeCloudBase, getAuth } from './cloudbase-frontend'
+import {
+  signUpWithEmail,
+  signInWithEmail,
+  signOut as signOutFromCloudBase,
+  resetPassword,
+  signInWithWechat,
+  setupAuthStateListener
+} from './cloudbase-auth-frontend'
+import {
+  initAuthStateManager,
+  getUser as getAuthUser,
+  isAuthenticated,
+  clearAuthState,
+  getStoredAuthState
+} from './auth/auth-state-manager'
+// CloudBase认证API调用函数
+async function apiCall(endpoint: string, data?: any) {
+  const response = await fetch(`/api/auth/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'API调用失败');
+  }
+
+  return result;
+}
+
+// CloudBase用户类型
+interface CloudBaseUser {
+  uid: string;
+  email?: string;
+  username?: string;
+  name?: string;
+  avatar?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+interface CloudBaseSession {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpire: number;
+  refreshTokenExpire: number;
+}
+
+// CloudBase类型定义（用于类型兼容）
+interface CloudBaseUser {
+  uid: string;
+  email?: string;
+  username?: string;
+  name?: string;
+  avatar?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+interface CloudBaseSession {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpire: number;
+  refreshTokenExpire: number;
+}
+
+interface AuthContextType {
+  user: CloudBaseUser | null
+  session: CloudBaseSession | null
+  loading: boolean
+  signUp: (email: string, password: string, userData?: { full_name?: string; username?: string }) => Promise<{ error: any }>
+  signIn: (email: string, password: string) => Promise<{ error: any }>
+  signOut: () => Promise<void>
+  resetPassword: (email: string) => Promise<{ error: any }>
+}
+
+// 获取认证提供商
+function getAuthProvider(): 'supabase' | 'cloudbase' | 'mock' {
+  // 在服务器端可以直接访问环境变量
+  if (typeof window === 'undefined') {
+    const provider = process.env.NEXT_PUBLIC_AUTH_PROVIDER || 'cloudbase';
+    return provider as 'supabase' | 'cloudbase' | 'mock';
+  }
+
+  // 在客户端，CloudBase环境默认使用cloudbase
+  // 如果需要动态获取，可以通过API调用
+  return 'cloudbase';
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<CloudBaseUser | null>(null)
+  const [session, setSession] = useState<CloudBaseSession | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+
+    // 初始化认证状态管理器
+    if (mounted) {
+      initAuthStateManager();
+
+      // 使用新的auth-state-manager恢复认证状态
+      try {
+        const authUser = getAuthUser();
+        const isAuth = isAuthenticated();
+
+        if (authUser && isAuth) {
+          console.log('[Auth Context] 从localStorage恢复用户认证状态');
+          // 转换用户数据格式
+          const cloudBaseUser = {
+            uid: authUser.id,
+            email: authUser.email,
+            username: authUser.name || authUser.email,
+            name: authUser.name,
+            avatar: authUser.avatar
+          };
+
+          // 获取真正的token
+          const authState = getStoredAuthState();
+          setUser(cloudBaseUser);
+
+          if (authState) {
+            setSession({
+              accessToken: authState.accessToken,
+              refreshToken: authState.refreshToken,
+              accessTokenExpire: Date.now() + (authState.tokenMeta.accessTokenExpiresIn * 1000),
+              refreshTokenExpire: Date.now() + (authState.tokenMeta.refreshTokenExpiresIn * 1000)
+            });
+          } else {
+            setSession(null);
+          }
+        } else {
+          setUser(null);
+          setSession(null);
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error('[Auth Context] 初始化认证状态失败:', error);
+        if (mounted) {
+          setUser(null);
+          setSession(null);
+          setLoading(false);
+        }
+      }
+    }
+
+    // 设置认证状态监听器（CloudBase模式下返回null）
+    const unsubscribe = setupAuthStateListener((user) => {
+      if (mounted) {
+        setUser(user);
+        setLoading(false);
+      }
+    });
+
+    // 监听auth-state-manager的变化
+    const handleAuthStateChanged = () => {
+      if (!mounted) return;
+
+      const authUser = getAuthUser();
+      const isAuth = isAuthenticated();
+      const authState = getStoredAuthState();
+
+      if (authUser && isAuth && authState) {
+        console.log('[Auth Context] 认证状态更新：用户已登录');
+        // 转换用户数据格式
+        const cloudBaseUser = {
+          uid: authUser.id,
+          email: authUser.email,
+          username: authUser.name || authUser.email,
+          name: authUser.name,
+          avatar: authUser.avatar
+        };
+
+        setUser(cloudBaseUser);
+        setSession({
+          accessToken: authState.accessToken,
+          refreshToken: authState.refreshToken,
+          accessTokenExpire: Date.now() + (authState.tokenMeta.accessTokenExpiresIn * 1000),
+          refreshTokenExpire: Date.now() + (authState.tokenMeta.refreshTokenExpiresIn * 1000)
+        });
+      } else {
+        console.log('[Auth Context] 认证状态更新：用户未登录');
+        setUser(null);
+        setSession(null);
+      }
+      setLoading(false);
+    };
+
+    // 添加事件监听器
+    window.addEventListener('auth-state-changed', handleAuthStateChanged);
+
+    return () => {
+      mounted = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      window.removeEventListener('auth-state-changed', handleAuthStateChanged);
+    }
+  }, [])
+
+
+  const signUp = async (email: string, password: string, userData?: { full_name?: string; username?: string }) => {
+    console.log('auth-context signUp called with:', { email, userData });
+    const result = await signUpWithEmail(email, password, userData);
+    console.log('signUpWithEmail result:', result);
+    if (result.success && result.user) {
+      setUser(result.user);
+      return { success: true, user: result.user };
+    } else {
+      console.log('signUp returning error:', result.error);
+      return { success: false, error: result.error };
+    }
+  }
+
+  const signIn = async (email: string, password: string) => {
+    const result = await signInWithEmail(email, password);
+    if (result.success && result.user) {
+      setUser(result.user);
+
+      // 处理不同的响应格式（兼容微信登录和邮箱登录）
+      let sessionData = result.session;
+      if (!sessionData && result.accessToken) {
+        // 邮箱登录API的响应格式
+        sessionData = {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          accessTokenExpire: Date.now() + (result.tokenMeta?.accessTokenExpiresIn * 1000 || 3600000),
+          refreshTokenExpire: Date.now() + (result.tokenMeta?.refreshTokenExpiresIn * 1000 || 2592000000)
+        };
+      }
+
+      setSession(sessionData);
+
+      // 使用新的认证状态管理器保存认证状态
+      if (sessionData?.accessToken) {
+        const { saveAuthState } = await import('./auth/auth-state-manager');
+        await saveAuthState(
+          sessionData.accessToken,
+          sessionData.refreshToken || '',
+          result.user,
+          result.tokenMeta || { accessTokenExpiresIn: 3600, refreshTokenExpiresIn: 2592000 }
+        );
+        console.log('用户认证状态已保存到localStorage');
+      }
+
+      return { error: null };
+    } else {
+      return { error: { message: result.error } };
+    }
+  }
+
+  const signOut = async () => {
+    const result = await signOutFromCloudBase();
+    if (result.success) {
+      setUser(null);
+      setSession(null);
+
+      // 使用新的认证状态管理器清除所有认证状态
+      clearAuthState();
+      console.log('用户认证状态已清除');
+    }
+  }
+
+  const resetPassword = async (email: string) => {
+    const result = await resetPassword(email);
+    if (result.success) {
+      return { error: null };
+    } else {
+      return { error: { message: result.error } };
+    }
+  }
+
+
+  const value = {
+    user,
+    session,
+    loading,
+    isAuthenticated: !!user,
+    signUp,
+    signIn,
+    signOut,
+    resetPassword,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
+
+================================================================================
+
+
+================================================================================
+文件: lib/database/cloudbase.ts
+描述: CloudBase数据库操作
+================================================================================
+
+// lib/database/cloudbase.ts
+// 腾讯云CloudBase数据库配置和连接
+
+// 只在服务器端导入CloudBase SDK
+let cloudbase: any;
+if (typeof window === 'undefined') {
+  cloudbase = require('@cloudbase/node-sdk');
+};
+
+// CloudBase配置接口
+export interface CloudBaseConfig {
+  secretId: string;
+  secretKey: string;
+  envId: string;
+}
+
+// 从环境变量获取CloudBase配置
+function getCloudBaseConfig(): CloudBaseConfig | null {
+  const secretId = process.env.TENCENT_CLOUD_SECRET_ID;
+  const secretKey = process.env.TENCENT_CLOUD_SECRET_KEY;
+  const envId = process.env.TENCENT_CLOUD_ENV_ID;
+
+  if (!secretId || !secretKey || !envId) {
+    console.warn('腾讯云CloudBase配置不完整');
+    return null;
+  }
+
+  return {
+    secretId,
+    secretKey,
+    envId,
+  };
+}
+
+// CloudBase 应用实例
+let app: any = null;
+
+/**
+ * 获取CloudBase应用实例
+ */
+export function getCloudBaseApp() {
+  // 在客户端环境中不创建CloudBase实例
+  if (typeof window !== 'undefined') {
+    console.warn('CloudBase SDK不可在客户端使用');
+    return null;
+  }
+
+  if (!app) {
+    const config = getCloudBaseConfig();
+    if (!config) {
+      console.error('无法获取腾讯云CloudBase配置');
+      return null;
+    }
+
+    if (!cloudbase) {
+      console.error('CloudBase SDK未加载');
+      return null;
+    }
+
+    try {
+      app = cloudbase.init({
+        secretId: config.secretId,
+        secretKey: config.secretKey,
+        env: config.envId,
+      });
+      console.log('📊 腾讯云CloudBase连接已建立');
+    } catch (error) {
+      console.error('❌ 创建CloudBase应用实例失败:', error);
+      return null;
+    }
+  }
+
+  return app;
+}
+
+/**
+ * 获取数据库实例
+ */
+export function getDatabase() {
+  const app = getCloudBaseApp();
+  if (!app) {
+    return null;
+  }
+
+  try {
+    return app.database();
+  } catch (error) {
+    console.error('❌ 获取CloudBase数据库实例失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 执行数据库查询
+ */
+export async function query(collectionName: string, options: any = {}) {
+  // 在客户端环境中抛出错误
+  if (typeof window !== 'undefined') {
+    throw new Error('CloudBase数据库查询只能在服务器端使用');
+  }
+
+  const db = getDatabase();
+  if (!db) {
+    throw new Error('数据库连接不可用');
+  }
+
+  try {
+    const collection = db.collection(collectionName);
+    let query = collection;
+
+    // 应用查询条件
+    if (options.where) {
+      query = query.where(options.where);
+    }
+
+    // 应用排序
+    if (options.orderBy && options.orderDirection) {
+      query = query.orderBy(options.orderBy, options.orderDirection);
+    }
+
+    // 应用限制
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    // 应用偏移
+    if (options.offset) {
+      query = query.skip(options.offset);
+    }
+
+    const result = await query.get();
+    return {
+      data: result.data || [],
+      requestId: result.requestId,
+    };
+  } catch (error: any) {
+    console.error('CloudBase数据库查询错误:', error);
+
+    // 如果是集合不存在的错误，返回空结果而不是抛出错误
+    if (error.message && (error.message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
+                          error.message.includes('Db or Table not exist'))) {
+      console.warn(`集合 ${collectionName} 不存在，返回空结果`);
+      return {
+        data: [],
+        requestId: 'collection-not-found',
+      };
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * 添加文档
+ */
+export async function add(collectionName: string, data: any) {
+  // 在客户端环境中抛出错误
+  if (typeof window !== 'undefined') {
+    throw new Error('CloudBase数据库操作只能在服务器端使用');
+  }
+
+  const db = getDatabase();
+  if (!db) {
+    throw new Error('数据库连接不可用');
+  }
+
+  try {
+    const collection = db.collection(collectionName);
+    const result = await collection.add(data);
+    return {
+      id: result.id,
+      requestId: result.requestId,
+    };
+  } catch (error: any) {
+    console.error('CloudBase数据库添加错误:', error);
+
+    // 如果是集合不存在的错误，尝试创建集合后重试
+    if (error.message && (error.message.includes('DATABASE_COLLECTION_NOT_EXIST') || error.message.includes('Db or Table not exist'))) {
+      console.log(`集合 ${collectionName} 不存在，尝试创建...`);
+
+      try {
+        // CloudBase会在第一次插入数据时自动创建集合
+        // 这里我们直接重试插入操作
+        const collection = db.collection(collectionName);
+        const result = await collection.add(data);
+        console.log(`集合 ${collectionName} 创建成功并插入数据，文档ID: ${result.id}`);
+        return {
+          id: result.id,
+          requestId: result.requestId,
+        };
+      } catch (retryError: any) {
+        console.error(`重试创建集合 ${collectionName} 失败:`, retryError.message);
+        console.error('错误详情:', retryError);
+
+        // 如果重试仍然失败，返回更友好的错误信息
+        if (retryError.message && (retryError.message.includes('DATABASE_COLLECTION_NOT_EXIST') || retryError.message.includes('Db or Table not exist'))) {
+          throw new Error(`数据库集合 ${collectionName} 无法访问。请在CloudBase控制台创建该集合并设置适当的权限。`);
+        }
+
+        throw retryError;
+      }
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * 更新文档
+ */
+export async function update(collectionName: string, docId: string, data: any) {
+  // 在客户端环境中抛出错误
+  if (typeof window !== 'undefined') {
+    throw new Error('CloudBase数据库操作只能在服务器端使用');
+  }
+
+  const db = getDatabase();
+  if (!db) {
+    throw new Error('数据库连接不可用');
+  }
+
+  try {
+    const collection = db.collection(collectionName);
+    const result = await collection.doc(docId).update(data);
+    return {
+      updated: result.updated,
+      requestId: result.requestId,
+    };
+  } catch (error: any) {
+    console.error('CloudBase数据库更新错误:', error);
+
+    // 如果是集合不存在的错误，返回错误（因为更新需要集合已存在）
+    if (error.message && error.message.includes('DATABASE_COLLECTION_NOT_EXIST')) {
+      console.warn(`集合 ${collectionName} 不存在，无法更新文档`);
+      throw new Error(`集合 ${collectionName} 不存在`);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * 删除文档
+ */
+export async function remove(collectionName: string, docId: string) {
+  // 在客户端环境中抛出错误
+  if (typeof window !== 'undefined') {
+    throw new Error('CloudBase数据库操作只能在服务器端使用');
+  }
+
+  const db = getDatabase();
+  if (!db) {
+    throw new Error('数据库连接不可用');
+  }
+
+  try {
+    const collection = db.collection(collectionName);
+    const result = await collection.doc(docId).remove();
+    return {
+      deleted: result.deleted,
+      requestId: result.requestId,
+    };
+  } catch (error) {
+    console.error('CloudBase数据库删除错误:', error);
+    throw error;
+  }
+}
+
+/**
+ * 测试数据库连接
+ */
+export async function testConnection(): Promise<boolean> {
+  // 在客户端环境中返回false
+  if (typeof window !== 'undefined') {
+    console.warn('CloudBase连接测试只能在服务器端进行');
+    return false;
+  }
+
+  try {
+    // 尝试查询payments集合
+    const result = await query('payments', { limit: 1 });
+    console.log('✅ 腾讯云CloudBase数据库连接测试成功');
+    console.log(`   数据库环境: ${process.env.TENCENT_CLOUD_ENV_ID}`);
+    return true;
+  } catch (error) {
+    console.error('❌ 腾讯云CloudBase数据库连接测试失败:', error);
+    return false;
+  }
+}
+
+// 兼容现有代码的接口
+export const cloudbaseDB = {
+  from: (table: string) => ({
+    select: (columns: string = '*') => ({
+      eq: (column: string, value: any) => ({
+        single: async () => {
+          try {
+            const result = await query(table, {
+              where: { [column]: value },
+              limit: 1
+            });
+            return {
+              data: result.data[0] || null,
+              error: null
+            };
+          } catch (error) {
+            return {
+              data: null,
+              error
+            };
+          }
+        }
+      }),
+      single: async () => {
+        try {
+          const result = await query(table, { limit: 1 });
+          return {
+            data: result.data[0] || null,
+            error: null
+          };
+        } catch (error) {
+          return {
+            data: null,
+            error
+          };
+        }
+      }
+    }),
+    insert: (data: any) => ({
+      select: () => ({
+        single: async () => {
+          try {
+            const result = await add(table, data);
+            return {
+              data: { id: result.id },
+              error: null
+            };
+          } catch (error) {
+            return {
+              data: null,
+              error
+            };
+          }
+        }
+      })
+    }),
+    update: (data: any) => ({
+      eq: (column: string, value: any) => ({
+        single: async () => {
+          try {
+            // CloudBase需要先查询获取文档ID
+            const queryResult = await query(table, {
+              where: { [column]: value },
+              limit: 1
+            });
+
+            if (queryResult.data.length === 0) {
+              return {
+                data: null,
+                error: new Error('Document not found')
+              };
+            }
+
+            const docId = queryResult.data[0]._id;
+            const result = await update(table, docId, data);
+            return {
+              data: { updated: result.updated },
+              error: null
+            };
+          } catch (error) {
+            return {
+              data: null,
+              error
+            };
+          }
+        }
+      })
+    }),
+    upsert: (data: any) => ({
+      single: async () => {
+        try {
+          // CloudBase没有原生的upsert，需要手动实现
+          // 这里简化为直接添加（如果需要upsert，需要更复杂的逻辑）
+          const result = await add(table, data);
+          return {
+            data: { id: result.id },
+            error: null
+          };
+        } catch (error) {
+          return {
+            data: null,
+            error
+          };
+        }
+      }
+    })
+  })
+};
+
+export default cloudbaseDB;
+
+
+================================================================================
+
+
+================================================================================
+文件: lib/subscription-tiers.ts
+描述: 订阅方案配置
+================================================================================
+
+/**
+ * 订阅层级和模型配置
+ */
+
+export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
+
+/**
+ * 订阅层级配置
+ */
+export const SUBSCRIPTION_TIERS = {
+  free: {
+    name: 'Free',
+    nameZh: '免费版',
+    limits: {},
+    maxRequests: 100,
+    models: ['deepseek-chat']
+  },
+  pro: {
+    name: 'Pro',
+    nameZh: '专业版',
+    limits: {},
+    maxRequests: 1000,
+    models: ['deepseek-chat', 'deepseek-coder', 'glm-4.6']
+  },
+  enterprise: {
+    name: 'Enterprise',
+    nameZh: '企业版',
+    limits: {},
+    maxRequests: -1, // 无限
+    models: ['deepseek-chat', 'deepseek-coder', 'glm-4.6']
+  }
+};
+
+/**
+ * 可用模型配置
+ */
+export const AVAILABLE_MODELS = {
+  'deepseek-chat': {
+    id: 'deepseek-chat',
+    name: 'DeepSeek Chat',
+    nameZh: 'DeepSeek 对话',
+    description: 'General purpose AI assistant',
+    descriptionZh: '通用AI助手',
+    provider: 'deepseek',
+    contextWindow: 32768,
+    maxTokens: 4096,
+    pricing: { input: 0.001, output: 0.002 }
+  },
+  'deepseek-coder': {
+    id: 'deepseek-coder',
+    name: 'DeepSeek Coder',
+    nameZh: 'DeepSeek 编程',
+    description: 'Specialized for coding tasks',
+    descriptionZh: '专为编程任务优化',
+    provider: 'deepseek',
+    contextWindow: 16384,
+    maxTokens: 4096,
+    pricing: { input: 0.001, output: 0.002 }
+  },
+  'glm-4.6': {
+    id: 'glm-4.6',
+    name: 'GLM-4.6',
+    nameZh: '智谱清言4.6',
+    description: 'Advanced multimodal AI model by Zhipu AI',
+    descriptionZh: '智谱AI多模态高级AI模型',
+    provider: 'zhipu',
+    contextWindow: 32768,
+    maxTokens: 4096,
+    pricing: { input: 0.001, output: 0.002 }
+  }
+};
+
+/**
+ * 获取指定订阅层级可用的模型
+ */
+export function getAvailableModelsForTier(tier: SubscriptionTier) {
+  const tierConfig = SUBSCRIPTION_TIERS[tier];
+  return tierConfig.models.map(modelId => AVAILABLE_MODELS[modelId]).filter(Boolean);
+}
+
+/**
+ * 检查用户是否可以使用指定的模型
+ */
+export function canUseModel(tier: SubscriptionTier, modelId: string): boolean {
+  const tierConfig = SUBSCRIPTION_TIERS[tier];
+  return tierConfig.models.includes(modelId);
+}
+
+/**
+ * 获取默认模型
+ */
+export function getDefaultModel(tier?: SubscriptionTier): string {
+  if (tier && SUBSCRIPTION_TIERS[tier]) {
+    const tierModels = SUBSCRIPTION_TIERS[tier].models;
+    return tierModels[0] || 'deepseek-chat';
+  }
+  return 'deepseek-chat';
+}
+
+/**
+ * 获取模型配置
+ */
+export function getModelConfig(modelId: string) {
+  return AVAILABLE_MODELS[modelId];
+}
+
+/**
+ * 获取所有可用模型的ID列表
+ */
+export function getAllAvailableModelIds(): string[] {
+  return Object.keys(AVAILABLE_MODELS);
+}
+
+
+================================================================================
+
+
+================================================================================
+文件: lib/utils.ts
+描述: 工具函数
+================================================================================
+
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+/**
+ * 获取基础URL（支持Vercel部署）
+ */
+export function getBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    // 浏览器环境
+    return window.location.origin;
+  }
+
+  // 服务器环境
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  // 开发环境
+  return `http://localhost:${process.env.PORT || 3000}`;
+}
+
+/**
+ * 验证字符串是否是有效的 UUID 格式
+ */
+export function isValidUUID(str: string): boolean {
+  // 支持 UUID v1-v5 和 NIL UUID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+/**
+ * 验证字符串是否是有效的 CloudBase ID 格式
+ * CloudBase ID 是 32 位十六进制字符串（无连字符）
+ */
+export function isValidCloudBaseId(str: string): boolean {
+  const cloudbaseIdRegex = /^[0-9a-f]{24,32}$/i;
+  return cloudbaseIdRegex.test(str);
+}
+
+/**
+ * 检查用户 ID 是否有效
+ * 支持两种格式：
+ * - UUID 格式（Supabase/INTL）：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ * - CloudBase 格式（CN）：32位十六进制字符串
+ */
+export function isValidUserId(userId: string | null | undefined): userId is string {
+  if (!userId || userId === "anonymous") return false;
+  // 同时支持 UUID（Supabase）和 CloudBase ID 格式
+  return isValidUUID(userId) || isValidCloudBaseId(userId);
+}
+
+================================================================================
+
+
+================================================================================
+文件: app/page.tsx
+描述: 应用主页面
+================================================================================
+
+"use client"
+
+import { useState, useEffect } from "react"
+import { Header } from "@/components/header"
+import { HeroSection } from "@/components/hero-section"
+import { FeaturesSection } from "@/components/features-section"
+import { ExamplesSection } from "@/components/examples-section"
+import { Footer } from "@/components/footer"
+
+export default function HomePage() {
+  // Initialize with "en" to ensure SSR/CSR consistency
+  const [language, setLanguage] = useState<"en" | "zh">("en")
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Load language preference from localStorage after mount
+  useEffect(() => {
+    setIsMounted(true)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedLanguage = localStorage.getItem('language') as "en" | "zh" | null
+        if (savedLanguage === "en" || savedLanguage === "zh") {
+          setLanguage(savedLanguage)
+        }
+      } catch (error) {
+        console.error('Error reading language from localStorage:', error)
+      }
+    }
+  }, [])
+
+  const handleLanguageChange = (newLanguage: "en" | "zh") => {
+    setLanguage(newLanguage)
+    // Save language preference to localStorage when user changes it
+    if (isMounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('language', newLanguage)
+      } catch (error) {
+        console.error('Error saving language to localStorage:', error)
+      }
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header language={language} setLanguage={handleLanguageChange} />
+      <main>
+        <HeroSection language={language} />
+        <FeaturesSection language={language} />
+        <ExamplesSection language={language} />
+      </main>
+      <Footer language={language} />
+    </div>
+  )
+}
+
+
+================================================================================
+
+
+================================================================================
+文件: app/layout.tsx
+描述: 应用布局
+================================================================================
+
+import type { Metadata } from 'next'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
+import { Analytics } from '@vercel/analytics/next'
+import { AuthProvider } from '@/lib/auth-context'
+import { ThemeProvider } from '@/components/theme-provider'
+import { LanguageProvider } from '@/components/language-provider'
+import { CloudBaseInitializer } from '@/components/cloudbase-initializer'
+import { BodyWithCleanup } from '@/components/body-cleanup'
+import './globals.css'
+
+export const metadata: Metadata = {
+  title: 'CodeGen AI - Generate Frontend UI with AI',
+  description: 'Create production-ready React components instantly with AI',
+  generator: 'v0.app',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
+    ],
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <BodyWithCleanup className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <CloudBaseInitializer />
+          <AuthProvider>
+            <LanguageProvider>
+              {children}
+              <Analytics />
+            </LanguageProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </BodyWithCleanup>
+    </html>
+  )
+}
+
+
+================================================================================
+

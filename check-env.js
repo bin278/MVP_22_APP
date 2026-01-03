@@ -1,0 +1,10 @@
+console.log('=== 支付环境变量检查 ===');
+console.log('WECHAT_PAY_APPID:', process.env.WECHAT_PAY_APPID ? '已设置' : '未设置');
+console.log('WECHAT_PAY_MCHID:', process.env.WECHAT_PAY_MCHID ? '已设置' : '未设置');
+console.log('WECHAT_PAY_PRIVATE_KEY:', process.env.WECHAT_PAY_PRIVATE_KEY ? '已设置' : '未设置');
+console.log('WECHAT_PAY_API_V3_KEY:', process.env.WECHAT_PAY_API_V3_KEY ? '已设置' : '未设置');
+console.log('WECHAT_PAY_SERIAL_NO:', process.env.WECHAT_PAY_SERIAL_NO ? '已设置' : '未设置');
+console.log('');
+console.log('ALIPAY_APPID:', process.env.ALIPAY_APPID ? '已设置' : '未设置');
+console.log('ALIPAY_PRIVATE_KEY:', process.env.ALIPAY_PRIVATE_KEY ? '已设置' : '未设置');
+console.log('ALIPAY_PUBLIC_KEY:', process.env.ALIPAY_PUBLIC_KEY ? '已设置' : '未设置');

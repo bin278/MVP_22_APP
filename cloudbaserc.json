@@ -1,0 +1,15 @@
+{
+    "envId": "cloud1-3gn61ziydcfe6a57",
+    "framework": {
+      "plugins": {
+        "run": {
+          "use": "@cloudbase/framework-plugin-run",
+          "inputs": {
+            "serviceName": "mornfront",
+            "timeout": 600,
+            "port": 3000
+          }
+        }
+      }
+    }
+  }

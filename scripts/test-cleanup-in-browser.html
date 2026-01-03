@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试订阅过期清理功能</title>
+  <style>
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      border-bottom: 2px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 5px;
+      border-left: 4px solid #4CAF50;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 10px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .success {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    .error {
+      color: #f44336;
+      font-weight: bold;
+    }
+    .warning {
+      color: #ff9800;
+      font-weight: bold;
+    }
+    .info {
+      color: #2196F3;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 订阅过期清理功能测试</h1>
+
+    <div class="section">
+      <h3>步骤 1: 获取 Token</h3>
+      <p>请先登录到你的应用,然后在浏览器控制台执行以下代码获取 token:</p>
+      <pre style="background: #f0f0f0; padding: 10px; border-radius: 5px;">
+// 在浏览器控制台执行
+localStorage.getItem('cloudbase_session')
+// 或者
+JSON.parse(localStorage.getItem('app-auth-state') || '{}').accessToken</pre>
+      <input type="text" id="accessToken" placeholder="粘贴你的 access token" style="width: 100%; padding: 8px; margin-top: 10px; border: 1px solid #ddd; border-radius: 5px;">
+      <button onclick="setToken()">设置 Token</button>
+    </div>
+
+    <div class="section">
+      <h3>步骤 2: 测试 API</h3>
+      <button id="btnStats" onclick="testGetStats()" disabled>📊 查看过期订阅统计</button>
+      <button id="btnCleanup" onclick="testCleanup()" disabled>🧹 执行批量清理</button>
+      <button onclick="clearOutput()">🗑️ 清空输出</button>
+    </div>
+
+    <div class="section">
+      <h3>步骤 3: 测试自动过期检测</h3>
+      <p>生成代码后,检查控制台日志,看是否有过期检测相关的日志:</p>
+      <pre style="background: #f0f0f0; padding: 10px; border-radius: 5px;">
+[CloudBase Plan] User xxx subscription expired at...
+[Subscription Cleanup] Updating expired subscription...</pre>
+    </div>
+
+    <div id="output" class="output">等待操作...</div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let accessToken = '';
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = {
+        'success': '✅',
+        'error': '❌',
+        'warning': '⚠️',
+        'info': 'ℹ️'
+      }[type];
+
+      output.innerHTML += `\n[${timestamp}] ${prefix} ${message}\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function setToken() {
+      accessToken = document.getElementById('accessToken').value.trim();
+      if (!accessToken) {
+        log('请输入有效的 access token', 'error');
+        return;
+      }
+      log('Token 已设置', 'success');
+      document.getElementById('btnStats').disabled = false;
+      document.getElementById('btnCleanup').disabled = false;
+    }
+
+    async function testGetStats() {
+      log('开始查询过期订阅统计...', 'info');
+
+      try {
+        const response = await fetch(`${API_BASE}/api/subscription/cleanup-expired`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          log('查询成功!', 'success');
+          log(`总活跃订阅数: ${data.stats.totalActive}`, 'info');
+          log(`已过期数: ${data.stats.expired}`, 'warning');
+          log(`仍活跃数: ${data.stats.active}`, 'info');
+
+          if (data.expiredSubscriptions && data.expiredSubscriptions.length > 0) {
+            log(`\n过期订阅详情:`, 'info');
+            data.expiredSubscriptions.forEach((sub, index) => {
+              log(`\n${index + 1}. 订阅ID: ${sub.id}`, 'info');
+              log(`   用户ID: ${sub.userId}`, 'info');
+              log(`   计划类型: ${sub.plan}`, 'info');
+              log(`   过期时间: ${sub.subscriptionEnd}`, 'info');
+              log(`   已过期天数: ${sub.daysSinceExpiry} 天`, 'warning');
+            });
+          } else {
+            log('\n✅ 没有找到过期的订阅', 'success');
+          }
+        } else {
+          log(`查询失败: ${data.error}`, 'error');
+        }
+      } catch (error) {
+        log(`请求失败: ${error.message}`, 'error');
+      }
+    }
+
+    async function testCleanup() {
+      const confirmed = confirm('⚠️ 警告: 此操作将更新数据库中的订阅状态\n\n确定要执行清理吗?');
+      if (!confirmed) return;
+
+      log('开始执行批量清理...', 'info');
+
+      try {
+        const response = await fetch(`${API_BASE}/api/subscription/cleanup-expired`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          log('清理成功!', 'success');
+          log(`消息: ${data.message}`, 'info');
+          log(`成功清理数: ${data.cleaned}`, 'success');
+          log(`失败数: ${data.failed}`, data.failed > 0 ? 'error' : 'info');
+
+          if (data.results && data.results.length > 0) {
+            log(`\n详细结果:`, 'info');
+            data.results.forEach((result, index) => {
+              if (result.success) {
+                log(`\n✅ ${index + 1}. 订阅 ${result.subscriptionId.substring(0, 8)}...`, 'success');
+                log(`   用户: ${result.userId}`, 'info');
+                log(`   计划: ${result.plan}`, 'info');
+                log(`   过期时间: ${result.expiredAt}`, 'info');
+              } else {
+                log(`\n❌ ${index + 1}. 订阅 ${result.subscriptionId?.substring(0, 8)}... 失败`, 'error');
+                log(`   错误: ${result.error}`, 'error');
+              }
+            });
+          }
+        } else {
+          log(`清理失败: ${data.error}`, 'error');
+          if (data.details) {
+            log(`详细错误: ${data.details}`, 'error');
+          }
+        }
+      } catch (error) {
+        log(`请求失败: ${error.message}`, 'error');
+      }
+    }
+
+    function clearOutput() {
+      document.getElementById('output').innerHTML = '输出已清空...\n';
+    }
+
+    // 页面加载时的提示
+    log('欢迎使用订阅过期清理功能测试工具!', 'success');
+    log('请按照步骤操作:\n1. 先获取并设置 token\n2. 查看过期订阅统计\n3. 执行批量清理(可选)\n4. 测试自动过期检测', 'info');
+  </script>
+</body>
+</html>

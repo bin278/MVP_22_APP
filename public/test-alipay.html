@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>支付宝支付测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; background: #1677ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #4096ff; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>支付宝支付表单测试</h1>
+    <button onclick="createPayment()">创建支付宝支付</button>
+
+    <div id="result" style="margin-top: 20px;"></div>
+
+    <script>
+        async function createPayment() {
+            try {
+                const response = await fetch('/api/payment/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer test-dev-token'
+                    },
+                    body: JSON.stringify({
+                        method: 'alipay',
+                        planId: 'basic',
+                        billingCycle: 'monthly',
+                        currency: 'CNY'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('API响应:', data);
+
+                if (data.success && data.formHtml) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>表单创建成功</h3>
+                        <pre>${data.formHtml}</pre>
+                        <p>正在提交表单...</p>
+                    `;
+
+                    // 创建表单容器
+                    const formContainer = document.createElement('div');
+                    formContainer.innerHTML = data.formHtml;
+                    document.body.appendChild(formContainer);
+
+                    // 查找并提交表单
+                    const form = formContainer.querySelector('form');
+                    if (form) {
+                        console.log('找到表单，准备提交...');
+                        setTimeout(() => {
+                            form.submit();
+                        }, 1000); // 延迟1秒让用户看到消息
+                    } else {
+                        document.getElementById('result').innerHTML += '<p style="color: red;">错误：未找到表单元素</p>';
+                    }
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <h3 style="color: red;">支付创建失败</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                console.error('错误:', error);
+                document.getElementById('result').innerHTML = `
+                    <h3 style="color: red;">网络错误</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

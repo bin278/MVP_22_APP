@@ -1,0 +1,6 @@
+{
+  "name": "sendEmailVerification",
+  "runtime": "Nodejs10",
+  "handler": "index.main",
+  "timeout": 60
+}

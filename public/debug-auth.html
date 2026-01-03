@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>认证状态调试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .debug-section {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .debug-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        .info { color: #17a2b8; }
+        .token-display {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 5px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+    </style>
+</head>
+<body>
+    <h1>🔍 CloudBase认证状态调试工具</h1>
+    <p>此工具用于检查浏览器中的认证状态和localStorage数据。</p>
+
+    <div class="debug-section">
+        <div class="debug-title">📊 认证状态检查</div>
+        <div id="auth-status">正在检查...</div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">💾 localStorage数据</div>
+        <div id="localstorage-data">正在检查...</div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">🔑 JWT Token验证</div>
+        <div id="jwt-validation">正在检查...</div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">🌐 API连接测试</div>
+        <div id="api-test">正在检查...</div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">🛠️ 调试操作</div>
+        <button onclick="checkAuthStatus()">刷新状态</button>
+        <button onclick="clearAuthData()">清除认证数据</button>
+        <button onclick="testApiConnection()">测试API连接</button>
+        <button onclick="openMainApp()">打开主应用</button>
+    </div>
+
+    <script>
+        const AUTH_STATE_KEY = "app-auth-state";
+
+        async function checkAuthStatus() {
+            const statusDiv = document.getElementById('auth-status');
+            statusDiv.innerHTML = '<div class="info">正在检查认证状态...</div>';
+
+            try {
+                // 检查localStorage
+                const authStateStr = localStorage.getItem(AUTH_STATE_KEY);
+                let authState = null;
+
+                if (authStateStr) {
+                    try {
+                        authState = JSON.parse(authStateStr);
+                    } catch (e) {
+                        statusDiv.innerHTML = '<div class="error">❌ localStorage中的认证数据格式错误</div>';
+                        return;
+                    }
+                }
+
+                let html = '';
+
+                if (authState) {
+                    html += '<div class="success">✅ 发现认证状态数据</div>';
+
+                    // 检查数据完整性
+                    const checks = [
+                        { key: 'accessToken', label: '访问令牌', value: authState.accessToken },
+                        { key: 'refreshToken', label: '刷新令牌', value: authState.refreshToken },
+                        { key: 'user.id', label: '用户ID', value: authState.user?.id },
+                        { key: 'user.email', label: '用户邮箱', value: authState.user?.email },
+                        { key: 'tokenMeta', label: '令牌元数据', value: authState.tokenMeta }
+                    ];
+
+                    checks.forEach(check => {
+                        if (check.value) {
+                            html += `<div class="success">✅ ${check.label}: ${typeof check.value === 'string' && check.value.length > 20 ? check.value.substring(0, 20) + '...' : check.value}</div>`;
+                        } else {
+                            html += `<div class="error">❌ ${check.label}: 缺失</div>`;
+                        }
+                    });
+
+                    // 检查令牌过期时间
+                    if (authState.tokenMeta) {
+                        const now = Date.now();
+                        const accessExpire = authState.savedAt + (authState.tokenMeta.accessTokenExpiresIn * 1000);
+                        const refreshExpire = authState.savedAt + (authState.tokenMeta.refreshTokenExpiresIn * 1000);
+
+                        const accessExpired = now > accessExpire;
+                        const refreshExpired = now > refreshExpire;
+
+                        html += `<div class="${accessExpired ? 'error' : 'success'}">${accessExpired ? '❌' : '✅'} 访问令牌${accessExpired ? '已过期' : '有效'}</div>`;
+                        html += `<div class="${refreshExpired ? 'error' : 'success'}">${refreshExpired ? '❌' : '✅'} 刷新令牌${refreshExpired ? '已过期' : '有效'}</div>`;
+                    }
+
+                } else {
+                    html = '<div class="warning">⚠️ 未发现认证状态数据，请先登录</div>';
+                }
+
+                statusDiv.innerHTML = html;
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ 检查过程中出错: ' + error.message + '</div>';
+            }
+        }
+
+        function showLocalStorageData() {
+            const dataDiv = document.getElementById('localstorage-data');
+            const authStateStr = localStorage.getItem(AUTH_STATE_KEY);
+
+            if (authStateStr) {
+                try {
+                    const authState = JSON.parse(authStateStr);
+                    dataDiv.innerHTML = `
+                        <div class="success">✅ 发现认证数据</div>
+                        <pre class="token-display">${JSON.stringify(authState, null, 2)}</pre>
+                    `;
+                } catch (e) {
+                    dataDiv.innerHTML = `
+                        <div class="error">❌ 数据解析失败</div>
+                        <div class="token-display">${authStateStr}</div>
+                    `;
+                }
+            } else {
+                dataDiv.innerHTML = '<div class="warning">⚠️ localStorage中没有认证数据</div>';
+            }
+        }
+
+        async function validateJwtToken() {
+            const validationDiv = document.getElementById('jwt-validation');
+            const authStateStr = localStorage.getItem(AUTH_STATE_KEY);
+
+            if (!authStateStr) {
+                validationDiv.innerHTML = '<div class="warning">⚠️ 没有令牌数据可验证</div>';
+                return;
+            }
+
+            try {
+                const authState = JSON.parse(authStateStr);
+                const token = authState.accessToken;
+
+                if (!token) {
+                    validationDiv.innerHTML = '<div class="error">❌ 没有访问令牌</div>';
+                    return;
+                }
+
+                // 调用后端验证API
+                const response = await fetch('/api/debug-auth', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    validationDiv.innerHTML = `
+                        <div class="success">✅ 令牌验证成功</div>
+                        <div>用户ID: ${result.user?.id || '未知'}</div>
+                        <div>用户邮箱: ${result.user?.email || '未知'}</div>
+                    `;
+                } else {
+                    validationDiv.innerHTML = `
+                        <div class="error">❌ 令牌验证失败: ${result.error || '未知错误'}</div>
+                        <div>响应状态: ${response.status}</div>
+                    `;
+                }
+
+            } catch (error) {
+                validationDiv.innerHTML = '<div class="error">❌ 验证过程中出错: ' + error.message + '</div>';
+            }
+        }
+
+        async function testApiConnection() {
+            const apiDiv = document.getElementById('api-test');
+            apiDiv.innerHTML = '<div class="info">正在测试API连接...</div>';
+
+            try {
+                // 测试无认证的API
+                const envResponse = await fetch('/api/env');
+                const envData = await envResponse.json();
+
+                let html = '';
+
+                if (envResponse.ok) {
+                    html += '<div class="success">✅ /api/env 连接正常</div>';
+                    html += `<div>环境ID: ${envData.env?.NEXT_PUBLIC_TENCENT_CLOUD_ENV_ID || '未知'}</div>`;
+                } else {
+                    html += '<div class="error">❌ /api/env 连接失败</div>';
+                }
+
+                // 测试需要认证的API
+                const authStateStr = localStorage.getItem(AUTH_STATE_KEY);
+                if (authStateStr) {
+                    const authState = JSON.parse(authStateStr);
+                    const token = authState.accessToken;
+
+                    if (token) {
+                        const authResponse = await fetch('/api/subscription/status', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        if (authResponse.ok) {
+                            html += '<div class="success">✅ 认证API连接正常</div>';
+                        } else if (authResponse.status === 401) {
+                            html += '<div class="error">❌ 认证API返回401 (Unauthorized)</div>';
+                        } else {
+                            html += `<div class="warning">⚠️ 认证API返回 ${authResponse.status}</div>`;
+                        }
+                    }
+                }
+
+                apiDiv.innerHTML = html;
+
+            } catch (error) {
+                apiDiv.innerHTML = '<div class="error">❌ API测试失败: ' + error.message + '</div>';
+            }
+        }
+
+        function clearAuthData() {
+            if (confirm('确定要清除所有认证数据吗？这将导致需要重新登录。')) {
+                localStorage.removeItem(AUTH_STATE_KEY);
+                console.log('已清除认证数据');
+                checkAuthStatus();
+                showLocalStorageData();
+            }
+        }
+
+        function openMainApp() {
+            window.open('/', '_blank');
+        }
+
+        // 页面加载时自动检查
+        window.onload = function() {
+            checkAuthStatus();
+            showLocalStorageData();
+            validateJwtToken();
+            testApiConnection();
+        };
+
+        // 每30秒自动刷新状态
+        setInterval(() => {
+            checkAuthStatus();
+            showLocalStorageData();
+        }, 30000);
+    </script>
+</body>
+</html>
+
+
+
+
