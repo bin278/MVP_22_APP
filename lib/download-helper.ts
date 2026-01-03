@@ -1,5 +1,7 @@
 import JSZip from 'jszip'
 import type { GeneratedProject } from './code-generator'
+import { Capacitor } from '@capacitor/core'
+import { Filesystem, Directory } from '@capacitor/filesystem'
 
 export function downloadAsZip(project: GeneratedProject) {
   // Fallback to text file if JSZip fails
@@ -9,25 +11,24 @@ export function downloadAsZip(project: GeneratedProject) {
 export async function downloadAsProperZip(project: GeneratedProject) {
   try {
     const zip = new JSZip()
-    
+
     // Create directory structure and add files
     Object.entries(project.files).forEach(([filePath, content]) => {
       zip.file(filePath, content)
     })
-    
+
     // Generate the ZIP file
     const zipBlob = await zip.generateAsync({ type: 'blob' })
-    
-    // Create download link
-    const url = URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${project.projectName}.zip`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
+
+    // Check if running in Capacitor (mobile app)
+    if (Capacitor.isNativePlatform()) {
+      // Mobile app - use Capacitor Filesystem
+      await downloadMobile(zipBlob, `${project.projectName}.zip`)
+    } else {
+      // Web - use standard download
+      await downloadWeb(zipBlob, `${project.projectName}.zip`)
+    }
+
     console.log(`Downloaded ${project.projectName}.zip with ${Object.keys(project.files).length} files`)
   } catch (error) {
     console.error('Error creating ZIP:', error)
@@ -36,7 +37,58 @@ export async function downloadAsProperZip(project: GeneratedProject) {
   }
 }
 
-function downloadAsTextFile(project: GeneratedProject) {
+// Web download (standard browser)
+async function downloadWeb(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// Mobile download (Capacitor)
+async function downloadMobile(blob: Blob, filename: string) {
+  try {
+    // Convert blob to base64
+    const base64Data = await blobToBase64(blob)
+
+    // Write file to device storage
+    const result = await Filesystem.writeFile({
+      path: filename,
+      data: base64Data,
+      directory: Directory.Documents, // Save to Documents folder
+      recursive: true
+    })
+
+    console.log('File saved to:', result.uri)
+
+    // Show success message
+    alert(`文件已保存到:\n${result.uri}\n\n请在文件管理器的"文档"文件夹中查看`)
+
+    return result
+  } catch (error: any) {
+    console.error('Mobile download error:', error)
+    throw new Error(`下载失败: ${error.message}`)
+  }
+}
+
+// Convert blob to base64
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(',')[1] // Remove data URL prefix
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function downloadAsTextFile(project: GeneratedProject) {
   // Create a simple text representation for download
   const filesContent = Object.entries(project.files)
     .map(([path, content]) => {
@@ -70,15 +122,16 @@ Thank you for using mornFront!
 Visit: https://mornhub.dev
 `
 
-  // Create blob and download
+  // Create blob
   const blob = new Blob([fullContent], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${project.projectName}.txt`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+
+  // Check if running in Capacitor (mobile app)
+  if (Capacitor.isNativePlatform()) {
+    // Mobile app - use Capacitor Filesystem
+    await downloadMobile(blob, `${project.projectName}.txt`)
+  } else {
+    // Web - use standard download
+    await downloadWeb(blob, `${project.projectName}.txt`)
+  }
 }
 

@@ -4,18 +4,22 @@ const config: CapacitorConfig = {
   appId: 'com.mornfront.app',
   appName: 'mornfront',
   webDir: 'public',
-  bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
     cleartext: true,
-    // 在开发时连接本地服务器,生产环境连接实际服务器
-    url: process.env.CAPACITOR_SERVER_URL || 'http://10.0.2.2:3000',
-    // 允许导航到任何URL
+    // 开发环境：连接本地开发服务器
+    // 生产环境：连接 CloudBase 网站（部署后修改这里）
+    url: process.env.CAPACITOR_SERVER_URL || 'https://mornfront.mornscience.top',
+    // 开发时可以用本地服务器覆盖：
+    // export CAPACITOR_SERVER_URL=http://10.0.2.2:3000
+    // 允许导航到 CloudBase 域名
     allowNavigation: [
-      '*'
+      '*',
+      'https://mornfront.mornscience.top',
+      'https://*.tcb.qcloud.la',
+      'https://*.cloudbase.net',
+      'https://*.cloud.tencent.com'
     ],
-    // 配置 CORS 和网络安全
-    cleartext: true,
   },
   android: {
     buildOptions: {

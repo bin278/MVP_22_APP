@@ -238,6 +238,7 @@ function GeneratePageContent() {
   const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState(false) // 默认关闭预览
   const [showPreviewWarning, setShowPreviewWarning] = useState(false) // 预览警告对话框
   const [lastPreviewCode, setLastPreviewCode] = useState<string>('')
+  const [isStaticPreview, setIsStaticPreview] = useState(false) // 静态预览模式
   const [error, setError] = useState<string | null>(null)
   const previewRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isManualRefreshRef = useRef<boolean>(false)
@@ -1552,20 +1553,24 @@ function GeneratePageContent() {
         : `**解决方案：**\n`
 
       previewErrorContent2 += language === 'en'
-        ? `1. 💾 Download the ZIP file - Contains all files needed to run locally\n`
-        : `1. 💾 下载 ZIP 文件 - 包含本地运行所需的所有文件\n`
+        ? `1. 📊 **View Static Preview** - See the component structure and information without running code\n`
+        : `1. 📊 **查看静态预览** - 查看组件结构和信息，无需运行代码\n`
 
       previewErrorContent2 += language === 'en'
-        ? `2. 📋 Copy individual files - Use the code tabs to copy specific files\n`
-        : `2. 📋 复制单个文件 - 使用代码选项卡复制特定文件\n`
+        ? `2. 💾 Download the ZIP file - Contains all files needed to run locally\n`
+        : `2. 💾 下载 ZIP 文件 - 包含本地运行所需的所有文件\n`
 
       previewErrorContent2 += language === 'en'
-        ? `3. 🔄 Try a simpler prompt - Generate a smaller, focused component\n`
-        : `3. 🔄 尝试更简单的提示 - 生成更小、更专注的组件\n`
+        ? `3. 📋 Copy individual files - Use the code tabs to copy specific files\n`
+        : `3. 📋 复制单个文件 - 使用代码选项卡复制特定文件\n`
 
       previewErrorContent2 += language === 'en'
-        ? `4. ⚙️ Run locally - Use Node.js to run the full project\n`
-        : `4. ⚙️ 本地运行 - 使用 Node.js 运行完整项目`
+        ? `4. 🔄 Try a simpler prompt - Generate a smaller, focused component\n`
+        : `4. 🔄 尝试更简单的提示 - 生成更小、更专注的组件\n`
+
+      previewErrorContent2 += language === 'en'
+        ? `5. ⚙️ Run locally - Use Node.js to run the full project\n`
+        : `5. ⚙️ 本地运行 - 使用 Node.js 运行完整项目`
 
       const errorMsg: Message = {
         id: Date.now().toString(),
@@ -1584,8 +1589,58 @@ function GeneratePageContent() {
     }
   }
 
+  // 加载静态预览
+  const handleStaticPreview = async () => {
+    if (!generatedProject) {
+      setPreviewError('No generated project available')
+      return
+    }
+
+    const currentCode = generatedProject.files[selectedFile] || ''
+    if (!currentCode || currentCode.trim().length === 0) {
+      setPreviewError('No code available to preview')
+      return
+    }
+
+    setIsPreviewLoading(true)
+    setPreviewError(null)
+    setIsStaticPreview(true)
+
+    try {
+      const response = await fetch('/api/preview-static', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: currentCode,
+          device: previewDevice
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate static preview')
+      }
+
+      const html = await response.text()
+      const blob = new Blob([html], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+      setPreviewUrl(url)
+    } catch (error: any) {
+      console.error('Error generating static preview:', error)
+      setPreviewError(error.message || 'Failed to generate static preview')
+    } finally {
+      setIsPreviewLoading(false)
+    }
+  }
+
   const handleRefreshPreview = () => {
     isManualRefreshRef.current = true
+    setIsStaticPreview(false) // 重置为实时预览模式
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl)
       setPreviewUrl('')
@@ -2516,18 +2571,33 @@ function GeneratePageContent() {
                                 {language === "en" ? "Preview Error" : "预览错误"}
                               </h3>
                               <p className="text-xs sm:text-sm text-red-700 mb-4">{previewError}</p>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setPreviewError(null)
-                                  handlePreview()
-                                }}
-                                className="w-full"
-                              >
-                                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                                {language === "en" ? "Try Again" : "重试"}
-                              </Button>
+                              <div className="space-y-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPreviewError(null)
+                                    setIsStaticPreview(false)
+                                    handlePreview()
+                                  }}
+                                  className="w-full"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+                                  {language === "en" ? "Try Live Preview" : "重试实时预览"}
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPreviewError(null)
+                                    handleStaticPreview()
+                                  }}
+                                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+                                  {language === "en" ? "View Static Preview" : "查看静态预览"}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -2541,7 +2611,10 @@ function GeneratePageContent() {
                               <div className="w-2 h-2 sm:w-3 sm:h-3 bg-yellow-500 rounded-full flex-shrink-0"></div>
                               <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full flex-shrink-0"></div>
                               <span className="text-xs sm:text-sm text-gray-600 font-medium truncate">
-                                {language === "en" ? "Live Preview" : "实时预览"}
+                                {isStaticPreview
+                                  ? (language === "en" ? "Static Preview" : "静态预览")
+                                  : (language === "en" ? "Live Preview" : "实时预览")
+                                }
                               </span>
                               {isLivePreviewEnabled && (
                                 <span className="text-[10px] sm:text-xs bg-green-100 text-green-700 px-1.5 sm:px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
@@ -2557,6 +2630,38 @@ function GeneratePageContent() {
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 sm:gap-2">
+                              {/* Static/Live Preview Toggle */}
+                              <button
+                                onClick={() => {
+                                  if (isStaticPreview) {
+                                    setIsStaticPreview(false)
+                                    handlePreview()
+                                  } else {
+                                    handleStaticPreview()
+                                  }
+                                }}
+                                className={`text-xs px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+                                  isStaticPreview
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                }`}
+                                title={isStaticPreview
+                                  ? (language === "en" ? "Switch to Live Preview" : "切换到实时预览")
+                                  : (language === "en" ? "Switch to Static Preview" : "切换到静态预览")
+                                }
+                              >
+                                {isStaticPreview ? (
+                                  <>
+                                    📊
+                                    <span className="hidden sm:inline">{language === "en" ? "Static" : "静态"}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    ⚡
+                                    <span className="hidden sm:inline">{language === "en" ? "Live" : "实时"}</span>
+                                  </>
+                                )}
+                              </button>
                               {/* Device Size Toggle */}
                               <div className="flex items-center gap-0.5 sm:gap-1 bg-gray-100 rounded-md p-0.5 sm:p-1">
                                 <button
