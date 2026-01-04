@@ -7,11 +7,11 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    // 生产环境：连接 CloudBase 网站
+    // 生产环境：使用本地构建（不设置 url，加载 public 目录）
     // 开发环境：连接本地开发服务器
-    url: process.env.CAPACITOR_SERVER_URL || 'https://mornfront.mornscience.top',
+    url: process.env.CAPACITOR_SERVER_URL, // 移除默认值
     // 开发环境：export CAPACITOR_SERVER_URL=http://10.0.2.2:3000
-    // 允许导航到 CloudBase 域名
+    // 允许导航到 CloudBase 域名进行 API 调用
     allowNavigation: [
       '*',
       'https://mornfront.mornscience.top',
