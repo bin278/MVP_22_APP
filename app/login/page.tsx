@@ -75,45 +75,70 @@ export default function LoginPage() {
         isNativeApp
       })
 
-      // 在原生 APP 中使用微信 SDK 登录
-      if (isNativeApp && hasCapacitor) {
-        try {
-          const { WeChat } = win.Capacitor.Plugins || {}
+      // 在原生 APP 中，尝试使用微信 SDK
+      if (isFromCapacitorApp) {
+        // 检测到原生 APP UserAgent
+        console.log('[WeChat Login] Detected native app via UserAgent')
 
-          if (!WeChat) {
-            throw new Error('微信 SDK 插件未安装')
-          }
+        // 尝试使用微信 SDK
+        if (hasCapacitor) {
+          try {
+            const { WeChat } = win.Capacitor.Plugins || {}
 
-          console.log('[WeChat Login] Using native SDK')
+            if (WeChat) {
+              console.log('[WeChat Login] Using WeChat SDK')
 
-          // 使用微信 SDK 发送登录请求
-          const result = await WeChat.sendAuthRequest({
-            scope: 'snsapi_userinfo',
-            state: Date.now().toString()
-          })
+              // 使用微信 SDK 发送登录请求
+              const result = await WeChat.sendAuthRequest({
+                scope: 'snsapi_userinfo',
+                state: Date.now().toString()
+              })
 
-          console.log('[WeChat Login] SDK result:', result)
+              console.log('[WeChat Login] SDK result:', result)
 
-          if (result.code) {
-            // 将微信授权码发送到后端
-            const response = await fetch('/api/auth/wechat/callback', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: result.code })
-            })
+              if (result.code) {
+                // 将微信授权码发送到后端
+                const response = await fetch('/api/auth/wechat/callback', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ code: result.code })
+                })
 
-            if (!response.ok) {
-              throw new Error('微信登录失败')
+                if (!response.ok) {
+                  throw new Error('微信登录失败')
+                }
+
+                router.push('/')
+                return
+              }
             }
-
-            router.push('/')
-          } else {
-            throw new Error('未获取到微信授权码')
+          } catch (sdkError: any) {
+            console.error('[WeChat Login] SDK error:', sdkError)
+            // SDK 调用失败，fallback 到二维码登录
           }
-        } catch (sdkError: any) {
-          console.error('[WeChat Login] SDK error:', sdkError)
-          throw new Error(sdkError.message || '微信 SDK 调用失败')
         }
+
+        // SDK 不可用，使用移动端 OAuth URL
+        console.log('[WeChat Login] Using mobile OAuth URL')
+        const endpoint = '/api/auth/wechat/mobile'
+        const nextPath = '/'
+        const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          throw new Error(`获取微信移动端授权失败: ${errorData.error || '未知错误'}`)
+        }
+
+        const data = await response.json()
+        const authUrl = data.authUrl
+
+        if (!authUrl) {
+          throw new Error('未获取到微信授权链接')
+        }
+
+        // 跳转到微信授权页面
+        window.location.href = authUrl
+        return
       } else {
         // Web 端：使用二维码登录
         console.log('[WeChat Login] Using QR code login')
