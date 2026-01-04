@@ -72,10 +72,10 @@ export function Header({ language, setLanguage }: HeaderProps) {
             variant="ghost"
             size="sm"
             onClick={() => setLanguage(language === "en" ? "zh" : "en")}
-            className="gap-1.5 sm:gap-2 h-8 px-2 sm:px-3"
+            className="gap-1.5 h-8 px-2 sm:px-3"
           >
-            <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline text-xs sm:text-sm">{language === "en" ? "中文" : "English"}</span>
+            <Globe className="h-4 w-4" />
+            <span className="text-xs sm:text-sm">{language === "en" ? "中文" : "English"}</span>
           </Button>
 
           {loading ? (

@@ -57,22 +57,28 @@ export default function LoginPage() {
     setError("")
 
     try {
-      // 1. 获取微信登录二维码 URL
+      // 检测是否在 Capacitor APP 中
+      const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor
+      const isNative = isCapacitor && (window as any).Capacitor.isNativePlatform()
+
+      // 1. 根据平台选择不同的微信登录方式
+      const endpoint = isNative ? '/api/auth/wechat/mobile' : '/api/auth/wechat/qrcode'
       const nextPath = '/'
-      const response = await fetch(`/api/auth/wechat/qrcode?next=${encodeURIComponent(nextPath)}`)
+      const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
 
       if (!response.ok) {
-        throw new Error('获取微信登录二维码失败')
+        throw new Error(isNative ? '获取微信移动端授权失败' : '获取微信登录二维码失败')
       }
 
       const data = await response.json()
 
-      if (!data.supported || !data.qrcodeUrl) {
+      if (!data.supported || !(data.authUrl || data.qrcodeUrl)) {
         throw new Error('微信登录暂不支持或配置错误')
       }
 
       // 2. 重定向到微信授权页面
-      window.location.href = data.qrcodeUrl
+      const authUrl = data.authUrl || data.qrcodeUrl
+      window.location.href = authUrl
 
     } catch (err: any) {
       setError(err.message || "微信登录过程中发生错误")
