@@ -28,13 +28,13 @@ android {
         debug {
             storeFile file('mornfront.keystore')
             storePassword 'Zyx!213416'
-            keyAlias 'key0'
+            keyAlias 'mornfront-key'
             keyPassword 'Zyx!213416'
         }
         release {
             storeFile file('mornfront.keystore')
             storePassword 'Zyx!213416'
-            keyAlias 'key0'
+            keyAlias 'mornfront-key'
             keyPassword 'Zyx!213416'
         }
     }
