@@ -20,6 +20,9 @@ importers:
       '@capacitor/filesystem':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.0)
+      '@capgo/capacitor-wechat':
+        specifier: ^8.0.4
+        version: 8.0.4(@capacitor/core@8.0.0)
       '@cloudbase/js-sdk':
         specifier: ^2.23.1
         version: 2.23.1
@@ -271,6 +274,11 @@ packages:
 
   '@capacitor/synapse@1.0.4':
     resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
+
+  '@capgo/capacitor-wechat@8.0.4':
+    resolution: {integrity: sha512-EUNOjrgNteYIwTGtOh2KzHDBCgNMV6siix908jaXcW3J6kNvPgR3VgVcTWRU21rrkUN2llnVg7/xEfl7D1Y1UQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@cloudbase/adapter-interface@0.7.1':
     resolution: {integrity: sha512-BjHTAvIMSLxbp26SeT6qLiSSBygz3kAVno/PMwwBwjgzVkVUvuZGVcvf1mhHxY/BjdRGLrd6X60OgvymV/aAUw==}
@@ -3040,6 +3048,10 @@ snapshots:
       '@capacitor/synapse': 1.0.4
 
   '@capacitor/synapse@1.0.4': {}
+
+  '@capgo/capacitor-wechat@8.0.4(@capacitor/core@8.0.0)':
+    dependencies:
+      '@capacitor/core': 8.0.0
 
   '@cloudbase/adapter-interface@0.7.1': {}
 
