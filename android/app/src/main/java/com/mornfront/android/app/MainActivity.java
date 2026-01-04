@@ -1,11 +1,14 @@
 package com.mornfront.android.app;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.webkit.WebSettings;
+import android.webkit.WebView;
 import androidx.core.view.WindowCompat;
 import com.getcapacitor.BridgeActivity;
 
@@ -26,6 +29,31 @@ public class MainActivity extends BridgeActivity {
                 setUserAgent();
             }
         }, 500);
+
+        // 拦截微信授权链接,使用外部浏览器打开
+        setupWebViewClient();
+    }
+
+    private void setupWebViewClient() {
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setWebViewClient(new android.webkit.WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                    Log.d(TAG, "Loading URL: " + url);
+
+                    // 检测微信授权链接
+                    if (url.contains("open.weixin.qq.com")) {
+                        Log.d(TAG, "WeChat OAuth URL detected, opening in external browser");
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        return true;
+                    }
+
+                    return super.shouldOverrideUrlLoading(view, url);
+                }
+            });
+        }
     }
 
     private void setUserAgent() {
