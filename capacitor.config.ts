@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.mornfront.app',
+  appId: 'com.mornfront.android.app',
   appName: 'mornfront',
   webDir: 'public',
   server: {

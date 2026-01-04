@@ -59,7 +59,7 @@ export default function LoginPage() {
     try {
       // 检测是否在 Capacitor APP 中
       const userAgent = navigator.userAgent
-      const isFromCapacitorApp = userAgent.includes('CapacitorApp/com.mornfront.app')
+      const isFromCapacitorApp = userAgent.includes('CapacitorApp/com.mornfront.android.app')
 
       const win = window as any
       const hasCapacitor = typeof win.Capacitor !== 'undefined'

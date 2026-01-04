@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.mornfront.app"
+    namespace "com.mornfront.android.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.mornfront.app"
+        applicationId "com.mornfront.android.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -20,6 +20,22 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('mornfront.keystore')
+            storePassword 'Zyx!213416'
+            keyAlias 'mornfront'
+            keyPassword 'Zyx!213416'
+        }
+        release {
+            storeFile file('mornfront.keystore')
+            storePassword 'Zyx!213416'
+            keyAlias 'mornfront'
+            keyPassword 'Zyx!213416'
         }
     }
 }

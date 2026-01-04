@@ -1,4 +1,4 @@
-package com.mornfront.app;
+package com.mornfront.android.app;
 
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -22,7 +22,7 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebSettings settings = getBridge().getWebView().getSettings();
             String originalUserAgent = settings.getUserAgentString();
-            String newUserAgent = originalUserAgent + " CapacitorApp/com.mornfront.app";
+            String newUserAgent = originalUserAgent + " CapacitorApp/com.mornfront.android.app";
             settings.setUserAgentString(newUserAgent);
         }
     }
