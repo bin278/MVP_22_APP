@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/language-provider'
 import { CloudBaseInitializer } from '@/components/cloudbase-initializer'
 import { BodyWithCleanup } from '@/components/body-cleanup'
+import { StatusBarPadding } from '@/components/status-bar-padding'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -50,6 +51,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <StatusBarPadding />
           <CloudBaseInitializer />
           <AuthProvider>
             <LanguageProvider>

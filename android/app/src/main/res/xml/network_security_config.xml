@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 允许所有网络请求 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 允许访问特定域名 -->
+    <domain-config>
+        <domain includeSubdomains="true">mornscience.top</domain>
+        <domain includeSubdomains="true">tcb.qcloud.la</domain>
+        <domain includeSubdomains="true">cloudbase.net</domain>
+        <domain includeSubdomains="true">cloud.tencent.com</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -46,7 +46,7 @@ export function Header({ language, setLanguage }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 30px)' }}>
       <div className="container max-w-[95%] xl:max-w-[1400px] mx-auto flex h-14 sm:h-16 items-center justify-between px-2 sm:px-0">
         <div className="flex items-center gap-4 sm:gap-8">
           <Link href="/" className="flex items-center gap-2">
