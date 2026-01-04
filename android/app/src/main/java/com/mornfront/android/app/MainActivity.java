@@ -41,13 +41,36 @@ public class MainActivity extends BridgeActivity {
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
                     Log.d(TAG, "Loading URL: " + url);
 
-                    // 检测微信授权链接
+                    // 检测微信授权链接 - 调起微信 APP
                     if (url.contains("open.weixin.qq.com")) {
-                        Log.d(TAG, "WeChat OAuth URL detected, opening in external browser");
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        return true;
+                        Log.d(TAG, "WeChat OAuth URL detected, launching WeChat APP");
+
+                        try {
+                            // 使用微信协议直接调起微信 APP
+                            // 格式: weixin://dl/business/?appid=APPID&redirect_uri=URI&scope=SCOPE&state=STATE
+                            Uri uri = Uri.parse(url);
+                            String appId = uri.getQueryParameter("appid");
+                            String redirectUri = uri.getQueryParameter("redirect_uri");
+                            String scope = uri.getQueryParameter("scope");
+                            String state = uri.getQueryParameter("state");
+
+                            // 构建微信协议 URL
+                            String wechatProtocol = "weixin://";
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(wechatProtocol));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+
+                            Log.d(TAG, "Launched WeChat APP");
+                            return true;
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to launch WeChat APP", e);
+
+                            // Fallback: 使用系统浏览器
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                            return true;
+                        }
                     }
 
                     return super.shouldOverrideUrlLoading(view, url);

@@ -118,8 +118,9 @@ export default function LoginPage() {
           }
         }
 
-        // SDK 不可用，使用移动端 OAuth URL
-        console.log('[WeChat Login] Using mobile OAuth URL')
+        // SDK 不可用，直接跳转到微信授权链接
+        // Android 端会拦截链接并调起微信 APP
+        console.log('[WeChat Login] Redirecting to WeChat authorization')
         const endpoint = '/api/auth/wechat/mobile'
         const nextPath = '/'
         const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
@@ -137,6 +138,7 @@ export default function LoginPage() {
         }
 
         // 跳转到微信授权页面
+        // Android MainActivity 会拦截此链接并调起微信 APP
         window.location.href = authUrl
         return
       } else {
