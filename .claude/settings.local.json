@@ -41,7 +41,8 @@
       "Bash(adb:*)",
       "Bash(where:*)",
       "Bash(npx cap copy:*)",
-      "Bash(pnpm run build)"
+      "Bash(pnpm run build)",
+      "Bash(if exist:*)"
     ]
   }
 }
