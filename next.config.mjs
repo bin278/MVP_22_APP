@@ -10,7 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // CloudBase 部署配置或 Capacitor 静态导出
-  output: process.env.CLOUDBASE_BUILD ? 'standalone' : (process.env.CAPACITOR_BUILD ? 'export' : undefined),
+  output: process.env.CLOUDBASE_BUILD ? 'standalone' : undefined,
   // CloudBase 环境变量配置
   env: {
     // Supabase 兼容配置

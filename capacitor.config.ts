@@ -7,10 +7,10 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    // 生产环境：使用本地构建（不设置 url，加载 public 目录）
-    // 开发环境：连接本地开发服务器
-    url: process.env.CAPACITOR_SERVER_URL, // 移除默认值，使用本地构建
-    // 开发环境：export CAPACITOR_SERVER_URL=http://10.0.2.2:3000
+    // 关键配置：使用本地路径 + 允许导航到远程
+    // 这会让 Capacitor 注入 JS,同时允许访问远程 API
+    url: 'https://mornfront.mornscience.top',
+    // 开发环境：设置环境变量 export CAPACITOR_SERVER_URL=http://10.0.2.2:3000
     // 允许导航到 CloudBase 域名进行 API 调用
     allowNavigation: [
       '*',
