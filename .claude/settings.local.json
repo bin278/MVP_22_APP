@@ -42,7 +42,8 @@
       "Bash(where:*)",
       "Bash(npx cap copy:*)",
       "Bash(pnpm run build)",
-      "Bash(if exist:*)"
+      "Bash(if exist:*)",
+      "Bash(npm search:*)"
     ]
   }
 }

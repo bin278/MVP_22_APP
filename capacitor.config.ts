@@ -24,6 +24,13 @@ const config: CapacitorConfig = {
     buildOptions: {
       signingType: 'apksigner'
     }
+  },
+  plugins: {
+    WeChat: {
+      appId: process.env.WECHAT_APP_ID || process.env.NEXT_PUBLIC_WECHAT_APP_ID || '',
+      appName: 'mornfront',
+      debug: false
+    }
   }
 };
 

@@ -56,6 +56,7 @@
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^8.0.0",
     "@capacitor/filesystem": "^8.0.0",
+    "@capgo/capacitor-wechat": "^8.0.4",
     "@cloudbase/js-sdk": "^2.23.1",
     "@cloudbase/node-sdk": "^3.12.0",
     "@hookform/resolvers": "^3.10.0",
