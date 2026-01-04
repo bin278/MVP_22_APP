@@ -43,7 +43,8 @@
       "Bash(npx cap copy:*)",
       "Bash(pnpm run build)",
       "Bash(if exist:*)",
-      "Bash(npm search:*)"
+      "Bash(npm search:*)",
+      "Bash(keytool:*)"
     ]
   }
 }

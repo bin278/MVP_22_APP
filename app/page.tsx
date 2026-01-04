@@ -46,6 +46,16 @@ export default function HomePage() {
         <HeroSection language={language} />
         <FeaturesSection language={language} />
         <ExamplesSection language={language} />
+
+        {/* 临时测试按钮 */}
+        <div className="container mx-auto px-4 py-8">
+          <a
+            href="/test-ua"
+            className="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            测试 UserAgent
+          </a>
+        </div>
       </main>
       <Footer language={language} />
     </div>
