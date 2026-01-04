@@ -44,7 +44,8 @@
       "Bash(pnpm run build)",
       "Bash(if exist:*)",
       "Bash(npm search:*)",
-      "Bash(keytool:*)"
+      "Bash(keytool:*)",
+      "Bash(pnpm build:*)"
     ]
   }
 }
