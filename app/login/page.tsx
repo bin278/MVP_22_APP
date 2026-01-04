@@ -58,29 +58,57 @@ export default function LoginPage() {
 
     try {
       // 检测是否在 Capacitor APP 中
-      const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor
-      const isNative = isCapacitor && (window as any).Capacitor.isNativePlatform()
+      // 方法1：检查 UserAgent
+      const userAgent = navigator.userAgent
+      const isFromCapacitorApp = userAgent.includes('CapacitorApp/com.mornfront.app')
+
+      // 方法2：检查 Capacitor 对象（备用）
+      const win = window as any
+      const hasCapacitor = typeof win.Capacitor !== 'undefined'
+      const isNative = hasCapacitor && win.Capacitor.isNativePlatform()
+
+      const isNativeApp = isFromCapacitorApp || isNative
+
+      console.log('[WeChat Login] Detection:', {
+        userAgent,
+        isFromCapacitorApp,
+        hasCapacitor,
+        isNative,
+        isNativeApp
+      })
 
       // 1. 根据平台选择不同的微信登录方式
-      const endpoint = isNative ? '/api/auth/wechat/mobile' : '/api/auth/wechat/qrcode'
+      // 在 Android APP 中使用移动端 OAuth，否则使用扫码
+      const endpoint = isNativeApp ? '/api/auth/wechat/mobile' : '/api/auth/wechat/qrcode'
       const nextPath = '/'
       const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
 
+      console.log('[WeChat Login] Response status:', response.status)
+
       if (!response.ok) {
-        throw new Error(isNative ? '获取微信移动端授权失败' : '获取微信登录二维码失败')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('[WeChat Login] Error response:', errorData)
+        throw new Error(isNativeApp ? `获取微信移动端授权失败: ${errorData.error || '未知错误'}` : `获取微信登录二维码失败: ${errorData.error || '未知错误'}`)
       }
 
       const data = await response.json()
+      console.log('[WeChat Login] Response data:', data)
 
-      if (!data.supported || !(data.authUrl || data.qrcodeUrl)) {
-        throw new Error('微信登录暂不支持或配置错误')
+      if (!data.supported) {
+        throw new Error('微信登录暂不支持（可能未配置或不在支持区域）')
+      }
+
+      const authUrl = data.authUrl || data.qrcodeUrl
+      if (!authUrl) {
+        throw new Error('未获取到微信授权链接')
       }
 
       // 2. 重定向到微信授权页面
-      const authUrl = data.authUrl || data.qrcodeUrl
+      console.log('[WeChat Login] Redirecting to:', authUrl)
       window.location.href = authUrl
 
     } catch (err: any) {
+      console.error('[WeChat Login] Error:', err)
       setError(err.message || "微信登录过程中发生错误")
       setIsWechatLoading(false)
     }

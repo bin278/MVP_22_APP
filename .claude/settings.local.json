@@ -39,7 +39,9 @@
       "Bash(git branch:*)",
       "Bash(pnpm install:*)",
       "Bash(adb:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(npx cap copy:*)",
+      "Bash(pnpm run build)"
     ]
   }
 }
