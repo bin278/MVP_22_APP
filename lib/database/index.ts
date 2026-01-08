@@ -1,17 +1,38 @@
 // lib/database/index.ts
-// 数据库切换配置
+// 数据库切换配置 - 支持国内版(腾讯云CloudBase)和国际版(Supabase)
 
 import { supabaseAdmin as supabaseAdminClient } from '../supabase';
 import { tencentCloudDB } from './tencent-cloud';
 import { cloudbaseDB } from './cloudbase';
+import { supabaseDB } from './supabase';
 
-// 数据库提供商
+// 数据库提供商类型
 export type DatabaseProvider = 'supabase' | 'tencent-cloud' | 'cloudbase';
 
 // 获取当前数据库提供商
-function getDatabaseProvider(): DatabaseProvider {
-  const provider = process.env.DATABASE_PROVIDER || 'supabase';
-  return provider as DatabaseProvider;
+export function getDatabaseProvider(): DatabaseProvider {
+  const provider = process.env.DATABASE_PROVIDER || 'cloudbase';
+
+  // 验证环境变量
+  if (provider === 'supabase') {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key || url.includes('your-project-id') || key.includes('your-supabase')) {
+      console.warn('⚠️ Supabase配置不完整,回退到CloudBase');
+      return 'cloudbase';
+    }
+    console.log('🌍 国际版模式 - 使用Supabase数据库');
+    return 'supabase';
+  }
+
+  if (provider === 'tencent-cloud') {
+    console.log('🇨🇳 国内版模式 - 使用腾讯云PostgreSQL数据库');
+    return 'tencent-cloud';
+  }
+
+  // 默认使用CloudBase(国内版)
+  console.log('🇨🇳 国内版模式 - 使用腾讯云CloudBase数据库');
+  return 'cloudbase';
 }
 
 // 根据配置选择数据库客户端
@@ -20,15 +41,13 @@ export function getDatabaseClient() {
 
   switch (provider) {
     case 'tencent-cloud':
-      console.log('📊 使用腾讯云PostgreSQL数据库');
       return tencentCloudDB;
     case 'cloudbase':
-      console.log('📊 使用腾讯云CloudBase数据库');
       return cloudbaseDB;
     case 'supabase':
+      return supabaseDB;
     default:
-      console.log('📊 使用Supabase数据库');
-      return supabaseAdminClient;
+      return cloudbaseDB;
   }
 }
 
@@ -43,13 +62,14 @@ export async function getUserAdapter() {
     case 'cloudbase':
       const { CloudBaseUserAdapter } = await import('./adapters/cloudbase-user');
       return new CloudBaseUserAdapter();
-    case 'tencent-cloud':
-      // TODO: 实现腾讯云用户适配器
-      throw new Error('Tencent Cloud user adapter not implemented yet');
     case 'supabase':
+      const { SupabaseUserAdapter } = await import('./adapters/supabase-user');
+      return new SupabaseUserAdapter();
+    case 'tencent-cloud':
+      // TODO: 实现腾讯云PostgreSQL用户适配器
+      throw new Error('Tencent Cloud PostgreSQL user adapter not implemented yet');
     default:
-      // TODO: 实现Supabase用户适配器
-      throw new Error('Supabase user adapter not implemented yet');
+      throw new Error(`Unknown database provider: ${provider}`);
   }
 }
 
@@ -67,25 +87,12 @@ export async function testDatabaseConnection(): Promise<boolean> {
       const { testConnection: testCloudBaseConnection } = await import('./cloudbase');
       return await testCloudBaseConnection();
     case 'supabase':
-    default:
       // Supabase连接测试
-      try {
-        if (!supabaseAdminClient) {
-          console.error('❌ Supabase客户端未初始化');
-          return false;
-        }
-
-        // 尝试一个简单的查询
-        const result = await supabaseAdminClient
-          .from('payments')
-          .select('count', { count: 'exact', head: true });
-
-        console.log('✅ Supabase数据库连接测试成功');
-        return true;
-      } catch (error) {
-        console.error('❌ Supabase数据库连接测试失败:', error);
-        return false;
-      }
+      const { testConnection: testSupabaseConnection } = await import('./supabase');
+      return await testSupabaseConnection();
+    default:
+      console.error(`❌ 未知的数据库提供商: ${provider}`);
+      return false;
   }
 }
 

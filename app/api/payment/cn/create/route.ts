@@ -26,13 +26,18 @@ const cloudbaseAdapter = new CloudBaseUserAdapter();
 // 请求验证 Schema
 const createPaymentSchema = z.object({
   method: z.enum(["wechat", "alipay"]),
-  mode: z.enum(["qrcode", "page"]).default("qrcode"), // 支付模式：二维码/电脑网站支付
+  mode: z.enum(["qrcode", "page", "h5"]).default("qrcode"), // 支付模式：二维码/电脑网站支付/H5移动支付
   amount: z.number().positive("金额必须为正数"),
   currency: z.string().default("CNY"),
   description: z.string().optional(),
   planType: z.enum(["pro", "enterprise"]).default("pro"),
   billingCycle: z.enum(["monthly", "yearly"]).default("monthly"),
   returnUrl: z.string().optional(), // 支付完成后回跳地址
+  h5Info: z.object({
+    type: z.string().optional(),
+    app_name: z.string().optional(),
+    app_url: z.string().optional(),
+  }).optional(), // H5支付场景信息
 });
 
 export async function POST(request: NextRequest) {
@@ -64,7 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { method, mode, amount, currency, description, planType, billingCycle, returnUrl } = validationResult.data;
+    const { method, mode, amount, currency, description, planType, billingCycle, returnUrl, h5Info } = validationResult.data;
     const userId = user.id;
 
     // 测试模式：所有支付方式使用 0.01 元
@@ -123,9 +128,23 @@ export async function POST(request: NextRequest) {
     // 创建支付适配器
     const adapter = createPaymentAdapterCN(method as PaymentMethodCN);
 
-    // 微信支付在PC端只支持Native扫码支付，自动降级为qrcode模式
-    // 支付宝支持 qrcode（当面付扫码）和 page（电脑网站支付跳转）两种模式
-    const actualMode: PaymentModeCN = method === "wechat" ? "qrcode" : mode as PaymentModeCN;
+    // 根据设备类型自动选择支付模式
+    let actualMode: PaymentModeCN = mode as PaymentModeCN;
+
+    // 检测是否为移动设备
+    const userAgent = request.headers.get('user-agent') || '';
+    const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+
+    // 如果是移动设备且未指定模式,自动使用H5
+    if (isMobile && mode === 'qrcode') {
+      actualMode = 'h5';
+      console.log(`[CN Payment] 检测到移动设备,自动切换到H5支付模式`);
+    }
+
+    // 微信支付在PC端只支持Native扫码支付
+    if (method === "wechat" && actualMode === 'page' && !isMobile) {
+      actualMode = 'qrcode';
+    }
 
     // 创建支付订单
     console.log(`[CN Payment] 创建 ${method} 订单 (${actualMode} 模式):`, { userId, amount: finalAmount, planType, billingCycle });
@@ -140,6 +159,7 @@ export async function POST(request: NextRequest) {
       planType,
       mode: actualMode,
       returnUrl: paymentReturnUrl,
+      h5Info,
     });
 
     // 记录支付到 CloudBase 数据库

@@ -13,8 +13,13 @@ interface CreateOrderOptions {
   description: string;
   billingCycle: BillingCycle;
   planType: PlanType;
-  mode: "qrcode" | "page";
+  mode: "qrcode" | "page" | "h5";
   returnUrl?: string;
+  h5Info?: {
+    type: string;
+    app_name: string;
+    app_url?: string;
+  };
 }
 
 interface CreateOrderResult {
@@ -146,7 +151,7 @@ class WeChatPayAdapter implements PaymentAdapter {
     const orderId = `CN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const { getBaseUrl } = await import("@/lib/utils/get-base-url");
 
-    const requestBody = {
+    const requestBody: any = {
       appid: this.appId,
       mchid: this.mchId,
       description: options.description,
@@ -163,9 +168,33 @@ class WeChatPayAdapter implements PaymentAdapter {
       }),
     };
 
-    console.log(`[WeChat Pay] 创建订单:`, { orderId, amount: amount * 100, userId });
+    // H5支付需要添加场景信息
+    if (options.mode === 'h5') {
+      requestBody.scene_info = {
+        payer_client_ip: '127.0.0.1', // 需要从请求中获取真实IP
+        h5_info: options.h5Info || {
+          type: 'Wap',
+          app_name: 'CodeGen AI',
+        }
+      };
+    }
 
-    const result = await this.makeRequest('POST', '/v3/pay/transactions/native', requestBody);
+    console.log(`[WeChat Pay] 创建订单 (${options.mode}模式):`, { orderId, amount: amount * 100, userId });
+
+    // 根据模式选择API端点
+    const apiEndpoint = options.mode === 'h5'
+      ? '/v3/pay/transactions/h5'
+      : '/v3/pay/transactions/native';
+
+    const result = await this.makeRequest('POST', apiEndpoint, requestBody);
+
+    // H5模式返回跳转URL,Native模式返回二维码URL
+    if (options.mode === 'h5') {
+      return {
+        orderId,
+        paymentUrl: result.h5_url,
+      };
+    }
 
     return {
       orderId,
@@ -335,9 +364,20 @@ ${formInputs}
     const orderId = `CN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const { getBaseUrl } = await import("@/lib/utils/get-base-url");
 
+    // 根据模式选择产品码和接口
+    const productCode = options.mode === 'h5'
+      ? 'QUICK_WAP_WAY'
+      : options.mode === 'page'
+      ? 'FAST_INSTANT_TRADE_PAY'
+      : 'QR_CODE';
+
+    const apiMethod = options.mode === 'h5'
+      ? 'alipay.trade.wap.pay'
+      : 'alipay.trade.page.pay';
+
     const bizContent = {
       out_trade_no: orderId,
-      product_code: options.mode === 'page' ? 'FAST_INSTANT_TRADE_PAY' : 'QR_CODE',
+      product_code: productCode,
       total_amount: amount.toFixed(2),
       currency: options.currency,
       subject: options.description,
@@ -352,7 +392,7 @@ ${formInputs}
 
     const params = {
       app_id: this.appId,
-      method: 'alipay.trade.page.pay',
+      method: apiMethod,
       format: 'JSON',
       charset: 'utf-8',
       sign_type: 'RSA2',
@@ -370,12 +410,14 @@ ${formInputs}
     const signature = this.generateSignature(signContent);
     params.sign = signature;
 
-    console.log(`[Alipay] 创建订单:`, { orderId, amount, userId, mode: options.mode });
+    console.log(`[Alipay] 创建订单 (${options.mode}模式):`, { orderId, amount, userId });
+
+    const paymentUrl = `${this.gatewayUrl}?${new URLSearchParams(params)}`;
 
     return {
       orderId,
-      paymentUrl: options.mode === 'page' ? `${this.gatewayUrl}?${new URLSearchParams(params)}` : undefined,
-      qrCodeUrl: options.mode === 'qrcode' ? `${this.gatewayUrl}?${new URLSearchParams(params)}` : undefined,
+      paymentUrl: options.mode === 'qrcode' ? undefined : paymentUrl,
+      qrCodeUrl: options.mode === 'qrcode' ? paymentUrl : undefined,
     };
   }
 

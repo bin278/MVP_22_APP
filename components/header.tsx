@@ -15,14 +15,14 @@ interface HeaderProps {
 
 const translations = {
   en: {
-    pricing: "Pricing",
+    pricing: "Subscribe",
     docs: "Docs",
     examples: "Examples",
     signIn: "Sign In",
     getStarted: "Get Started",
   },
   zh: {
-    pricing: "价格",
+    pricing: "订阅",
     docs: "文档",
     examples: "示例",
     signIn: "登录",
@@ -55,14 +55,14 @@ export function Header({ language, setLanguage }: HeaderProps) {
             </div>
             <span className="text-lg sm:text-xl font-bold">CodeGen AI</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-4 sm:gap-6">
-            <a href="#features" className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <nav className="flex items-center gap-2 sm:gap-4 md:gap-6">
+            <a href="#features" className="hidden md:block text-xs sm:text-sm text-white hover:text-white/80 transition-colors">
               {t.docs}
             </a>
-            <a href="#examples" className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <a href="#examples" className="hidden md:block text-xs sm:text-sm text-white hover:text-white/80 transition-colors">
               {t.examples}
             </a>
-            <Link href="/payment" className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/payment" className="text-xs sm:text-sm text-white hover:text-white/80 transition-colors">
               {t.pricing}
             </Link>
           </nav>

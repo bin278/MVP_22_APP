@@ -290,6 +290,36 @@ async function processAsyncTask(task: GenerationTask, existingContent?: string, 
     // 创建结果项目，包含修改标记
     const projectResult = createProjectFromCode(result.files['src/App.tsx'] || result.files[Object.keys(result.files)[0]], isModification)
 
+    // 如果有conversationId，保存生成的代码到数据库
+    if (task.conversationId) {
+      try {
+        console.log('💾 [异步任务] 保存生成的代码到数据库, conversationId:', task.conversationId)
+
+        // 保存生成的文件
+        const filePromises = Object.entries(projectResult.files).map(async ([filePath, fileContent]) => {
+          const fileData = {
+            conversation_id: task.conversationId,
+            user_id: task.userId,  // 添加 user_id 确保能读取到文件
+            file_path: filePath,
+            file_content: fileContent,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+
+          return await add('conversation_files', fileData)
+        })
+
+        await Promise.all(filePromises)
+        console.log(`📁 [异步任务] 所有文件已保存到数据库`)
+
+        // 将 conversationId 包含在结果中
+        projectResult.conversationId = task.conversationId
+      } catch (saveError: any) {
+        console.error('❌ [异步任务] 保存到数据库失败:', saveError)
+        // 不阻止任务完成，但记录错误
+      }
+    }
+
     // 完成任务
     task.status = TaskStatus.COMPLETED
     task.progress = 100

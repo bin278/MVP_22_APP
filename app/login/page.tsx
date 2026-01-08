@@ -19,19 +19,45 @@ const WechatIcon = () => (
   </svg>
 )
 
+// Google登录图标组件
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-5 w-5">
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+    />
+  </svg>
+)
+
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isWechatLoading, setIsWechatLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [error, setError] = useState("")
   const [resetEmail, setResetEmail] = useState("")
   const [showResetForm, setShowResetForm] = useState(false)
   const [resetMessage, setResetMessage] = useState("")
 
-  const { signIn, signInWithWechat, resetPassword } = useAuth()
+  const { signIn, signInWithWechat, signInWithGoogle, resetPassword } = useAuth()
   const router = useRouter()
+
+  // 检测当前版本
+  const isInternational = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,116 +83,52 @@ export default function LoginPage() {
     setError("")
 
     try {
-      // 检测是否在 Capacitor APP 中
-      const userAgent = navigator.userAgent
-      const isFromCapacitorApp = userAgent.includes('CapacitorApp/com.mornfront.android.app')
+      // 使用二维码登录
+      console.log('[WeChat Login] Using QR code login')
+      const endpoint = '/api/auth/wechat/qrcode'
+      const nextPath = '/'
+      const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
 
-      const win = window as any
-      const hasCapacitor = typeof win.Capacitor !== 'undefined'
-      const isNative = hasCapacitor && win.Capacitor.isNativePlatform()
-
-      const isNativeApp = isFromCapacitorApp || isNative
-
-      console.log('[WeChat Login] Detection:', {
-        userAgent,
-        isFromCapacitorApp,
-        hasCapacitor,
-        isNative,
-        isNativeApp
-      })
-
-      // 在原生 APP 中，尝试使用微信 SDK
-      if (isFromCapacitorApp) {
-        // 检测到原生 APP UserAgent
-        console.log('[WeChat Login] Detected native app via UserAgent')
-
-        // 尝试使用微信 SDK
-        if (hasCapacitor) {
-          try {
-            const { WeChat } = win.Capacitor.Plugins || {}
-
-            if (WeChat) {
-              console.log('[WeChat Login] Using WeChat SDK')
-
-              // 使用微信 SDK 发送登录请求
-              const result = await WeChat.sendAuthRequest({
-                scope: 'snsapi_userinfo',
-                state: Date.now().toString()
-              })
-
-              console.log('[WeChat Login] SDK result:', result)
-
-              if (result.code) {
-                // 将微信授权码发送到后端
-                const response = await fetch('/api/auth/wechat/callback', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ code: result.code })
-                })
-
-                if (!response.ok) {
-                  throw new Error('微信登录失败')
-                }
-
-                router.push('/')
-                return
-              }
-            }
-          } catch (sdkError: any) {
-            console.error('[WeChat Login] SDK error:', sdkError)
-            // SDK 调用失败，fallback 到二维码登录
-          }
-        }
-
-        // SDK 不可用，直接跳转到微信授权链接
-        // Android 端会拦截链接并调起微信 APP
-        console.log('[WeChat Login] Redirecting to WeChat authorization')
-        const endpoint = '/api/auth/wechat/mobile'
-        const nextPath = '/'
-        const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          throw new Error(`获取微信移动端授权失败: ${errorData.error || '未知错误'}`)
-        }
-
-        const data = await response.json()
-        const authUrl = data.authUrl
-
-        if (!authUrl) {
-          throw new Error('未获取到微信授权链接')
-        }
-
-        // 跳转到微信授权页面
-        // Android MainActivity 会拦截此链接并调起微信 APP
-        window.location.href = authUrl
-        return
-      } else {
-        // Web 端：使用二维码登录
-        console.log('[WeChat Login] Using QR code login')
-        const endpoint = '/api/auth/wechat/qrcode'
-        const nextPath = '/'
-        const response = await fetch(`${endpoint}?next=${encodeURIComponent(nextPath)}`)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          throw new Error(`获取微信登录二维码失败: ${errorData.error || '未知错误'}`)
-        }
-
-        const data = await response.json()
-        const authUrl = data.qrcodeUrl
-
-        if (!authUrl) {
-          throw new Error('未获取到微信登录二维码')
-        }
-
-        window.location.href = authUrl
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(`获取微信登录二维码失败: ${errorData.error || '未知错误'}`)
       }
+
+      const data = await response.json()
+      const authUrl = data.qrcodeUrl
+
+      if (!authUrl) {
+        throw new Error('未获取到微信登录二维码')
+      }
+
+      window.location.href = authUrl
 
     } catch (err: any) {
       console.error('[WeChat Login] Error:', err)
       setError(err.message || "微信登录过程中发生错误")
       setIsWechatLoading(false)
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true)
+    setError("")
+
+    try {
+      if (!signInWithGoogle) {
+        throw new Error('Google登录仅在 国际版中可用')
+      }
+
+      const { error } = await signInWithGoogle()
+      if (error) {
+        setError(error.message)
+        setIsGoogleLoading(false)
+      }
+      // Supabase会自动处理重定向,不需要手动设置loading
+    } catch (err: any) {
+      console.error('[Google Login] Error:', err)
+      setError(err.message || "Google登录过程中发生错误")
+      setIsGoogleLoading(false)
     }
   }
 
@@ -317,18 +279,37 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleWechatLogin}
-            disabled={isWechatLoading || isLoading}
-          >
-            <WechatIcon />
-            <span className="ml-2">
-              {isWechatLoading ? "Connecting..." : "Continue with WeChat"}
-            </span>
-          </Button>
+          {/* 国内版显示微信登录 */}
+          {!isInternational && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleWechatLogin}
+              disabled={isWechatLoading || isLoading}
+            >
+              <WechatIcon />
+              <span className="ml-2">
+                {isWechatLoading ? "Connecting..." : "Continue with WeChat"}
+              </span>
+            </Button>
+          )}
+
+          {/* 国际版显示Google登录 */}
+          {isInternational && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading || isLoading}
+            >
+              <GoogleIcon />
+              <span className="ml-2">
+                {isGoogleLoading ? "Connecting..." : "Continue with Google"}
+              </span>
+            </Button>
+          )}
 
           {error && (
             <Alert variant="destructive" className="mt-4">

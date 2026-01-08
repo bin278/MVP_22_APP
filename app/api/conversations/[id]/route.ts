@@ -40,14 +40,21 @@ export async function GET(
     const conversation = conversationResult.data[0]
 
     // 获取消息（确保只返回当前用户的消息）
-    const messagesResult = await query("conversation_messages", {
-      where: {
-        conversation_id: conversationId,
-        user_id: user.id  // 额外的安全验证
-      },
-      orderBy: "created_at",
-      orderDirection: "asc"
-    })
+    // 注意：如果 conversation_messages 集合不存在，忽略错误并返回空数组
+    let messagesResult: any = { data: [] }
+    try {
+      messagesResult = await query("conversation_messages", {
+        where: {
+          conversation_id: conversationId,
+          user_id: user.id  // 额外的安全验证
+        },
+        orderBy: "created_at",
+        orderDirection: "asc"
+      })
+    } catch (error: any) {
+      console.warn("Failed to query conversation_messages (collection might not exist):", error.message)
+      messagesResult = { data: [] }
+    }
 
     // 获取文件（确保只返回当前用户的文件）
     const filesResult = await query("conversation_files", {

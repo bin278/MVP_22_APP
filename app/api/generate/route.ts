@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { requireAuth } from '@/lib/auth/auth'
 import { add } from '@/lib/database/cloudbase'
+import { getDatabaseProvider } from '@/lib/database'
 
 function formatCodeString(code: string): string {
   // Quick check: if code already has good formatting, return as-is
@@ -478,9 +479,10 @@ code {
     const totalTime = performance.now()
     console.log(`✅ Total request time: ${(totalTime - startTime).toFixed(2)}ms`)
 
-    // 保存生成的项目到CloudBase数据库
+    // 保存生成的项目到数据库(根据环境变量选择)
     try {
-      console.log('💾 Saving generated project to CloudBase...')
+      const provider = getDatabaseProvider()
+      console.log(`💾 Saving generated project to ${provider}...`)
 
       // 创建对话记录
       const conversationData = {
@@ -492,41 +494,69 @@ code {
         updated_at: new Date().toISOString()
       }
 
-      const conversationResult = await add('conversations', conversationData)
-      const conversationId = conversationResult.id
+      let conversationResult
+      if (provider === 'cloudbase') {
+        // 使用 CloudBase
+        conversationResult = await add('conversations', conversationData)
+      } else {
+        // 使用 Supabase 或其他数据库
+        // 注意: 这里需要导入正确的 add 函数
+        const { add: supabaseAdd } = await import('@/lib/database/supabase')
+        conversationResult = await supabaseAdd('conversations', conversationData)
+      }
 
+      const conversationId = conversationResult.id
       console.log('📝 Conversation created with ID:', conversationId)
 
       // 保存生成的文件
       const filePromises = Object.entries(parsedResponse.files).map(async ([filePath, fileContent]) => {
         const fileData = {
           conversation_id: conversationId,
+          user_id: user.id,  // 添加 user_id 确保能读取到文件
           file_path: filePath,
           file_content: fileContent,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
-        return await add('conversation_files', fileData)
+
+        if (provider === 'cloudbase') {
+          return await add('conversation_files', fileData)
+        } else {
+          const { add: supabaseAdd } = await import('@/lib/database/supabase')
+          return await supabaseAdd('conversation_files', fileData)
+        }
       })
 
       await Promise.all(filePromises)
-      console.log('📁 All files saved to CloudBase')
+      console.log(`📁 All files saved to ${provider}`)
 
       // 更新响应，包含对话ID
       parsedResponse.conversationId = conversationId
 
     } catch (saveError: any) {
-      console.error('❌ Failed to save project to CloudBase:', saveError)
+      console.error('❌ Failed to save project to database:', saveError)
       console.error('错误详情:', saveError.message)
 
-      // 如果是集合不存在的错误，尝试提供更详细的错误信息
-      if (saveError.message && (saveError.message.includes('DATABASE_COLLECTION_NOT_EXIST') || saveError.message.includes('Db or Table not exist'))) {
-        console.error('🔍 解决方案：请在CloudBase控制台创建 conversation_files 集合')
-        console.error('   1. 访问 https://console.cloud.tencent.com/tcb')
-        console.error('   2. 选择你的环境')
-        console.error('   3. 点击"数据库"')
-        console.error('   4. 创建集合: conversation_files')
-        console.error('   5. 设置读取和写入权限为 true')
+      // 根据数据库类型提供不同的错误信息
+      const provider = getDatabaseProvider()
+
+      if (provider === 'cloudbase') {
+        // CloudBase 错误处理
+        if (saveError.message && (saveError.message.includes('DATABASE_COLLECTION_NOT_EXIST') || saveError.message.includes('Db or Table not exist'))) {
+          console.error('🔍 解决方案：请在CloudBase控制台创建 conversation_files 集合')
+          console.error('   1. 访问 https://console.cloud.tencent.com/tcb')
+          console.error('   2. 选择你的环境')
+          console.error('   3. 点击"数据库"')
+          console.error('   4. 创建集合: conversation_files')
+          console.error('   5. 设置读取和写入权限为 true')
+        }
+      } else if (provider === 'supabase') {
+        // Supabase 错误处理
+        console.error('🔍 解决方案：请在Supabase控制台创建 conversations 和 conversation_files 表')
+        console.error('   1. 访问 https://app.supabase.com')
+        console.error('   2. 选择你的项目')
+        console.error('   3. 点击"SQL Editor"')
+        console.error('   4. 执行数据库迁移脚本创建表')
       }
 
       // 不阻止返回响应，但记录错误

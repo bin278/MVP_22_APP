@@ -7,9 +7,9 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    // 本地构建模式:不设置 url,加载 public 目录
-    // 这样 Capacitor JS 会注入,微信 SDK 可用
-    // 开发环境：设置环境变量 export CAPACITOR_SERVER_URL=http://10.0.2.2:3000
+    // 远程 URL 模式:加载远程网站
+    // 这样内容可以实时更新,但微信 SDK 不可用
+    url: 'https://mornfront.mornscience.top',
     // 允许导航到 CloudBase 域名进行 API 调用
     allowNavigation: [
       '*',

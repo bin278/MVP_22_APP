@@ -1,13 +1,11 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { initializeCloudBase, getAuth } from './cloudbase-frontend'
 import {
   signUpWithEmail,
   signInWithEmail,
   signOut as signOutFromCloudBase,
-  resetPassword,
-  signInWithWechat,
+  resetPassword as resetPasswordFromCloudBase,
   setupAuthStateListener
 } from './cloudbase-auth-frontend'
 import {
@@ -17,24 +15,6 @@ import {
   clearAuthState,
   getStoredAuthState
 } from './auth/auth-state-manager'
-// CloudBase认证API调用函数
-async function apiCall(endpoint: string, data?: any) {
-  const response = await fetch(`/api/auth/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: data ? JSON.stringify(data) : undefined,
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.error || 'API调用失败');
-  }
-
-  return result;
-}
 
 // CloudBase用户类型
 interface CloudBaseUser {
@@ -45,24 +25,8 @@ interface CloudBaseUser {
   avatar?: string;
   createTime?: string;
   updateTime?: string;
-}
-
-interface CloudBaseSession {
-  accessToken: string;
-  refreshToken: string;
-  accessTokenExpire: number;
-  refreshTokenExpire: number;
-}
-
-// CloudBase类型定义（用于类型兼容）
-interface CloudBaseUser {
-  uid: string;
-  email?: string;
-  username?: string;
-  name?: string;
-  avatar?: string;
-  createTime?: string;
-  updateTime?: string;
+  subscription_plan?: string;
+  subscriptionTier?: string;
 }
 
 interface CloudBaseSession {
@@ -78,21 +42,9 @@ interface AuthContextType {
   loading: boolean
   signUp: (email: string, password: string, userData?: { full_name?: string; username?: string }) => Promise<{ error: any }>
   signIn: (email: string, password: string) => Promise<{ error: any }>
+  signInWithGoogle?: () => Promise<{ error: any }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: any }>
-}
-
-// 获取认证提供商
-function getAuthProvider(): 'supabase' | 'cloudbase' | 'mock' {
-  // 在服务器端可以直接访问环境变量
-  if (typeof window === 'undefined') {
-    const provider = process.env.NEXT_PUBLIC_AUTH_PROVIDER || 'cloudbase';
-    return provider as 'supabase' | 'cloudbase' | 'mock';
-  }
-
-  // 在客户端，CloudBase环境默认使用cloudbase
-  // 如果需要动态获取，可以通过API调用
-  return 'cloudbase';
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -206,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      if (unsubscribe) {
+      if (typeof unsubscribe === 'function') {
         unsubscribe();
       }
       window.removeEventListener('auth-state-changed', handleAuthStateChanged);
@@ -220,47 +172,111 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('signUpWithEmail result:', result);
     if (result.success && result.user) {
       setUser(result.user);
-      return { success: true, user: result.user };
+      return { error: null };
     } else {
       console.log('signUp returning error:', result.error);
-      return { success: false, error: result.error };
+      return { error: result.error };
     }
   }
 
   const signIn = async (email: string, password: string) => {
-    const result = await signInWithEmail(email, password);
-    if (result.success && result.user) {
-      setUser(result.user);
+    // 检测当前版本
+    const isInternational = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase';
 
-      // 处理不同的响应格式（兼容微信登录和邮箱登录）
-      let sessionData = result.session;
-      if (!sessionData && result.accessToken) {
-        // 邮箱登录API的响应格式
-        sessionData = {
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          accessTokenExpire: Date.now() + (result.tokenMeta?.accessTokenExpiresIn * 1000 || 3600000),
-          refreshTokenExpire: Date.now() + (result.tokenMeta?.refreshTokenExpiresIn * 1000 || 2592000000)
+    if (isInternational) {
+      // 国际版: 使用Supabase
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseKey) {
+          return { error: { message: 'Supabase未配置' } };
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          return { error: { message: error.message } };
+        }
+
+        // 转换为统一格式
+        const user = {
+          uid: data.user.id,
+          id: data.user.id,
+          email: data.user.email || '',
+          name: data.user.user_metadata?.full_name || data.user.email,
+          avatar: data.user.user_metadata?.avatar_url,
         };
-      }
 
-      setSession(sessionData);
+        const sessionData = {
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          accessTokenExpire: Date.now() + (3600 * 1000),
+          refreshTokenExpire: Date.now() + (2592000 * 1000)
+        };
 
-      // 使用新的认证状态管理器保存认证状态
-      if (sessionData?.accessToken) {
-        const { saveAuthState } = await import('./auth/auth-state-manager');
-        await saveAuthState(
-          sessionData.accessToken,
-          sessionData.refreshToken || '',
-          result.user,
-          result.tokenMeta || { accessTokenExpiresIn: 3600, refreshTokenExpiresIn: 2592000 }
-        );
+        setUser(user);
+        setSession(sessionData);
+
+        // 保存认证状态
+        import('./auth/auth-state-manager').then(({ saveAuthState }) => {
+          saveAuthState(
+            sessionData.accessToken,
+            sessionData.refreshToken,
+            user,
+            { accessTokenExpiresIn: 3600, refreshTokenExpiresIn: 2592000 }
+          );
+        });
         console.log('用户认证状态已保存到localStorage');
-      }
 
-      return { error: null };
+        return { error: null };
+      } catch (error: any) {
+        console.error('Supabase登录失败:', error);
+        return { error: { message: error.message || '登录失败' } };
+      }
     } else {
-      return { error: { message: result.error } };
+      // 国内版: 使用CloudBase
+      const result = await signInWithEmail(email, password);
+
+      if (result.success && result.user) {
+        setUser(result.user);
+
+        // 处理不同的响应格式（兼容微信登录和邮箱登录）
+        let sessionData: CloudBaseSession | null = null;
+        if ('accessToken' in result && result.accessToken) {
+          // 邮箱登录API的响应格式
+          sessionData = {
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || '',
+            accessTokenExpire: Date.now() + (result.tokenMeta?.accessTokenExpiresIn * 1000 || 3600000),
+            refreshTokenExpire: Date.now() + (result.tokenMeta?.refreshTokenExpiresIn * 1000 || 2592000000)
+          };
+        }
+
+        setSession(sessionData);
+
+        // 使用新的认证状态管理器保存认证状态
+        if (sessionData?.accessToken) {
+          import('./auth/auth-state-manager').then(({ saveAuthState }) => {
+            saveAuthState(
+              sessionData!.accessToken,
+              sessionData!.refreshToken || '',
+              result.user,
+              result.tokenMeta || { accessTokenExpiresIn: 3600, refreshTokenExpiresIn: 2592000 }
+            );
+          });
+          console.log('用户认证状态已保存到localStorage');
+        }
+
+        return { error: null };
+      } else {
+        return { error: { message: result.error } };
+      }
     }
   }
 
@@ -277,11 +293,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
-    const result = await resetPassword(email);
+    const result = await resetPasswordFromCloudBase(email);
     if (result.success) {
       return { error: null };
     } else {
       return { error: { message: result.error } };
+    }
+  }
+
+  // Google OAuth登录 (仅国际版Supabase)
+  const signInWithGoogle = async () => {
+    try {
+      // 检查是否配置了Supabase
+      const isSupabase = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase' ||
+                        (typeof window !== 'undefined' && window.location.hostname.includes('localhost'));
+
+      if (!isSupabase) {
+        console.warn('Google登录仅在国际版(Supabase)中可用');
+        return { error: { message: 'Google登录仅在国际版中可用' } };
+      }
+
+      // 动态导入Supabase客户端
+      const { createClient } = await import('@supabase/supabase-js');
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseKey) {
+        return { error: { message: 'Supabase未配置' } };
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      console.log('🔄 开始Google OAuth登录流程...');
+
+      // 使用Supabase的signInWithOAuth
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/google-callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) {
+        console.error('❌ Google OAuth错误:', error);
+        return { error: { message: error.message } };
+      }
+
+      // Supabase会自动处理重定向
+      console.log('✅ 重定向到Google授权页面...');
+      return { error: null };
+
+    } catch (error: any) {
+      console.error('❌ Google登录失败:', error);
+      return { error: { message: error.message || 'Google登录失败' } };
     }
   }
 
@@ -293,6 +362,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     signUp,
     signIn,
+    signInWithGoogle,
     signOut,
     resetPassword,
   }

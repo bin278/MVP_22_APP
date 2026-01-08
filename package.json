@@ -15,8 +15,10 @@
     "android:build:release": "cd android && ./gradlew assembleRelease && cd ..",
     "db:setup": "node scripts/setup-tencent-cloud-db.js",
     "db:setup-cloudbase": "node scripts/setup-cloudbase-db.js",
+    "db:setup-supabase": "node scripts/setup-supabase-db.js",
     "db:migrate": "node scripts/migrate-to-tencent-cloud.js",
     "db:test": "node scripts/test-database.js",
+    "db:test-switch": "node scripts/test-database-switch.js",
     "auth:test-cloudbase": "node scripts/test-cloudbase-auth.js",
     "docker:build": "docker build -t mvp22:latest .",
     "docker:run": "docker run -p 3000:3000 --env-file .env.local mvp22:latest",
@@ -49,7 +51,10 @@
     "cloudbase:auto-deploy": "node deploy-cloudbase.js",
     "cloudbase:dry-run": "node deploy-cloudbase.js --dry-run",
     "cloudbase:dev": "node -e \"process.env.CLOUDBASE_BUILD='true'; require('child_process').execSync('npm run dev', {stdio: 'inherit'})\"",
-    "cloudbase:test": "node -e \"process.env.CLOUDBASE_BUILD='true'; require('child_process').execSync('npm run test:all', {stdio: 'inherit'})\""
+    "cloudbase:test": "node -e \"process.env.CLOUDBASE_BUILD='true'; require('child_process').execSync('npm run test:all', {stdio: 'inherit'})\"",
+    "config:cn": "cp .env.cloudbase.example .env.local",
+    "config:intl": "cp .env.supabase.example .env.local",
+    "config:test": "node scripts/test-database-switch.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

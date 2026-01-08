@@ -11,8 +11,13 @@ export interface User {
   id: string;
   email?: string;
   uid?: string;
+  name?: string;
+  avatar?: string;
   fullName?: string;
   user_metadata?: any;
+  subscription_plan?: string;
+  subscription_status?: string;
+  region?: 'china' | 'international';
   created_at?: string;
   updated_at?: string;
 }
@@ -24,10 +29,11 @@ export interface UserSubscription {
   id: string;
   user_id: string;
   plan_type: PlanType;
-  billing_cycle: BillingCycle;
+  billing_cycle?: BillingCycle;
   status: 'active' | 'inactive' | 'cancelled' | 'expired';
-  subscription_start: string;
+  subscription_start?: string;
   subscription_end: string;
+  currency?: string;
   created_at: string;
   updated_at: string;
   metadata?: any;
@@ -82,9 +88,11 @@ export interface Payment {
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
   payment_method: string;
   transaction_id?: string;
+  subscription_id?: string;
   metadata?: any;
   created_at: string;
   updated_at: string;
+  completed_at?: string;
 }
 
 /**
@@ -102,19 +110,17 @@ export interface QueryOptions {
  * 查询结果
  */
 export interface QueryResult<T> {
-  success: boolean;
-  data: T[];
+  data?: T[];
+  error?: any;
   count?: number;
-  error?: string;
 }
 
 /**
  * 单个结果
  */
 export interface SingleResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
+  data?: T | null;
+  error?: any;
 }
 
 /**
@@ -123,7 +129,7 @@ export interface SingleResult<T> {
 export interface MutationResult {
   success: boolean;
   id?: string;
-  error?: string;
+  error?: any;
 }
 
 /**
@@ -131,7 +137,7 @@ export interface MutationResult {
  */
 export interface UserDatabaseAdapter {
   // 用户相关方法
-  createUser(userData: Partial<User>): Promise<MutationResult>;
+  createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'>): Promise<MutationResult>;
   getUserById(userId: string): Promise<SingleResult<User>>;
   getUserByEmail(email: string): Promise<SingleResult<User>>;
   updateUser(userId: string, updates: Partial<User>): Promise<MutationResult>;
@@ -147,6 +153,8 @@ export interface UserDatabaseAdapter {
   createPayment(paymentData: Omit<Payment, 'id' | 'created_at' | 'updated_at'>): Promise<MutationResult>;
   getUserPayments(userId: string, options?: QueryOptions): Promise<QueryResult<Payment>>;
   updatePayment(paymentId: string, updates: Partial<Payment>): Promise<MutationResult>;
+  getPaymentById(paymentId: string): Promise<SingleResult<Payment>>;
+  deletePayment(paymentId: string): Promise<MutationResult>;
 }
 
 

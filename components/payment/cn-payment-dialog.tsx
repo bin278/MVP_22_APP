@@ -17,7 +17,7 @@ import { fetchWithAuth } from "@/lib/auth/fetch-with-auth";
 import { cn } from "@/lib/utils";
 
 type PaymentMethodCN = "wechat" | "alipay";
-type PaymentModeCN = "qrcode" | "page";
+type PaymentModeCN = "qrcode" | "page" | "h5";
 type PaymentStatus = "pending" | "completed" | "failed" | "cancelled" | "expired";
 
 interface CNPaymentDialogProps {
@@ -88,6 +88,23 @@ export function CNPaymentDialog({
   const [hasTriedOpen, setHasTriedOpen] = useState(false);
 
   const config = PAYMENT_CONFIG[method];
+
+  // H5支付模式：自动跳转
+  useEffect(() => {
+    if (open && mode === "h5" && paymentUrl && !hasTriedOpen) {
+      setHasTriedOpen(true);
+
+      // 延迟1秒后自动跳转,避免被浏览器拦截
+      setTimeout(() => {
+        toast({
+          title: "正在跳转到支付页面",
+          description: `即将跳转到${config.name}完成支付`,
+        });
+
+        window.location.href = paymentUrl;
+      }, 1000);
+    }
+  }, [open, mode, paymentUrl, hasTriedOpen, toast, config.name]);
 
   // 电脑网站支付模式：显示提示，不自动打开（避免被浏览器拦截）
   useEffect(() => {

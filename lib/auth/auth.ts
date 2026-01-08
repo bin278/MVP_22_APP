@@ -7,8 +7,9 @@ import { verifyToken, verifySessionToken, CloudBaseUser } from './cloudbase-auth
 
 // 获取认证提供商
 function getAuthProvider(): 'supabase' | 'cloudbase' {
-  const provider = process.env.AUTH_PROVIDER || 'cloudbase';
-  return provider as 'supabase' | 'cloudbase';
+  // 默认使用cloudbase,只有明确设置AUTH_PROVIDER=supabase时才使用supabase
+  const provider = process.env.AUTH_PROVIDER || '';
+  return provider === 'supabase' ? 'supabase' : 'cloudbase';
 }
 
 export interface AuthResult {
@@ -188,7 +189,7 @@ export async function requireAuth(request: NextRequest): Promise<AuthResult> {
         };
       }
     } else {
-      // Supabase认证（默认）
+      // Supabase认证(仅当AUTH_PROVIDER=supabase时)
       const supabase = await createSupabaseClient();
       if (!supabase) {
         console.error("Supabase not configured");
