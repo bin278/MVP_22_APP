@@ -24,6 +24,9 @@ RUN pnpm install --frozen-lockfile
 # 复制源代码
 COPY . .
 
+# 临时移除国际版登录页面（因为依赖Supabase，而当前使用CloudBase）
+RUN rm -rf app/login/intl app/api/auth/login-intl app/api/auth/register-intl app/api/auth/callback app/google-callback
+
 # 1. 声明构建参数 (ARG) 并提供【默认占位符】
 # 关键修改：添加 =... 默认值。
 # 这样即使腾讯云构建时不传这些参数，Docker 构建也能通过，
