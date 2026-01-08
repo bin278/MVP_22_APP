@@ -11,6 +11,20 @@ import { Input } from "@/components/ui/input"
 import { Loader2, Mail, Lock, AlertCircle } from "lucide-react"
 import Link from "next/link"
 
+// 错误消息映射
+function getErrorMessage(message: string): string {
+  if (message.includes("Invalid login credentials")) {
+    return "Invalid email or password"
+  }
+  if (message.includes("Email not confirmed")) {
+    return "Please confirm your email first"
+  }
+  if (message.includes("User not found")) {
+    return "No account found with this email"
+  }
+  return message
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const { user, signIn, loading } = useAuth()
@@ -236,18 +250,4 @@ export default function LoginPage() {
       </div>
     </div>
   )
-}
-
-// 错误消息映射
-function getErrorMessage(message: string): string {
-  if (message.includes("Invalid login credentials")) {
-    return "Invalid email or password"
-  }
-  if (message.includes("Email not confirmed")) {
-    return "Please confirm your email first"
-  }
-  if (message.includes("User not found")) {
-    return "No account found with this email"
-  }
-  return message
 }
