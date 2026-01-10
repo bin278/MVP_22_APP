@@ -25,7 +25,8 @@ enum TaskStatus {
 
 // 任务接口
 interface GenerationTask {
-  _id?: string
+  _id?: string  // CloudBase 文档 ID
+  id?: string   // Supabase 行 ID
   taskId: string
   userId: string
   conversationId?: string
@@ -75,7 +76,7 @@ async function updateTaskInDB(taskId: string, updates: Partial<GenerationTask>) 
   try {
     console.log(`📝 [DB] 准备更新任务: ${taskId}, 更新内容:`, Object.keys(updates))
 
-    // Supabase 需要先通过 taskId 查询获取 id
+    // 需要先通过 taskId 查询获取文档 ID
     const result = await query('generation_tasks', { where: { taskId } })
 
     if (!result || !result.data || result.data.length === 0) {
@@ -84,11 +85,13 @@ async function updateTaskInDB(taskId: string, updates: Partial<GenerationTask>) 
     }
 
     const taskRecord = result.data[0] as any
-    const recordId = taskRecord.id
 
-    console.log(`📋 [DB] 找到任务记录，id: ${recordId}`)
+    // CloudBase 使用 _id，Supabase 使用 id
+    const recordId = taskRecord._id || taskRecord.id
 
-    // 使用 id 更新记录
+    console.log(`📋 [DB] 找到任务记录，ID: ${recordId}`)
+
+    // 使用文档 ID 更新记录
     await update('generation_tasks', recordId, updates)
     console.log(`✅ [DB] 任务已在数据库中更新: ${taskId}`)
   } catch (error) {
