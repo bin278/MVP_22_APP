@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/auth'
-import { taskQueue } from '../generate-async/route'
+import { taskQueue } from '../../generate-async/route'
 
 // 查询任务状态
 export async function GET(
