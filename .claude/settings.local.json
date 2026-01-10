@@ -55,7 +55,8 @@
       "Bash(else echo \"✓ .next directory not found \\(already clean\\)\")",
       "Bash(fi:*)",
       "Bash(npx eslint:*)",
-      "Bash(pnpm update:*)"
+      "Bash(pnpm update:*)",
+      "Bash(echo:*)"
     ]
   }
 }

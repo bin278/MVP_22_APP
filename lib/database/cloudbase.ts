@@ -137,9 +137,16 @@ export async function query(collectionName: string, options: any = {}) {
     console.error('CloudBase数据库查询错误:', error);
 
     // 如果是集合不存在的错误，返回空结果而不是抛出错误
-    if (error.message && (error.message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
-                          error.message.includes('Db or Table not exist'))) {
-      console.warn(`集合 ${collectionName} 不存在，返回空结果`);
+    const isCollectionNotExist =
+      error.message && (
+        error.message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
+        error.message.includes('Db or Table not exist') ||
+        error.message.includes('ResourceNotFound') ||
+        error.code === 'DATABASE_COLLECTION_NOT_EXIST'
+      );
+
+    if (isCollectionNotExist) {
+      console.warn(`⚠️  集合 ${collectionName} 不存在，返回空结果`);
       return {
         data: [],
         requestId: 'collection-not-found',
