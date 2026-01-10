@@ -41,12 +41,44 @@ interface GenerationTask {
   completedAt?: string
 }
 
-// 全局任务队列（生产环境应该用Redis或数据库）
+// 全局任务队列（仅用于本地开发,Vercel 使用数据库）
 // 使用全局变量避免热重载时的重置
 if (!(global as any).taskQueue) {
   (global as any).taskQueue = new Map<string, GenerationTask>()
 }
 export const taskQueue = (global as any).taskQueue as Map<string, GenerationTask>
+
+// 数据库任务存储辅助函数
+async function saveTaskToDB(task: GenerationTask) {
+  try {
+    await add('generation_tasks', task)
+    console.log(`✅ 任务已保存到数据库: ${task.taskId}`)
+  } catch (error) {
+    console.error('保存任务到数据库失败:', error)
+  }
+}
+
+async function getTaskFromDB(taskId: string): Promise<GenerationTask | null> {
+  try {
+    const result = await query('generation_tasks', { taskId })
+    if (result && result.length > 0) {
+      return result[0] as GenerationTask
+    }
+    return null
+  } catch (error) {
+    console.error('从数据库获取任务失败:', error)
+    return null
+  }
+}
+
+async function updateTaskInDB(taskId: string, updates: Partial<GenerationTask>) {
+  try {
+    await update('generation_tasks', { taskId }, updates)
+    console.log(`✅ 任务已在数据库中更新: ${taskId}`)
+  } catch (error) {
+    console.error('更新数据库中的任务失败:', error)
+  }
+}
 
 // AI客户端初始化
 function getAIClient(model: string) {
@@ -216,9 +248,12 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString()
     }
 
-    // 存储到队列
+    // 存储到队列(用于本地开发)
     taskQueue.set(taskId, task)
     console.log(`✅ 任务已存储到全局队列: ${taskId}, 队列大小: ${taskQueue.size}`)
+
+    // 同时保存到数据库(用于 Vercel)
+    await saveTaskToDB(task)
 
     // 异步执行任务（不等待，避免阻塞API响应）
     setImmediate(() => {
@@ -253,6 +288,14 @@ async function processAsyncTask(task: GenerationTask, existingContent?: string, 
     task.progress = 10
     task.updatedAt = new Date().toISOString()
     taskQueue.set(task.taskId, task)
+
+    // 同步到数据库
+    await updateTaskInDB(task.taskId, {
+      status: task.status,
+      startedAt: task.startedAt,
+      progress: task.progress,
+      updatedAt: task.updatedAt
+    })
 
     // 广播开始处理状态
     broadcastTaskUpdate(task.taskId, {
@@ -328,6 +371,15 @@ async function processAsyncTask(task: GenerationTask, existingContent?: string, 
     task.updatedAt = new Date().toISOString()
     taskQueue.set(task.taskId, task)
 
+    // 同步到数据库
+    await updateTaskInDB(task.taskId, {
+      status: task.status,
+      progress: task.progress,
+      result: task.result,
+      completedAt: task.completedAt,
+      updatedAt: task.updatedAt
+    })
+
     // 记录代码生成使用（包括修改代码）
     try {
       // 计算生成的内容长度
@@ -367,6 +419,13 @@ async function processAsyncTask(task: GenerationTask, existingContent?: string, 
     task.error = error.message || '生成失败'
     task.updatedAt = new Date().toISOString()
     taskQueue.set(task.taskId, task)
+
+    // 同步到数据库
+    await updateTaskInDB(task.taskId, {
+      status: task.status,
+      error: task.error,
+      updatedAt: task.updatedAt
+    })
 
     // 广播失败状态
     broadcastTaskUpdate(task.taskId, {

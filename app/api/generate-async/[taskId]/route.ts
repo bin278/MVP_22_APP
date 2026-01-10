@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/auth'
 import { taskQueue } from '../route'
+import { query } from '@/lib/database'
 
 // 查询任务状态
 export async function GET(
@@ -23,8 +24,25 @@ export async function GET(
     console.log(`🔍 查询任务: ${taskId}, 用户: ${user.id}, 全局队列大小: ${taskQueue.size}`)
     console.log('🔍 队列中的所有任务ID:', Array.from(taskQueue.keys()))
 
-    // 从队列获取任务状态
-    const task = taskQueue.get(taskId)
+    // 先尝试从全局队列获取任务状态(本地开发)
+    let task = taskQueue.get(taskId)
+
+    // 如果队列中没有,从数据库查询(Vercel)
+    if (!task) {
+      console.log(`🔍 队列中未找到,尝试从数据库查询: ${taskId}`)
+      try {
+        const result = await query('generation_tasks', { taskId })
+        if (result && result.length > 0) {
+          task = result[0] as any
+          console.log(`✅ 从数据库找到任务: ${taskId}, 状态: ${task.status}`)
+        }
+      } catch (dbError) {
+        console.error('数据库查询失败:', dbError)
+      }
+    } else {
+      console.log(`✅ 从队列找到任务: ${taskId}, 状态: ${task.status}`)
+    }
+
     console.log(`📋 任务查询结果:`, task ? { status: task.status, userId: task.userId } : 'null')
 
     if (!task) {
