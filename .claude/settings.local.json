@@ -53,7 +53,9 @@
       "Bash(if [ -d \".next\" ])",
       "Bash(then echo \"Removing .next cache...\")",
       "Bash(else echo \"✓ .next directory not found \\(already clean\\)\")",
-      "Bash(fi:*)"
+      "Bash(fi:*)",
+      "Bash(npx eslint:*)",
+      "Bash(pnpm update:*)"
     ]
   }
 }

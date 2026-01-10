@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/auth";
 import { isChinaDeployment } from "@/lib/config/deployment.config";
-import { getCloudBaseDb } from "@/lib/database/cloudbase-client";
+import { getCloudBaseDatabase } from "@/lib/database/cloudbase-client";
 
 /**
  * POST /api/subscription/cleanup-expired
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getCloudBaseDb();
+    const db = getCloudBaseDatabase();
     const now = new Date().toISOString();
 
     console.log('📋 [cleanup-expired] 查询过期订阅...');
@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const db = getCloudBaseDb();
+    const db = getCloudBaseDatabase();
     const now = new Date().toISOString();
 
     // 查询所有活跃订阅
