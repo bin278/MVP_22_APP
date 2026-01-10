@@ -216,9 +216,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   // 从 localStorage 读取语言设置(仅在客户端)
   useEffect(() => {
-    const saved = localStorage.getItem('language')
-    if (saved && (saved === 'zh' || saved === 'en')) {
-      setLanguageState(saved as Language)
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('language')
+        if (saved && (saved === 'zh' || saved === 'en')) {
+          setLanguageState(saved as Language)
+        }
+      } catch (e) {
+        // localStorage 可能不可用
+        console.warn('Failed to read language from localStorage:', e)
+      }
     }
   }, [])
 
