@@ -75,7 +75,7 @@ export function Header({ language, setLanguage }: HeaderProps) {
             className="gap-1 h-8 px-2 sm:px-3"
           >
             <Globe className="h-4 w-4" />
-            <span className="hidden md:inline text-xs sm:text-sm">{language === "en" ? "中文" : "English"}</span>
+            <span className="text-xs sm:text-sm">{language === "en" ? "中文" : "English"}</span>
           </Button>
 
           {loading ? (
