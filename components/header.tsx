@@ -47,35 +47,35 @@ export function Header({ language, setLanguage }: HeaderProps) {
 
   return (
     <header className="w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 30px)' }}>
-      <div className="container max-w-[95%] xl:max-w-[1400px] mx-auto flex h-14 sm:h-16 items-center justify-between px-2 sm:px-0">
-        <div className="flex items-center gap-4 sm:gap-8">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-accent">
-              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
+      <div className="container max-w-[95%] xl:max-w-[1400px] mx-auto flex h-14 sm:h-16 items-center justify-between px-2 sm:px-4">
+        <div className="flex items-center gap-2 sm:gap-8">
+          <Link href="/" className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-accent">
+              <Sparkles className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-accent-foreground" />
             </div>
-            <span className="text-lg sm:text-xl font-bold">CodeGen AI</span>
+            <span className="text-base sm:text-xl font-bold">CodeGen AI</span>
           </Link>
-          <nav className="flex items-center gap-2 sm:gap-4 md:gap-6">
-            <a href="#features" className="hidden md:block text-xs sm:text-sm text-white hover:text-white/80 transition-colors">
+          <nav className="hidden md:flex items-center gap-4 md:gap-6">
+            <a href="#features" className="text-sm text-white hover:text-white/80 transition-colors">
               {t.docs}
             </a>
-            <a href="#examples" className="hidden md:block text-xs sm:text-sm text-white hover:text-white/80 transition-colors">
+            <a href="#examples" className="text-sm text-white hover:text-white/80 transition-colors">
               {t.examples}
             </a>
-            <Link href="/payment" className="text-xs sm:text-sm text-white hover:text-white/80 transition-colors">
+            <Link href="/payment" className="text-sm text-white hover:text-white/80 transition-colors">
               {t.pricing}
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setLanguage(language === "en" ? "zh" : "en")}
-            className="gap-1.5 h-8 px-2 sm:px-3"
+            className="gap-1 h-7 sm:h-8 px-1.5 sm:px-3"
           >
-            <Globe className="h-4 w-4" />
-            <span className="text-xs sm:text-sm">{language === "en" ? "中文" : "English"}</span>
+            <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline text-xs sm:text-sm">{language === "en" ? "中文" : "English"}</span>
           </Button>
 
           {loading ? (
@@ -127,10 +127,10 @@ export function Header({ language, setLanguage }: HeaderProps) {
             </DropdownMenu>
           ) : (
             <>
-              <Button variant="ghost" size="sm" className="text-xs sm:text-sm h-8 px-3 sm:px-4" asChild>
+              <Button variant="ghost" size="sm" className="text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-4" asChild>
                 <Link href="/login">{t.signIn}</Link>
               </Button>
-              <Button size="sm" className="bg-accent hover:bg-accent/90 text-xs sm:text-sm h-8 px-3 sm:px-4" asChild>
+              <Button size="sm" className="bg-accent hover:bg-accent/90 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-4 whitespace-nowrap" asChild>
                 <Link href="/register">{t.getStarted}</Link>
               </Button>
             </>
