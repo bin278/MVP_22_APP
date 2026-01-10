@@ -1,13 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // eslint 配置已移到 ESLINT_CONFIG 文件 (Next.js 15+)
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,
+  },
+  // 添加 Turbopack 配置以解决 lockfile 警告
+  turbopack: {
+    root: process.cwd(),
   },
   // CloudBase 部署配置或 Capacitor 静态导出
   output: process.env.CLOUDBASE_BUILD ? 'standalone' : undefined,

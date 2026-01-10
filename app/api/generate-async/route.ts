@@ -73,10 +73,32 @@ async function getTaskFromDB(taskId: string): Promise<GenerationTask | null> {
 
 async function updateTaskInDB(taskId: string, updates: Partial<GenerationTask>) {
   try {
-    await update('generation_tasks', { taskId }, updates)
-    console.log(`✅ 任务已在数据库中更新: ${taskId}`)
+    console.log(`📝 [DB] 准备更新任务: ${taskId}, 更新内容:`, Object.keys(updates))
+
+    // Supabase 需要先通过 taskId 查询获取 id
+    const result = await query('generation_tasks', { where: { taskId } })
+
+    if (!result || !result.data || result.data.length === 0) {
+      console.error(`❌ [DB] 未找到任务: ${taskId}`)
+      return
+    }
+
+    const taskRecord = result.data[0] as any
+    const recordId = taskRecord.id
+
+    console.log(`📋 [DB] 找到任务记录，id: ${recordId}`)
+
+    // 使用 id 更新记录
+    await update('generation_tasks', recordId, updates)
+    console.log(`✅ [DB] 任务已在数据库中更新: ${taskId}`)
   } catch (error) {
-    console.error('更新数据库中的任务失败:', error)
+    console.error('❌ [DB] 更新数据库中的任务失败:', error)
+    console.error('错误详情:', {
+      message: (error as any).message,
+      code: (error as any).code,
+      hint: (error as any).hint,
+      details: (error as any).details
+    })
   }
 }
 
@@ -85,12 +107,19 @@ function getAIClient(model: string) {
   const isDeepSeek = model.includes('deepseek')
 
   if (isDeepSeek) {
+    console.log('🔑 使用 DeepSeek API:', {
+      baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+      hasKey: !!process.env.DEEPSEEK_API_KEY,
+      keyPrefix: process.env.DEEPSEEK_API_KEY?.substring(0, 10)
+    })
+
     return new OpenAI({
       apiKey: process.env.DEEPSEEK_API_KEY,
-      baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+      baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
     })
   } else {
     // 其他模型的配置
+    console.log('🔑 使用 OpenAI API')
     return new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     })
@@ -159,6 +188,7 @@ async function generateCodeAsync(
   onProgress(10)
 
   try {
+    console.log('🤖 开始调用 AI API, model:', model)
     const completion = await client.chat.completions.create({
       model: model,
       messages: [
@@ -211,7 +241,13 @@ export default App;`
 
   } catch (error: any) {
     console.error('AI生成失败:', error)
-    throw error
+    console.error('错误详情:', {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      type: error.type
+    })
+    throw new Error(error.message || 'AI服务调用失败')
   }
 }
 
@@ -255,14 +291,23 @@ export async function POST(request: NextRequest) {
     // 同时保存到数据库(用于 Vercel)
     await saveTaskToDB(task)
 
-    // 异步执行任务（不等待，避免阻塞API响应）
-    setImmediate(() => {
-      console.log(`🚀 开始异步处理任务: ${taskId}, isModification: ${!!existingContent}`)
-      processAsyncTask(task, existingContent, !!existingContent).catch(error => {
-        console.error('异步任务处理失败:', error)
-      })
-    })
+    console.log(`✅ 任务创建完成，准备启动异步处理: ${taskId}`)
 
+    // 异步执行任务（不等待，避免阻塞API响应）
+    // 使用 Promise.fire-and-forget 模式
+    ;(async () => {
+      try {
+        console.log(`🚀 [ASYNC] 异步任务已启动: ${taskId}`)
+        await processAsyncTask(task, existingContent, !!existingContent)
+        console.log(`✅ [ASYNC] 异步任务完成: ${taskId}`)
+      } catch (error) {
+        console.error(`❌ [ASYNC] 异步任务处理失败 [${taskId}]:`, error)
+      }
+    })()
+
+    console.log(`📤 [API] 立即返回响应，不等待异步任务: ${taskId}`)
+
+    // 立即返回响应，不等待异步任务完成
     return NextResponse.json({
       success: true,
       taskId,
