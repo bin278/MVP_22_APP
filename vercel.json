@@ -11,6 +11,21 @@
     },
     "app/api/generate-async/route.ts": {
       "maxDuration": 55
+    },
+    "app/api/generate-async/[taskId]/route.ts": {
+      "maxDuration": 55
+    },
+    "app/api/generate-async/[taskId]/stream/route.ts": {
+      "maxDuration": 55
+    },
+    "app/api/modify-async/route.ts": {
+      "maxDuration": 55
+    },
+    "app/api/modify-async/[taskId]/route.ts": {
+      "maxDuration": 55
+    },
+    "app/api/modify-async/[taskId]/stream/route.ts": {
+      "maxDuration": 55
     }
   },
   "regions": ["hkg1"]
