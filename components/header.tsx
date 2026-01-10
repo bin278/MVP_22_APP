@@ -53,7 +53,7 @@ export function Header({ language, setLanguage }: HeaderProps) {
             <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-accent">
               <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
             </div>
-            <span className="text-base sm:text-xl font-bold hidden sm:inline">CodeGen AI</span>
+            <span className="text-base sm:text-xl font-bold">CodeGen AI</span>
           </Link>
           <nav className="hidden md:flex items-center gap-4 md:gap-6">
             <a href="#features" className="text-sm text-white hover:text-white/80 transition-colors">
