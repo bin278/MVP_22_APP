@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Sparkles, Mail, Lock, User, Eye, EyeOff, CheckCircle, Shield } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { useLanguage } from "@/lib/language-context"
 import { Separator } from "@/components/ui/separator"
 import { LanguageToggle } from "@/components/language-toggle"
 
@@ -44,7 +43,76 @@ const GoogleIcon = () => (
   </svg>
 )
 
+// 翻译字典
+const translations = {
+  zh: {
+    title: '创建账户',
+    description: '注册您的 CodeGen AI 账户',
+    fullName: '全名',
+    fullNamePlaceholder: '输入您的全名',
+    email: '邮箱',
+    emailPlaceholder: '输入您的邮箱',
+    password: '密码',
+    passwordPlaceholder: '输入您的密码（至少6位）',
+    confirmPassword: '确认密码',
+    confirmPasswordPlaceholder: '再次输入密码',
+    signUp: '注册',
+    signingUp: '注册中...',
+    hasAccount: '已有账户?',
+    signIn: '登录',
+    orSignUpWith: '或通过以下方式注册',
+    continueWithWeChat: '使用微信注册',
+    continueWithGoogle: '使用 Google 注册',
+    agreeTerms: '我同意',
+    termsOfService: '服务条款',
+    privacyPolicy: '隐私政策',
+    mustAcceptTerms: '请先同意服务条款和隐私政策',
+    fillAllFields: '请填写所有字段',
+    passwordTooShort: '密码至少需要6位',
+    passwordMismatch: '两次输入的密码不一致',
+    registrationFailed: '注册失败，请稍后重试',
+    successTitle: '注册成功！',
+    successMessage: '您的账户已创建成功',
+    successInfo: '您现在可以登录并开始使用 CodeGen AI',
+    goToLogin: '前往登录',
+  },
+  en: {
+    title: 'Create Account',
+    description: 'Sign up for your CodeGen AI account',
+    fullName: 'Full Name',
+    fullNamePlaceholder: 'Enter your full name',
+    email: 'Email',
+    emailPlaceholder: 'Enter your email',
+    password: 'Password',
+    passwordPlaceholder: 'Enter your password (at least 6 characters)',
+    confirmPassword: 'Confirm Password',
+    confirmPasswordPlaceholder: 'Enter password again',
+    signUp: 'Sign Up',
+    signingUp: 'Signing up...',
+    hasAccount: 'Already have an account?',
+    signIn: 'Sign in',
+    orSignUpWith: 'Or sign up with',
+    continueWithWeChat: 'Continue with WeChat',
+    continueWithGoogle: 'Continue with Google',
+    agreeTerms: 'I agree to the',
+    termsOfService: 'Terms of Service',
+    privacyPolicy: 'Privacy Policy',
+    mustAcceptTerms: 'Please accept the Terms of Service and Privacy Policy',
+    fillAllFields: 'Please fill in all fields',
+    passwordTooShort: 'Password must be at least 6 characters',
+    passwordMismatch: 'Passwords do not match',
+    registrationFailed: 'Registration failed, please try again later',
+    successTitle: 'Registration Successful!',
+    successMessage: 'Your account has been created successfully',
+    successInfo: 'You can now sign in and start using CodeGen AI',
+    goToLogin: 'Go to Login',
+  },
+}
+
 export default function RegisterPage() {
+  // Initialize with "zh" to ensure SSR/CSR consistency
+  const [language, setLanguage] = useState<"zh" | "en">("zh")
+  const [isMounted, setIsMounted] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -61,11 +129,41 @@ export default function RegisterPage() {
   const [acceptTerms, setAcceptTerms] = useState(false)
 
   const { signUp, signInWithWechat, signInWithGoogle } = useAuth()
-  const { t } = useLanguage()
   const router = useRouter()
 
   // 检测当前版本
   const isInternational = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase'
+
+  // Load language preference from localStorage after mount
+  useEffect(() => {
+    setIsMounted(true)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedLanguage = localStorage.getItem('language') as "zh" | "en" | null
+        if (savedLanguage === "zh" || savedLanguage === "en") {
+          setLanguage(savedLanguage)
+        }
+      } catch (error) {
+        console.error('Error reading language from localStorage:', error)
+      }
+    }
+  }, [])
+
+  const handleLanguageChange = (newLanguage: "zh" | "en") => {
+    setLanguage(newLanguage)
+    // Save language preference to localStorage when user changes it
+    if (isMounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('language', newLanguage)
+      } catch (error) {
+        console.error('Error saving language to localStorage:', error)
+      }
+    }
+  }
+
+  const t = (key: string): string => {
+    return translations[language][key as keyof typeof translations.zh] || key
+  }
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -80,22 +178,22 @@ export default function RegisterPage() {
 
   const validateForm = () => {
     if (!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName) {
-      setError(t('register.fillAllFields'))
+      setError(t('fillAllFields'))
       return false
     }
 
     if (formData.password.length < 6) {
-      setError(t('register.passwordTooShort'))
+      setError(t('passwordTooShort'))
       return false
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError(t('register.passwordMismatch'))
+      setError(t('passwordMismatch'))
       return false
     }
 
     if (!acceptTerms) {
-      setError(t('register.mustAcceptTerms'))
+      setError(t('mustAcceptTerms'))
       return false
     }
 
@@ -128,7 +226,7 @@ export default function RegisterPage() {
 
     } catch (err: any) {
       console.error('注册异常:', err)
-      setError(t('register.registrationFailed'))
+      setError(t('registrationFailed'))
     } finally {
       setIsLoading(false)
     }
@@ -146,21 +244,21 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(`${t('login.qrcodeError')}: ${errorData.error || t('login.unknownError')}`)
+        throw new Error(`Failed to get WeChat login QR code: ${errorData.error || 'Unknown error'}`)
       }
 
       const data = await response.json()
       const authUrl = data.qrcodeUrl
 
       if (!authUrl) {
-        throw new Error(t('login.noQrcode'))
+        throw new Error('Failed to get WeChat login QR code')
       }
 
       window.location.href = authUrl
 
     } catch (err: any) {
       console.error('[WeChat Login] Error:', err)
-      setError(err.message || t('login.wechatError'))
+      setError(err.message || 'An error occurred during WeChat login')
       setIsWechatLoading(false)
     }
   }
@@ -171,7 +269,7 @@ export default function RegisterPage() {
 
     try {
       if (!signInWithGoogle) {
-        throw new Error(t('login.googleOnlyIntl'))
+        throw new Error('Google login is only available in international version')
       }
 
       const { error } = await signInWithGoogle()
@@ -182,7 +280,7 @@ export default function RegisterPage() {
       // Supabase会自动处理重定向
     } catch (err: any) {
       console.error('[Google Login] Error:', err)
-      setError(err.message || t('login.googleError'))
+      setError(err.message || 'An error occurred during Google login')
       setIsGoogleLoading(false)
     }
   }
@@ -192,28 +290,28 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4 relative">
         <div className="absolute top-4 right-4">
-          <LanguageToggle />
+          <LanguageToggle language={language} setLanguage={handleLanguageChange} />
         </div>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
-            <CardTitle className="text-2xl text-green-700">{t('register.successTitle')}</CardTitle>
+            <CardTitle className="text-2xl text-green-700">{t('successTitle')}</CardTitle>
             <CardDescription className="text-base">
-              {t('register.successMessage')}
+              {t('successMessage')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                {t('register.successInfo')}
+                {t('successInfo')}
               </p>
             </div>
           </CardContent>
           <CardFooter>
             <Button onClick={() => router.push("/login")} className="w-full">
-              {t('register.goToLogin')}
+              {t('goToLogin')}
             </Button>
           </CardFooter>
         </Card>
@@ -225,7 +323,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4 relative">
       <div className="absolute top-4 right-4">
-        <LanguageToggle />
+        <LanguageToggle language={language} setLanguage={handleLanguageChange} />
       </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
@@ -234,21 +332,21 @@ export default function RegisterPage() {
               <Sparkles className="h-6 w-6 text-accent-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">{t('register.title')}</CardTitle>
+          <CardTitle className="text-2xl">{t('title')}</CardTitle>
           <CardDescription>
-            {t('register.description')}
+            {t('description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">{t('register.fullName')}</Label>
+              <Label htmlFor="fullName">{t('fullName')}</Label>
               <div className="relative">
                 <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="fullName"
                   type="text"
-                  placeholder={t('register.fullNamePlaceholder')}
+                  placeholder={t('fullNamePlaceholder')}
                   value={formData.fullName}
                   onChange={(e) => handleInputChange("fullName", e.target.value)}
                   className="pl-10"
@@ -258,13 +356,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">{t('register.email')}</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder={t('register.emailPlaceholder')}
+                  placeholder={t('emailPlaceholder')}
                   value={formData.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   className="pl-10"
@@ -274,13 +372,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">{t('register.password')}</Label>
+              <Label htmlFor="password">{t('password')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder={t('register.passwordPlaceholder')}
+                  placeholder={t('passwordPlaceholder')}
                   value={formData.password}
                   onChange={(e) => handleInputChange("password", e.target.value)}
                   className="pl-10 pr-10"
@@ -297,13 +395,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">{t('register.confirmPassword')}</Label>
+              <Label htmlFor="confirmPassword">{t('confirmPassword')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder={t('register.confirmPasswordPlaceholder')}
+                  placeholder={t('confirmPasswordPlaceholder')}
                   value={formData.confirmPassword}
                   onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                   className="pl-10 pr-10"
@@ -326,13 +424,13 @@ export default function RegisterPage() {
                 onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
               />
               <label htmlFor="terms" className="text-sm text-muted-foreground">
-                {t('register.agreeTerms')}{" "}
+                {t('agreeTerms')}{" "}
                 <Link href="/privacy#terms" className="text-accent hover:underline">
-                  {t('register.termsOfService')}
+                  {t('termsOfService')}
                 </Link>
-                {" "}{t('login.and')}{" "}
+                {" "}{language === 'zh' ? '和' : 'and'}{" "}
                 <Link href="/privacy#privacy" className="text-accent hover:underline">
-                  {t('register.privacyPolicy')}
+                  {t('privacyPolicy')}
                 </Link>
               </label>
             </div>
@@ -344,7 +442,7 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? t('register.signingUp') : t('register.signUp')}
+              {isLoading ? t('signingUp') : t('signUp')}
             </Button>
           </form>
 
@@ -353,7 +451,7 @@ export default function RegisterPage() {
               <Separator />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">{t('register.orSignUpWith')}</span>
+              <span className="bg-background px-2 text-muted-foreground">{t('orSignUpWith')}</span>
             </div>
           </div>
 
@@ -368,7 +466,7 @@ export default function RegisterPage() {
             >
               <WechatIcon />
               <span className="ml-2">
-                {isWechatLoading ? t('login.connecting') : t('register.continueWithWeChat')}
+                {isWechatLoading ? 'Connecting...' : t('continueWithWeChat')}
               </span>
             </Button>
           )}
@@ -384,16 +482,16 @@ export default function RegisterPage() {
             >
               <GoogleIcon />
               <span className="ml-2">
-                {isGoogleLoading ? t('login.connecting') : t('register.continueWithGoogle')}
+                {isGoogleLoading ? 'Connecting...' : t('continueWithGoogle')}
               </span>
             </Button>
           )}
         </CardContent>
         <CardFooter className="text-center">
           <div className="text-sm text-muted-foreground">
-            {t('register.hasAccount')}{" "}
+            {t('hasAccount')}{" "}
             <Link href="/login" className="text-accent hover:underline">
-              {t('register.signIn')}
+              {t('signIn')}
             </Link>
           </div>
         </CardFooter>
