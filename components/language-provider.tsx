@@ -28,8 +28,14 @@ export function LanguageProvider({ children, defaultLanguage = "zh" }: LanguageP
 
 export function useLanguage() {
   const context = useContext(LanguageContext);
+
+  // 在服务器端预渲染时，返回默认值而不是抛出错误
   if (context === undefined) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    return {
+      language: "zh" as Language,
+      setLanguage: () => {}, // 空函数
+    };
   }
+
   return context;
 }
