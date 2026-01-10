@@ -262,8 +262,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
 export function useLanguage() {
   const context = useContext(LanguageContext)
+
+  // 在服务器端预渲染时，返回默认值而不是抛出错误
   if (context === undefined) {
-    throw new Error('useLanguage must be used within a LanguageProvider')
+    // 返回一个安全的默认值
+    return {
+      language: 'zh' as Language,
+      setLanguage: () => {}, // 空函数
+      t: (key: string) => key, // 返回 key 本身
+    }
   }
+
   return context
 }
