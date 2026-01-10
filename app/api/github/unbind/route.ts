@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/auth'
-import { query, remove } from '@/lib/database/cloudbase'
+import { query, remove, getDatabaseProvider } from '@/lib/database'
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -17,6 +17,9 @@ export async function DELETE(request: NextRequest) {
 
     // 查找并删除GitHub token记录
     try {
+      const provider = getDatabaseProvider()
+      const idField = provider === 'supabase' ? 'id' : '_id'
+
       const tokenResult = await query('user_github_tokens', {
         where: { user_id: user.uid || user.id },
         limit: 1
@@ -29,8 +32,8 @@ export async function DELETE(request: NextRequest) {
         )
       }
 
-      // 删除GitHub token记录
-      await remove('user_github_tokens', tokenResult.data[0]._id)
+      // 删除GitHub token记录 (使用 idField)
+      await remove('user_github_tokens', tokenResult.data[0][idField])
 
       return NextResponse.json({
         success: true,

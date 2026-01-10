@@ -939,8 +939,17 @@ function GeneratePageContent() {
   const handleGenerate = async () => {
     if (!prompt.trim()) return
 
+    // 等待使用数据加载完成
+    if (codeUsage === null) {
+      const message = language === 'en'
+        ? 'Loading usage data, please wait...'
+        : '正在加载使用数据，请稍候...'
+      alert(message)
+      return
+    }
+
     // 检查使用次数限制
-    if (codeUsage && !codeUsage.isUnlimited && codeUsage.remaining <= 0) {
+    if (!codeUsage.isUnlimited && codeUsage.remaining <= 0) {
       // 显示提示信息
       const message = language === 'en'
         ? `You have reached your monthly limit of ${codeUsage.limit} code generations.\n\nPlease upgrade your plan to continue generating code.`
@@ -1897,7 +1906,7 @@ function GeneratePageContent() {
                   {/* 生成按钮 */}
                   <Button
                     onClick={handleGenerate}
-                    disabled={isGenerating || !(generatedProject ? modifyInstruction.trim() : prompt.trim())}
+                    disabled={isGenerating || !(generatedProject ? modifyInstruction.trim() : prompt.trim()) || codeUsage === null}
                     size="lg"
                     className="w-full bg-accent hover:bg-accent/90"
                   >
@@ -2173,7 +2182,7 @@ function GeneratePageContent() {
                         <>
                           <Button
                             onClick={handleGenerate}
-                            disabled={!prompt.trim() || isGenerating || (codeUsage && !codeUsage.isUnlimited && codeUsage.remaining <= 0)}
+                            disabled={!prompt.trim() || isGenerating || codeUsage === null || (codeUsage && !codeUsage.isUnlimited && codeUsage.remaining <= 0)}
                             size="sm"
                             className={(codeUsage && !codeUsage.isUnlimited && codeUsage.remaining <= 0)
                               ? "bg-gray-400 cursor-not-allowed"

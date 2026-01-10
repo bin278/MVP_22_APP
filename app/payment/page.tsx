@@ -11,20 +11,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Check, Crown, Zap, Building2, CreditCard, ArrowLeft, Loader2, Settings, Info, Sparkles, ChevronDown, Languages, Battery, TrendingUp } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useLanguage } from "@/components/language-provider"
+import { useLanguage } from "@/lib/language-context"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { CNPaymentDialog } from "@/components/payment/cn-payment-dialog"
 import { fetchWithAuth } from "@/lib/auth/fetch-with-auth"
-import { isChinaDeployment } from "@/lib/config/deployment.config"
 
+// 支付方式类型
 type PaymentMethodCN = "wechat" | "alipay"
-type PaymentMethod = PaymentMethodCN
+type PaymentMethodIntl = "stripe" | "paypal"
+type PaymentMethod = PaymentMethodCN | PaymentMethodIntl
 type Tier = "free" | "pro" | "enterprise"
 type BillingCycle = "monthly" | "yearly"
 
-// 获取当前环境
-const isCN = isChinaDeployment()
+// 注意: isCN 不再在模块级别固定,而是在组件内部动态计算
 
 // 定价配置
 const PRICING = {
@@ -48,9 +48,16 @@ export default function PricingPage() {
   const { toast } = useToast()
   const { language, setLanguage } = useLanguage()
   const t = useTranslations(language)
-  
-  // 中国版默认支付方式
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("wechat")
+
+  // 动态检测当前版本 - 使用 NEXT_PUBLIC_* 环境变量以便客户端访问
+  const isCN = process.env.NEXT_PUBLIC_AUTH_PROVIDER !== 'supabase'
+
+  // 根据版本设置默认支付方式
+  const getDefaultPaymentMethod = (): PaymentMethod => {
+    return isCN ? "wechat" : "stripe"
+  }
+
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(getDefaultPaymentMethod())
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("yearly")
   const [processingPlan, setProcessingPlan] = useState<Tier | null>(null)
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
@@ -177,26 +184,63 @@ export default function PricingPage() {
           ? t.pricing.plans.enterprise.name
           : t.pricing.plans.free.name
 
-      // 中国版支付API端点
-      const apiEndpoint = "/api/payment/cn/create"
+      let response: Response
+      let data: any
 
-      // 支付宝使用电脑网站支付，微信使用二维码支付
-      const paymentMode = selectedPayment === "alipay" ? "page" : "qrcode"
+      // 根据版本选择不同的API端点
+      if (!isCN) {
+        // 国际版支付API
+        const intlEndpoint = "/api/payment/intl/subscription/create"
+        response = await fetchWithAuth(intlEndpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            method: selectedPayment, // "stripe" or "paypal"
+            planType: tier,
+            billingCycle: billingCycle,
+          }),
+        })
 
-      const response = await fetchWithAuth(apiEndpoint, {
-        method: "POST",
-        body: JSON.stringify({
-          method: selectedPayment,
-          mode: paymentMode,
-          amount,
-          currency,
-          planType: tier,
-          billingCycle,
-          description: `${billingCycle === "monthly" ? "1个月" : "1年"} ${tier.charAt(0).toUpperCase() + tier.slice(1)} 会员`,
-        }),
-      })
+        data = await response.json()
 
-      const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || (language === "zh" ? "支付创建失败" : "Failed to create payment"))
+        }
+
+        // 国际版支付 - 跳转到支付页面
+        setProcessingPlan(null)
+
+        if (data.checkoutUrl) {
+          // Stripe Checkout 或 PayPal 支付页面
+          toast({
+            title: language === "zh" ? "正在跳转到支付页面..." : "Redirecting to checkout...",
+            description: language === "zh" ? "请在新页面完成支付" : "Please complete payment in the new window",
+          })
+
+          // 跳转到 Stripe/PayPal 支付页面
+          window.location.href = data.checkoutUrl
+          return
+        }
+      } else {
+        // 中国版支付API
+        const apiEndpoint = "/api/payment/cn/create"
+
+        // 支付宝使用电脑网站支付，微信使用二维码支付
+        const paymentMode = selectedPayment === "alipay" ? "page" : "qrcode"
+
+        response = await fetchWithAuth(apiEndpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            method: selectedPayment,
+            mode: paymentMode,
+            amount,
+            currency,
+            planType: tier,
+            billingCycle,
+            description: `${billingCycle === "monthly" ? "1个月" : "1年"} ${tier.charAt(0).toUpperCase() + tier.slice(1)} 会员`,
+          }),
+        })
+
+        data = await response.json()
 
       if (!response.ok) {
         // 特殊处理重复支付请求
@@ -256,6 +300,7 @@ export default function PricingPage() {
           description: "请扫描二维码完成支付",
         })
       }
+      } // 结束中国版支付处理
     } catch (error: any) {
       console.error("Subscription error:", error)
       toast({
@@ -278,41 +323,78 @@ export default function PricingPage() {
     setProcessingCreditPackage(packageType)
 
     try {
-      const apiEndpoint = "/api/payment/cn/credit-package/create"
+      let response: Response
+      let data: any
 
-      const response = await fetchWithAuth(apiEndpoint, {
-        method: "POST",
-        body: JSON.stringify({
-          packageType,
-          method: selectedPayment,
-          mode: "qrcode",
-        }),
-      })
+      // 根据版本选择不同的API端点
+      if (!isCN) {
+        // 国际版加油包支付API
+        const intlEndpoint = "/api/payment/intl/credit-package/create"
+        response = await fetchWithAuth(intlEndpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            method: selectedPayment, // "stripe" or "paypal"
+            packageType,
+          }),
+        })
 
-      const data = await response.json()
+        data = await response.json()
 
-      if (!response.ok) {
-        // 特殊处理重复支付请求
-        if (data.code === "DUPLICATE_PAYMENT_REQUEST") {
-          const waitTime = data.waitTime || 60
-          const message = language === "zh"
-            ? `${data.error || "您有一个待处理的支付请求，请稍后再试"}\n请等待 ${waitTime} 秒后重试`
-            : `${data.error || "You have a pending payment request, please try again later"}\nPlease wait ${waitTime} seconds before retry`
-
-          toast({
-            title: language === "zh" ? "支付请求重复" : "Duplicate Payment Request",
-            description: message,
-            variant: "destructive",
-          })
-          return
+        if (!response.ok) {
+          throw new Error(data.error || (language === "zh" ? "支付创建失败" : "Failed to create payment"))
         }
 
-        // 其他错误
-        throw new Error(data.error || (language === "zh" ? "支付创建失败" : "Failed to create payment"))
-      }
+        // 国际版支付 - 跳转到支付页面
+        setProcessingCreditPackage(null)
 
-      // 处理支付响应
-      setProcessingCreditPackage(null)
+        if (data.checkoutUrl) {
+          // Stripe Checkout 或 PayPal 支付页面
+          toast({
+            title: language === "zh" ? "正在跳转到支付页面..." : "Redirecting to checkout...",
+            description: language === "zh" ? "请在新页面完成支付" : "Please complete payment in the new window",
+          })
+
+          // 跳转到 Stripe/PayPal 支付页面
+          window.location.href = data.checkoutUrl
+          return
+        }
+      } else {
+        // 中国版加油包支付API
+        const apiEndpoint = "/api/payment/cn/credit-package/create"
+
+        response = await fetchWithAuth(apiEndpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            packageType,
+            method: selectedPayment,
+            mode: "qrcode",
+          }),
+        })
+
+        data = await response.json()
+
+        if (!response.ok) {
+          // 特殊处理重复支付请求
+          if (data.code === "DUPLICATE_PAYMENT_REQUEST") {
+            const waitTime = data.waitTime || 60
+            const message = language === "zh"
+              ? `${data.error || "您有一个待处理的支付请求，请稍后再试"}\n请等待 ${waitTime} 秒后重试`
+              : `${data.error || "You have a pending payment request, please try again later"}\nPlease wait ${waitTime} seconds before retry`
+
+            toast({
+              title: language === "zh" ? "支付请求重复" : "Duplicate Payment Request",
+              description: message,
+              variant: "destructive",
+            })
+            return
+          }
+
+          // 其他错误
+          throw new Error(data.error || (language === "zh" ? "支付创建失败" : "Failed to create payment"))
+        }
+
+        // 处理支付响应
+        setProcessingCreditPackage(null)
 
       if (data.paymentUrl) {
         // 电脑网站支付（支付宝）
@@ -353,6 +435,7 @@ export default function PricingPage() {
           description: "请扫描二维码完成支付",
         })
       }
+      } // 结束中国版加油包支付处理
     } catch (error: any) {
       console.error("Credit package purchase error:", error)
       toast({
@@ -375,8 +458,8 @@ export default function PricingPage() {
       gradient: "from-slate-500 to-slate-600",
       lightGradient: "from-slate-50 to-slate-100",
       borderGradient: "from-slate-200 via-slate-300 to-slate-200",
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
+      iconBg: "bg-accent/10",
+      iconColor: "text-accent",
       features: t.pricing.plans.free.features,
     },
     {
@@ -385,11 +468,11 @@ export default function PricingPage() {
       monthlyPrice: pricing.pro.monthly,
       yearlyPrice: pricing.pro.yearly,
       icon: Crown,
-      gradient: "from-blue-600 via-indigo-600 to-purple-600",
-      lightGradient: "from-blue-50 via-indigo-50 to-purple-50",
-      borderGradient: "from-blue-400 via-indigo-500 to-purple-500",
-      iconBg: "bg-gradient-to-br from-blue-500 to-purple-600",
-      iconColor: "text-white",
+      gradient: "from-accent/80 to-accent/60",
+      lightGradient: "from-accent/5 via-accent/10 to-accent/5",
+      borderGradient: "from-accent/40 via-accent/60 to-accent/40",
+      iconBg: "bg-accent",
+      iconColor: "text-accent-foreground",
       popular: true,
       features: t.pricing.plans.pro.features,
     },
@@ -399,11 +482,11 @@ export default function PricingPage() {
       monthlyPrice: pricing.enterprise.monthly,
       yearlyPrice: pricing.enterprise.yearly,
       icon: Building2,
-      gradient: "from-amber-500 via-orange-500 to-rose-500",
-      lightGradient: "from-amber-50 via-orange-50 to-rose-50",
-      borderGradient: "from-amber-300 via-orange-400 to-rose-400",
-      iconBg: "bg-gradient-to-br from-amber-500 to-rose-500",
-      iconColor: "text-white",
+      gradient: "from-accent/80 to-accent/60",
+      lightGradient: "from-accent/5 via-accent/10 to-accent/5",
+      borderGradient: "from-accent/40 via-accent/60 to-accent/40",
+      iconBg: "bg-accent",
+      iconColor: "text-accent-foreground",
       features: t.pricing.plans.enterprise.features,
     },
   ]
@@ -421,15 +504,16 @@ export default function PricingPage() {
     { question: t.pricing.faq.freeTrial.question, answer: t.pricing.faq.freeTrial.answer },
   ]
 
-  // 中国版支付方式选项
-  const paymentMethods = [
+  // 支付方式选项 - 根据版本动态生成
+  const paymentMethods = isCN ? [
+    // 中国版支付方式
     {
       id: "wechat" as PaymentMethodCN,
       name: "微信支付",
       description: "使用微信扫码支付",
       icon: (
-        <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-green-600 shadow-lg shadow-green-500/30">
-          <svg viewBox="0 0 24 24" className="h-4 w-4 text-white" fill="currentColor">
+        <div className="p-2 rounded-lg bg-accent shadow-lg shadow-accent/30">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 text-accent-foreground" fill="currentColor">
             <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348z"/>
           </svg>
         </div>
@@ -440,9 +524,35 @@ export default function PricingPage() {
       name: "支付宝",
       description: "使用支付宝网页支付",
       icon: (
-        <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
-          <svg viewBox="0 0 24 24" className="h-4 w-4 text-white" fill="currentColor">
+        <div className="p-2 rounded-lg bg-accent shadow-lg shadow-accent/30">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 text-accent-foreground" fill="currentColor">
             <path d="M21.422 15.358c-.598-.191-1.218-.374-1.857-.548a24.57 24.57 0 0 0 1.524-5.31h-4.073v-1.717h5.127V6.333h-5.127V4.25h-2.776v2.083H9.098v1.45h5.142v1.717H9.6v1.45h6.86a21.847 21.847 0 0 1-.917 3.19c-1.925-.433-3.91-.749-5.855-.749-3.178 0-5.117 1.342-5.117 3.408 0 2.066 1.939 3.408 5.117 3.408 2.365 0 4.456-.67 6.203-1.99a44.424 44.424 0 0 0 5.993 2.483l1.538-3.34z"/>
+          </svg>
+        </div>
+      ),
+    },
+  ] : [
+    // 国际版支付方式
+    {
+      id: "stripe" as PaymentMethodIntl,
+      name: "Stripe",
+      description: language === "zh" ? "信用卡/借记卡支付" : "Credit/Debit Card",
+      icon: (
+        <div className="p-2 rounded-lg bg-accent shadow-lg shadow-accent/30">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 text-accent-foreground" fill="currentColor">
+            <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 4.515.858l.66-2.072s-1.533-.654-4.617-.654c-4.095 0-6.276 2.071-6.276 4.645 0 2.436 2.167 3.574 4.191 4.393 2.582 1.033 3.445 1.7 3.445 2.736 0 .732-.624 1.378-2.034 1.378-2.256 0-4.986-1.121-4.986-1.121l-.699 2.187s1.766.91 5.084.91c4.419 0 6.686-2.054 6.686-4.795 0-2.466-2.194-3.678-4.514-4.751z"/>
+          </svg>
+        </div>
+      ),
+    },
+    {
+      id: "paypal" as PaymentMethodIntl,
+      name: "PayPal",
+      description: language === "zh" ? "安全的在线支付" : "Secure Online Payment",
+      icon: (
+        <div className="p-2 rounded-lg bg-accent shadow-lg shadow-accent/30">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 text-accent-foreground" fill="currentColor">
+            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z"/>
           </svg>
         </div>
       ),
@@ -453,11 +563,11 @@ export default function PricingPage() {
     <>
       <div className="min-h-screen relative overflow-hidden">
         {/* Animated Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/40" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-accent/5 to-accent/10" />
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute top-1/2 -left-40 w-96 h-96 bg-gradient-to-br from-indigo-400/15 to-blue-400/15 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 right-1/3 w-72 h-72 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-accent/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute top-1/2 -left-40 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 right-1/3 w-72 h-72 bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
         </div>
 
         {/* Grid Pattern Overlay */}
@@ -488,21 +598,21 @@ export default function PricingPage() {
 
             {/* Hero Section */}
             <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-200/50 backdrop-blur-sm mb-6">
-                <Sparkles className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 backdrop-blur-sm mb-6">
+                <Sparkles className="h-4 w-4 text-accent" />
+                <span className="text-sm font-medium text-accent">
                   {language === "zh" ? "升级您的体验" : "Upgrade Your Experience"}
                 </span>
               </div>
-              <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-gray-900 via-blue-800 to-purple-900 bg-clip-text text-transparent leading-tight">
+              <h1 className="text-5xl md:text-6xl font-bold mb-6 gradient-text leading-tight">
                 {t.pricing.title}
               </h1>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                 {t.pricing.subtitle}
               </p>
               {currentTier !== "free" && (
                 <div className="mt-6">
-                  <Badge className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-1.5 text-sm">
+                  <Badge className="bg-accent text-accent-foreground px-4 py-1.5 text-sm">
                     {t.pricing.current}: {currentTier.charAt(0).toUpperCase() + currentTier.slice(1)}
                   </Badge>
                 </div>
@@ -511,15 +621,15 @@ export default function PricingPage() {
 
             {/* Billing Cycle Selector */}
             <div className="max-w-sm mx-auto mb-10">
-              <div className="relative p-1 rounded-2xl bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 shadow-lg">
-                <div className="flex rounded-xl bg-white/90 backdrop-blur-sm p-1 gap-1">
+              <div className="relative p-1 rounded-2xl bg-accent/20 shadow-lg">
+                <div className="flex rounded-xl bg-background/90 backdrop-blur-sm p-1 gap-1">
                   <button
                     onClick={() => setBillingCycle("monthly")}
                     className={cn(
                       "flex-1 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-300",
                       billingCycle === "monthly"
-                        ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/50"
+                        ? "bg-accent text-accent-foreground shadow-lg shadow-accent/25"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/5"
                     )}
                   >
                     {language === "zh" ? "月付" : "Monthly"}
@@ -529,20 +639,20 @@ export default function PricingPage() {
                     className={cn(
                       "flex-1 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-300 relative",
                       billingCycle === "yearly"
-                        ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/50"
+                        ? "bg-accent text-accent-foreground shadow-lg shadow-accent/25"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/5"
                     )}
                   >
                     {language === "zh" ? "年付" : "Yearly"}
                     {billingCycle !== "yearly" && (
-                      <span className="absolute -top-2 -right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500 text-white">
+                      <span className="absolute -top-2 -right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
                         -20%
                       </span>
                     )}
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 text-center mt-3">
+              <p className="text-sm text-muted-foreground text-center mt-3">
                 {language === "zh" ? "年度订阅可节省 20% 费用" : "Save 20% with annual billing"}
               </p>
             </div>
@@ -567,8 +677,8 @@ export default function PricingPage() {
                           className={cn(
                             "flex items-center space-x-3 p-4 border-2 rounded-xl cursor-pointer transition-all duration-200",
                             selectedPayment === method.id
-                              ? "border-blue-500 bg-blue-50/50 shadow-md shadow-blue-500/10"
-                              : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50"
+                              ? "border-accent bg-accent/5 shadow-md shadow-accent/10"
+                              : "border-border hover:border-accent/50 hover:bg-accent/5"
                           )}
                         >
                           <RadioGroupItem value={method.id} id={method.id} />
@@ -578,7 +688,7 @@ export default function PricingPage() {
                                 {method.icon}
                                 <span className="font-semibold">{method.name}</span>
                               </div>
-                              <span className="text-sm text-gray-500">{method.description}</span>
+                              <span className="text-sm text-muted-foreground">{method.description}</span>
                             </div>
                           </Label>
                         </div>
@@ -606,24 +716,24 @@ export default function PricingPage() {
                   >
                     {/* Glow Effect for Pro */}
                     {isPro && (
-                      <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-500" />
+                      <div className="absolute -inset-1 bg-accent rounded-3xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-500" />
                     )}
 
                     <Card
                       className={cn(
                         "relative overflow-hidden transition-all duration-500 border-0",
                         isPro
-                          ? "shadow-2xl shadow-purple-500/20 bg-white"
-                          : "shadow-xl shadow-gray-200/50 bg-white/80 backdrop-blur-sm hover:shadow-2xl hover:-translate-y-1",
+                          ? "shadow-2xl shadow-accent/20 bg-card"
+                          : "shadow-xl bg-card/80 backdrop-blur-sm hover:shadow-2xl hover:-translate-y-1",
                       )}
                     >
                       {/* Popular Badge */}
                       {isPro && (
-                        <div className="absolute -top-px left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600" />
+                        <div className="absolute -top-px left-0 right-0 h-1.5 bg-accent" />
                       )}
                       {isPro && (
                         <div className="absolute top-4 right-4">
-                          <Badge className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg shadow-purple-500/30 px-3 py-1">
+                          <Badge className="bg-accent text-accent-foreground border-0 shadow-lg shadow-accent/30 px-3 py-1">
                             <Sparkles className="h-3 w-3 mr-1" />
                             {language === "zh" ? "最受欢迎" : "Most Popular"}
                           </Badge>
@@ -641,13 +751,13 @@ export default function PricingPage() {
                           </div>
                           <div className="flex gap-2">
                             {isCurrentPlan && (
-                              <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
+                              <Badge variant="secondary" className="bg-accent/20 text-accent border-accent/30">
                                 <Check className="h-3 w-3 mr-1" />
                                 {language === "zh" ? "当前" : "Current"}
                               </Badge>
                             )}
                             {plan.savings > 0 && (
-                              <Badge className="bg-green-500 text-white border-0 shadow-md shadow-green-500/30">
+                              <Badge className="bg-accent text-accent-foreground border-0 shadow-md shadow-accent/30">
                                 {language === "zh" ? `省${plan.savings}%` : `Save ${plan.savings}%`}
                               </Badge>
                             )}
@@ -657,31 +767,31 @@ export default function PricingPage() {
                         <div className="mt-6 flex items-baseline gap-1">
                           <span className={cn(
                             "text-5xl font-bold",
-                            isPro && "bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+                            isPro && "text-accent"
                           )}>
                             {plan.price}
                           </span>
                           {plan.period && (
-                            <span className="text-gray-500 text-lg">{plan.period}</span>
+                            <span className="text-muted-foreground text-lg">{plan.period}</span>
                           )}
                         </div>
                       </CardHeader>
 
                       <CardContent className="pb-6">
-                        <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mb-6" />
+                        <div className="h-px bg-border mb-6" />
                         <ul className="space-y-4">
                           {plan.features.map((feature, idx) => (
                             <li key={idx} className="flex items-start gap-3 group/item">
                               <div className={cn(
                                 "mt-0.5 p-1 rounded-full transition-colors",
-                                isPro ? "bg-green-100 group-hover/item:bg-green-200" : "bg-gray-100 group-hover/item:bg-gray-200"
+                                isPro ? "bg-accent/20 group-hover/item:bg-accent/30" : "bg-muted group-hover/item:bg-accent/10"
                               )}>
                                 <Check className={cn(
                                   "h-3 w-3",
-                                  isPro ? "text-green-600" : "text-gray-600"
+                                  isPro ? "text-accent" : "text-muted-foreground"
                                 )} />
                               </div>
-                              <span className="text-sm text-gray-700 leading-relaxed">{feature}</span>
+                              <span className="text-sm leading-relaxed">{feature}</span>
                             </li>
                           ))}
                         </ul>
@@ -694,10 +804,10 @@ export default function PricingPage() {
                           className={cn(
                             "w-full h-12 text-base font-semibold rounded-xl transition-all duration-300",
                             isPro
-                              ? "bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.02]"
+                              ? "bg-accent hover:bg-accent/90 hover:shadow-xl hover:shadow-accent/30 hover:scale-[1.02]"
                               : plan.id === "free"
-                                ? "bg-gray-100 text-gray-700 hover:bg-gray-200 border-0"
-                                : "bg-gradient-to-r from-amber-500 to-rose-500 hover:shadow-xl hover:shadow-orange-500/30 hover:scale-[1.02]"
+                                ? "bg-muted text-muted-foreground hover:bg-accent/10 border-0"
+                                : "bg-accent hover:bg-accent/90 hover:shadow-xl hover:shadow-accent/30 hover:scale-[1.02]"
                           )}
                           variant={plan.id === "free" ? "ghost" : "default"}
                         >
@@ -719,17 +829,22 @@ export default function PricingPage() {
                           ) : (
                             <>
                               <CreditCard className="mr-2 h-4 w-4" />
-                              {language === "zh"
-                                ? `使用${selectedPayment === "wechat" ? "微信" : "支付宝"}支付`
-                                : `Subscribe with ${selectedPayment === "wechat" ? "WeChat" : "Alipay"}`
-                              }
+                              {language === "zh" ? (
+                                isCN
+                                  ? `使用${selectedPayment === "wechat" ? "微信" : "支付宝"}支付`
+                                  : `使用${selectedPayment === "stripe" ? "Stripe" : "PayPal"}支付`
+                              ) : (
+                                isCN
+                                  ? `Subscribe with ${selectedPayment === "wechat" ? "WeChat" : "Alipay"}`
+                                  : `Subscribe with ${selectedPayment === "stripe" ? "Stripe" : "PayPal"}`
+                              )}
                             </>
                           )}
                         </Button>
 
                         {isCurrentPlan && plan.id !== "free" && (
                           <Link href="/settings?tab=subscription" className="w-full">
-                            <Button variant="outline" size="sm" className="w-full rounded-xl border-2 hover:bg-gray-50">
+                            <Button variant="outline" size="sm" className="w-full rounded-xl border-2 hover:bg-accent/5">
                               <Settings className="mr-2 h-4 w-4" />
                               {language === "zh" ? "管理订阅" : "Manage Subscription"}
                             </Button>
@@ -743,19 +858,19 @@ export default function PricingPage() {
             </div>
 
             {/* Credit Package Section */}
-            {isCN && (
+            {true && (
               <div className="mt-20">
                 <div className="text-center mb-10">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-200/50 backdrop-blur-sm mb-4">
-                    <Battery className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm font-medium bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 backdrop-blur-sm mb-4">
+                    <Battery className="h-4 w-4 text-accent" />
+                    <span className="text-sm font-medium text-accent">
                       {language === "zh" ? "加油包" : "Credit Packages"}
                     </span>
                   </div>
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-3">
+                  <h2 className="text-3xl font-bold gradient-text mb-3">
                     {language === "zh" ? "需要更多生成次数？" : "Need More Generations?"}
                   </h2>
-                  <p className="text-gray-600 max-w-2xl mx-auto">
+                  <p className="text-muted-foreground max-w-2xl mx-auto">
                     {language === "zh"
                       ? "购买加油包，获得额外的代码生成次数。次数优先于订阅配额使用，购买后立即生效。"
                       : "Purchase credit packages for additional code generations. Credits are used before your subscription quota and take effect immediately."}
@@ -765,42 +880,42 @@ export default function PricingPage() {
                 {/* Credit Package Cards */}
                 <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
                   {/* Basic Package */}
-                  <Card className="relative overflow-hidden transition-all duration-500 border-2 shadow-xl hover:shadow-2xl hover:-translate-y-1 bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-blue-200">
+                  <Card className="relative overflow-hidden transition-all duration-500 border-2 shadow-xl hover:shadow-2xl hover:-translate-y-1 bg-card hover:bg-accent/5 border-accent/20">
                     <CardHeader className="text-center pb-4">
                       <div className="flex justify-center mb-4">
-                        <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
-                          <TrendingUp className="h-6 w-6 text-white" />
+                        <div className="p-3 rounded-2xl bg-accent shadow-lg shadow-accent/30">
+                          <TrendingUp className="h-6 w-6 text-accent-foreground" />
                         </div>
                       </div>
                       <CardTitle className="text-xl font-bold">
                         {language === "zh" ? "基础加油包" : "Basic Package"}
                       </CardTitle>
                       <div className="mt-4 flex items-baseline justify-center gap-1">
-                        <span className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                          ¥9.9
+                        <span className="text-4xl font-bold text-accent">
+                          {isCN ? "¥9.9" : "$4.99"}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-2">
+                      <p className="text-sm text-muted-foreground mt-2">
                         {language === "zh" ? "100 次生成" : "100 Generations"}
                       </p>
                     </CardHeader>
                     <CardContent className="pb-6">
-                      <div className="h-px bg-gradient-to-r from-transparent via-blue-200 to-transparent mb-4" />
+                      <div className="h-px bg-border mb-4" />
                       <ul className="space-y-3">
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "100 次代码生成" : "100 code generations"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "30 天有效期" : "30 days validity"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "优先于订阅配额使用" : "Used before subscription quota"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "购买后立即生效" : "Takes effect immediately"}
                         </li>
                       </ul>
@@ -809,7 +924,7 @@ export default function PricingPage() {
                       <Button
                         onClick={() => handleBuyCreditPackage("basic")}
                         disabled={processingCreditPackage === "basic"}
-                        className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg hover:shadow-blue-500/30 text-white font-semibold rounded-xl transition-all duration-300"
+                        className="w-full h-12 bg-accent hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/30 text-accent-foreground font-semibold rounded-xl transition-all duration-300"
                       >
                         {processingCreditPackage === "basic" ? (
                           <>
@@ -827,46 +942,46 @@ export default function PricingPage() {
                   </Card>
 
                   {/* Standard Package */}
-                  <Card className="relative overflow-hidden transition-all duration-500 border-2 shadow-xl hover:shadow-2xl hover:-translate-y-1 bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-purple-200">
-                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-600 to-pink-600" />
+                  <Card className="relative overflow-hidden transition-all duration-500 border-2 shadow-xl hover:shadow-2xl hover:-translate-y-1 bg-card hover:bg-accent/5 border-accent/30">
+                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-accent" />
                     <CardHeader className="text-center pb-4">
                       <div className="flex justify-center mb-4">
-                        <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/30">
-                          <TrendingUp className="h-6 w-6 text-white" />
+                        <div className="p-3 rounded-2xl bg-accent shadow-lg shadow-accent/30">
+                          <TrendingUp className="h-6 w-6 text-accent-foreground" />
                         </div>
                       </div>
                       <CardTitle className="text-xl font-bold">
                         {language === "zh" ? "标准加油包" : "Standard Package"}
                       </CardTitle>
                       <div className="mt-4 flex items-baseline justify-center gap-1">
-                        <span className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                          ¥24.9
+                        <span className="text-4xl font-bold text-accent">
+                          {isCN ? "¥24.9" : "$12.49"}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-2">
+                      <p className="text-sm text-muted-foreground mt-2">
                         {language === "zh" ? "300 次生成" : "300 Generations"}
                       </p>
-                      <Badge className="mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
+                      <Badge className="mt-2 bg-accent text-accent-foreground border-0">
                         {language === "zh" ? "性价比之选" : "Best Value"}
                       </Badge>
                     </CardHeader>
                     <CardContent className="pb-6">
-                      <div className="h-px bg-gradient-to-r from-transparent via-purple-200 to-transparent mb-4" />
+                      <div className="h-px bg-border mb-4" />
                       <ul className="space-y-3">
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "300 次代码生成" : "300 code generations"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "30 天有效期" : "30 days validity"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "优先于订阅配额使用" : "Used before subscription quota"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "节省 17%" : "Save 17%"}
                         </li>
                       </ul>
@@ -875,7 +990,7 @@ export default function PricingPage() {
                       <Button
                         onClick={() => handleBuyCreditPackage("standard")}
                         disabled={processingCreditPackage === "standard"}
-                        className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-lg hover:shadow-purple-500/30 text-white font-semibold rounded-xl transition-all duration-300"
+                        className="w-full h-12 bg-accent hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/30 text-accent-foreground font-semibold rounded-xl transition-all duration-300"
                       >
                         {processingCreditPackage === "standard" ? (
                           <>
@@ -893,45 +1008,47 @@ export default function PricingPage() {
                   </Card>
 
                   {/* Premium Package */}
-                  <Card className="relative overflow-hidden transition-all duration-500 border-2 shadow-xl hover:shadow-2xl hover:-translate-y-1 bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border-amber-200">
+                  <Card className="relative overflow-hidden transition-all duration-500 border-2 shadow-xl hover:shadow-2xl hover:-translate-y-1 bg-card hover:bg-accent/5 border-accent/20">
                     <CardHeader className="text-center pb-4">
                       <div className="flex justify-center mb-4">
-                        <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30">
-                          <TrendingUp className="h-6 w-6 text-white" />
+                        <div className="p-3 rounded-2xl bg-accent shadow-lg shadow-accent/30">
+                          <TrendingUp className="h-6 w-6 text-accent-foreground" />
                         </div>
                       </div>
                       <CardTitle className="text-xl font-bold">
                         {language === "zh" ? "高级加油包" : "Premium Package"}
                       </CardTitle>
                       <div className="mt-4 flex items-baseline justify-center gap-1">
-                        <span className="text-4xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-                          ¥79.9
+                        <span className="text-4xl font-bold text-accent">
+                          {isCN ? "¥79.9" : "$37.49"}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-2">
+                      <p className="text-sm text-muted-foreground mt-2">
                         {language === "zh" ? "1000 次生成" : "1000 Generations"}
                       </p>
-                      <Badge className="mt-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white border-0">
+                      <Badge className="mt-2 bg-accent text-accent-foreground border-0">
                         {language === "zh" ? "超值优惠" : "Super Saver"}
                       </Badge>
                     </CardHeader>
                     <CardContent className="pb-6">
-                      <div className="h-px bg-gradient-to-r from-transparent via-amber-200 to-transparent mb-4" />
+                      <div className="h-px bg-border mb-4" />
                       <ul className="space-y-3">
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "1000 次代码生成" : "1000 code generations"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                          {language === "zh" ? "60 天有效期" : "60 days validity"}
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
+                          {isCN
+                            ? (language === "zh" ? "60 天有效期" : "60 days validity")
+                            : (language === "zh" ? "30 天有效期" : "30 days validity")}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "优先于订阅配额使用" : "Used before subscription quota"}
                         </li>
-                        <li className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
                           {language === "zh" ? "节省 20%" : "Save 20%"}
                         </li>
                       </ul>
@@ -940,7 +1057,7 @@ export default function PricingPage() {
                       <Button
                         onClick={() => handleBuyCreditPackage("premium")}
                         disabled={processingCreditPackage === "premium"}
-                        className="w-full h-12 bg-gradient-to-r from-amber-600 to-orange-600 hover:shadow-lg hover:shadow-amber-500/30 text-white font-semibold rounded-xl transition-all duration-300"
+                        className="w-full h-12 bg-accent hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/30 text-accent-foreground font-semibold rounded-xl transition-all duration-300"
                       >
                         {processingCreditPackage === "premium" ? (
                           <>
@@ -963,10 +1080,10 @@ export default function PricingPage() {
             {/* FAQ Section */}
             <div className="mt-20 max-w-3xl mx-auto">
               <div className="text-center mb-10">
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                <h2 className="text-3xl font-bold gradient-text">
                   {t.pricing.faq.title}
                 </h2>
-                <p className="text-gray-500 mt-2">
+                <p className="text-muted-foreground mt-2">
                   {language === "zh" ? "还有其他问题？随时联系我们" : "Have more questions? Feel free to reach out"}
                 </p>
               </div>
@@ -977,17 +1094,17 @@ export default function PricingPage() {
                     className={cn(
                       "rounded-2xl border-2 transition-all duration-300 overflow-hidden",
                       expandedFaq === index
-                        ? "border-blue-200 bg-blue-50/50 shadow-lg shadow-blue-500/10"
-                        : "border-gray-200 bg-white/80 hover:border-gray-300"
+                        ? "border-accent bg-accent/5 shadow-lg shadow-accent/10"
+                        : "border-border bg-card/80 hover:border-accent/30"
                     )}
                   >
                     <button
                       onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
                       className="w-full px-6 py-5 flex items-center justify-between text-left"
                     >
-                      <h3 className="font-semibold text-gray-900 pr-4">{faq.question}</h3>
+                      <h3 className="font-semibold pr-4">{faq.question}</h3>
                       <ChevronDown className={cn(
-                        "h-5 w-5 text-gray-500 transition-transform duration-300 flex-shrink-0",
+                        "h-5 w-5 text-muted-foreground transition-transform duration-300 flex-shrink-0",
                         expandedFaq === index && "rotate-180"
                       )} />
                     </button>
@@ -995,7 +1112,7 @@ export default function PricingPage() {
                       "overflow-hidden transition-all duration-300",
                       expandedFaq === index ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
                     )}>
-                      <p className="px-6 pb-5 text-gray-600 leading-relaxed">
+                      <p className="px-6 pb-5 text-muted-foreground leading-relaxed">
                         {faq.answer}
                       </p>
                     </div>
@@ -1006,14 +1123,14 @@ export default function PricingPage() {
 
             {/* Bottom CTA */}
             <div className="mt-20 text-center">
-              <div className="inline-flex flex-col items-center gap-4 p-8 rounded-3xl bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 border border-blue-100">
+              <div className="inline-flex flex-col items-center gap-4 p-8 rounded-3xl bg-accent/5 border border-accent/20">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
-                  <span className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  <Sparkles className="h-5 w-5 text-accent" />
+                  <span className="text-lg font-semibold text-accent">
                     {language === "zh" ? "准备好开始了吗？" : "Ready to get started?"}
                   </span>
                 </div>
-                <p className="text-gray-600 max-w-md">
+                <p className="text-muted-foreground max-w-md">
                   {language === "zh"
                     ? "立即升级，解锁所有高级功能，享受无限可能"
                     : "Upgrade now to unlock all premium features and endless possibilities"}

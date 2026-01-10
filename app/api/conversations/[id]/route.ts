@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/auth"
-import { query } from "@/lib/database/cloudbase"
+import { query, remove, update, getDatabaseProvider } from "@/lib/database"
 
 // GET: 获取对话详情（包括消息和文件）
 export async function GET(
@@ -22,9 +22,13 @@ export async function GET(
     const conversationId = id
 
     // 获取对话信息
+    // 根据数据库提供商使用不同的ID字段
+    const provider = getDatabaseProvider()
+    const idField = provider === 'supabase' ? 'id' : '_id'
+
     const conversationResult = await query("conversations", {
       where: {
-        _id: conversationId,
+        [idField]: conversationId,
         user_id: user.id
       },
       limit: 1
@@ -66,19 +70,19 @@ export async function GET(
       orderDirection: "asc"
     })
 
-    // 格式化响应数据
+    // 格式化响应数据 (使用前面声明的 provider 和 idField)
     const formattedConversation = {
-      id: conversation._id,
+      id: conversation[idField],
       ...conversation
     }
 
     const formattedMessages = messagesResult.data.map(msg => ({
-      id: msg._id,
+      id: msg[idField],
       ...msg
     }))
 
     const formattedFiles = filesResult.data.map(file => ({
-      id: file._id,
+      id: file[idField],
       ...file
     }))
 
@@ -117,9 +121,12 @@ export async function DELETE(
     const conversationId = id
 
     // 验证对话属于当前用户
+    const provider = getDatabaseProvider()
+    const idField = provider === 'supabase' ? 'id' : '_id'
+
     const conversationResult = await query("conversations", {
       where: {
-        _id: conversationId,
+        [idField]: conversationId,
         user_id: user.id
       },
       limit: 1
@@ -132,7 +139,7 @@ export async function DELETE(
       )
     }
 
-    // 注意：CloudBase不支持级联删除，我们需要手动删除相关的消息和文件
+    // 注意：需要手动删除相关的消息和文件
     // 首先删除消息
     const messagesResult = await query("conversation_messages", {
       where: { conversation_id: conversationId }
@@ -141,9 +148,9 @@ export async function DELETE(
     // 删除所有相关的消息
     for (const message of messagesResult.data) {
       try {
-        await require('@/lib/database/cloudbase').remove('conversation_messages', message._id)
+        await remove('conversation_messages', message[idField])
       } catch (error) {
-        console.error(`Failed to delete message ${message._id}:`, error)
+        console.error(`Failed to delete message ${message[idField]}:`, error)
       }
     }
 
@@ -154,14 +161,14 @@ export async function DELETE(
 
     for (const file of filesResult.data) {
       try {
-        await require('@/lib/database/cloudbase').remove('conversation_files', file._id)
+        await remove('conversation_files', file[idField])
       } catch (error) {
-        console.error(`Failed to delete file ${file._id}:`, error)
+        console.error(`Failed to delete file ${file[idField]}:`, error)
       }
     }
 
     // 最后删除对话
-    await require('@/lib/database/cloudbase').remove('conversations', conversationId)
+    await remove('conversations', conversationId)
 
     return NextResponse.json({
       success: true,
@@ -204,9 +211,12 @@ export async function PUT(
     }
 
     // 验证对话属于当前用户
+    const provider = getDatabaseProvider()
+    const idField = provider === 'supabase' ? 'id' : '_id'
+
     const conversationResult = await query("conversations", {
       where: {
-        _id: conversationId,
+        [idField]: conversationId,
         user_id: user.id
       },
       limit: 1
@@ -220,14 +230,14 @@ export async function PUT(
     }
 
     // 更新对话标题
-    await require('@/lib/database/cloudbase').update('conversations', conversationId, {
+    await update('conversations', conversationId, {
       title,
       updated_at: new Date().toISOString()
     })
 
     // 获取更新后的对话
     const updatedResult = await query("conversations", {
-      where: { _id: conversationId },
+      where: { [idField]: conversationId },
       limit: 1
     })
 
@@ -236,7 +246,7 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       conversation: {
-        id: updatedConversation._id,
+        id: updatedConversation[idField],
         ...updatedConversation
       },
     })

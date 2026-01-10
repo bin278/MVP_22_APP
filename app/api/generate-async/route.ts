@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/auth'
-import { add, update, query } from '@/lib/database/cloudbase'
+import { add, update, query } from '@/lib/database'
 import OpenAI from 'openai'
 import { recordRecommendationUsage } from '@/lib/subscription/usage-tracker'
 

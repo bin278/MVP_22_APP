@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/auth'
-import { query } from '@/lib/database/cloudbase'
+import { query } from '@/lib/database'
 
 /**
  * Check GitHub connection status
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     const user = authResult.user
 
-    // Check if GitHub token exists in CloudBase
+    // Check if GitHub token exists in database
     try {
       const tokenResult = await query('user_github_tokens', {
         where: { user_id: user.uid || user.id },

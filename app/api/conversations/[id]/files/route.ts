@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/auth"
-import { query, add, update } from "@/lib/database/cloudbase"
+import { query, add, update, getDatabaseProvider } from "@/lib/database"
 
 // POST: 保存文件到对话
 export async function POST(
@@ -32,9 +32,13 @@ export async function POST(
     }
 
     // 验证对话属于当前用户
+    // 根据数据库提供商使用不同的ID字段
+    const provider = getDatabaseProvider()
+    const idField = provider === 'supabase' ? 'id' : '_id'
+
     const conversationResult = await query("conversations", {
       where: {
-        _id: conversationId,
+        [idField]: conversationId,
         user_id: user.id
       },
       limit: 1
@@ -63,8 +67,8 @@ export async function POST(
 
         let result
         if (existingFile.data && existingFile.data.length > 0) {
-          // 更新现有文件
-          const docId = existingFile.data[0]._id
+          // 更新现有文件 (使用 idField)
+          const docId = existingFile.data[0][idField]
           result = await update("conversation_files", docId, {
             file_content: file.file_content,
             updated_at: new Date().toISOString()
@@ -85,7 +89,7 @@ export async function POST(
             updated_at: new Date().toISOString()
           })
           savedFiles.push({
-            _id: result.id,
+            id: result.id,
             conversation_id: conversationId,
             user_id: user.id,
             file_path: file.file_path,
@@ -103,8 +107,8 @@ export async function POST(
       }
     }
 
-    // 更新对话的 updated_at
-    const conversationDocId = conversationResult.data[0]._id
+    // 更新对话的 updated_at (使用前面声明的 idField)
+    const conversationDocId = conversationResult.data[0][idField]
     await update("conversations", conversationDocId, {
       updated_at: new Date().toISOString()
     })

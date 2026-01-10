@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/auth"
-import { query } from "@/lib/database/cloudbase"
+import { query, getDatabaseProvider } from "@/lib/database"
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     console.log("User authenticated:", user.id)
 
     console.log("Fetching conversations for user:", user.id)
+    console.log("Database provider:", getDatabaseProvider())
 
     // 获取用户的所有对话，按更新时间倒序
     let conversations = []
@@ -33,8 +34,9 @@ export async function GET(request: NextRequest) {
       console.log("Successfully fetched", result.data.length, "conversations")
 
       // 转换数据格式以保持兼容性
+      // CloudBase 使用 _id, Supabase 使用 id
       conversations = result.data.map(conv => ({
-        id: conv._id,
+        id: conv._id || conv.id,
         ...conv
       }))
     } catch (dbError: any) {

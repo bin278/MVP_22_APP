@@ -1,8 +1,9 @@
-// app/api/auth/refresh-subscription/route.ts - 刷新用户订阅状态 (CloudBase版本)
+// app/api/auth/refresh-subscription/route.ts - 刷新用户订阅状态
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/auth";
 import { isChinaDeployment } from "@/lib/config/deployment.config";
 import { CloudBaseUserAdapter } from "@/lib/database/adapters/cloudbase-user";
+import { SupabaseUserAdapter } from "@/lib/database/adapters/supabase-user";
 
 function normalizePlan(plan?: string | null): "enterprise" | "pro" | "free" {
   const val = (plan || "").toLowerCase();
@@ -86,6 +87,61 @@ async function refreshSubscriptionCN(userId: string, user: any) {
   };
 }
 
+// INTL 环境：使用 Supabase
+async function refreshSubscriptionINTL(userId: string, user: any) {
+  console.log("[API] INTL environment - using Supabase");
+  const supabaseAdapter = new SupabaseUserAdapter();
+
+  // 查询用户的活跃订阅
+  const { data: subscription, error: subscriptionError } = await supabaseAdapter.getActiveSubscription(userId);
+
+  if (subscriptionError) {
+    console.error("[API] Error checking subscription:", subscriptionError);
+  }
+
+  // 查找最近一条已完成的支付
+  const { data: payments } = await supabaseAdapter.getUserPayments(userId, { limit: 1 });
+  const latestPayment = payments?.[0];
+
+  // 以用户当前元数据为回退
+  let subscriptionPlan = normalizePlan(user.user_metadata?.subscription_plan as string);
+  let subscriptionStatus = (user.user_metadata?.subscription_status as string) || "inactive";
+  let subscriptionEnd: string | null = (user.user_metadata?.subscription_end as string) || null;
+  let billingCycle: string | null = (user.user_metadata?.subscription_billing_cycle as string) || null;
+
+  if (subscription) {
+    subscriptionPlan = normalizePlan(subscription.plan_type || "pro");
+    subscriptionStatus = subscription.status;
+    subscriptionEnd = subscription.subscription_end;
+  }
+
+  // 兜底使用最近一次支付的 planType
+  if (latestPayment?.status === "completed") {
+    const paymentPlanType = resolvePlanFromMetadata(latestPayment.metadata);
+    if (paymentPlanType !== "free" && paymentPlanType !== subscriptionPlan) {
+      subscriptionPlan = paymentPlanType;
+      if (!subscriptionStatus || subscriptionStatus === "inactive") {
+        subscriptionStatus = "active";
+      }
+    }
+    if (!billingCycle && latestPayment.metadata?.billingCycle) {
+      billingCycle = latestPayment.metadata.billingCycle;
+    }
+  }
+
+  // 更新用户信息（Supabase - 更新 user_subscriptions 表）
+  console.log("[API] Subscription refreshed for Supabase user:", { userId, subscriptionPlan, subscriptionStatus });
+
+  return {
+    success: true,
+    subscriptionPlan,
+    subscriptionStatus,
+    subscription,
+    billingCycle,
+    subscriptionEnd,
+  };
+}
+
 export async function POST(request: NextRequest) {
   console.log("[API] POST /api/auth/refresh-subscription - Start");
 
@@ -104,8 +160,10 @@ export async function POST(request: NextRequest) {
 
     console.log("[API] Refresh subscription request for user:", userId);
 
-    // CloudBase 版本的订阅刷新
-    const result = await refreshSubscriptionCN(userId, user);
+    // 根据部署环境选择适配器
+    const result = isChinaDeployment()
+      ? await refreshSubscriptionCN(userId, user)
+      : await refreshSubscriptionINTL(userId, user);
 
     console.log("[API] Sending response:", {
       success: result.success,

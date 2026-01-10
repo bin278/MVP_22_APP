@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { add, query, update } from '@/lib/database/cloudbase'
+import { add, query, update, getDatabaseProvider } from '@/lib/database'
 
 /**
  * Handle GitHub OAuth callback
@@ -124,8 +124,11 @@ export async function GET(request: NextRequest) {
 
     const githubUser = await userResponse.json()
 
-    // Store GitHub token in CloudBase
+    // Store GitHub token in database (CloudBase or Supabase)
     try {
+      const provider = getDatabaseProvider()
+      const idField = provider === 'supabase' ? 'id' : '_id'
+
       // 检查是否已存在GitHub token记录
       const existingToken = await query('user_github_tokens', {
         where: { user_id: userId },
@@ -133,8 +136,8 @@ export async function GET(request: NextRequest) {
       })
 
       if (existingToken.data && existingToken.data.length > 0) {
-        // 更新现有记录
-        await update('user_github_tokens', existingToken.data[0]._id, {
+        // 更新现有记录 (使用 idField)
+        await update('user_github_tokens', existingToken.data[0][idField], {
           github_token: accessToken,
           github_username: githubUser.login,
           updated_at: new Date().toISOString(),
@@ -152,8 +155,8 @@ export async function GET(request: NextRequest) {
         console.log('Created new GitHub token for user:', userId)
       }
     } catch (dbError: any) {
-      console.error('Error storing GitHub token in CloudBase:', dbError)
-      // 如果集合不存在或其他错误，重定向并显示警告
+      console.error('Error storing GitHub token in database:', dbError)
+      // 如果表不存在或其他错误，重定向并显示警告
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin}/generate?github_connected=true&github_username=${githubUser.login}&github_warning=db_error`
       )

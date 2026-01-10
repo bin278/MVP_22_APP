@@ -1,0 +1,1 @@
+"use strict";exports.id=7526,exports.ids=[7526],exports.modules={77526:(s,e,o)=>{o.d(e,{supabaseAdmin:()=>E});let E=(0,o(78431).UU)(process.env.NEXT_PUBLIC_SUPABASE_URL||"",process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||"",{auth:{autoRefreshToken:!1,persistSession:!1}})}};

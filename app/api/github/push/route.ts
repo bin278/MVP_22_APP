@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Octokit } from '@octokit/rest'
 import { requireAuth } from '@/lib/auth/auth'
-import { query } from '@/lib/database/cloudbase'
+import { query } from '@/lib/database'
 
 /**
  * Push generated code to GitHub repository
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const user = authResult.user
 
-    // Get GitHub token from CloudBase
+    // Get GitHub token from database
     let tokenData
     try {
       const tokenResult = await query('user_github_tokens', {

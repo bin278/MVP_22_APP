@@ -32,6 +32,15 @@ function getSupabaseAdmin() {
 let cloudbaseAppInstance: any = null;
 
 function getCloudBaseApp() {
+  // 检查是否应该使用 Supabase
+  const authProvider = process.env.AUTH_PROVIDER;
+  const dbProvider = process.env.DATABASE_PROVIDER;
+
+  if (authProvider === 'supabase' || dbProvider === 'supabase') {
+    console.log('[Usage Tracker] 国际版模式 (Supabase)，跳过 CloudBase 初始化');
+    throw new Error('CloudBase not available in Supabase mode');
+  }
+
   if (cloudbaseAppInstance) {
     return cloudbaseAppInstance;
   }
@@ -253,7 +262,7 @@ async function getUserUsageStatsSupabase(userId: string): Promise<UsageStats> {
   const features = PLAN_FEATURES[planType];
 
   const periodType = features.recommendationPeriod;
-  const periodLimit = features.recommendationLimit;
+  let periodLimit = features.recommendationLimit;
   const isUnlimited = periodLimit === -1;
 
   const { start, end } = getPeriodBounds(periodType);
@@ -267,6 +276,64 @@ async function getUserUsageStatsSupabase(userId: string): Promise<UsageStats> {
     .lte("created_at", end.toISOString());
 
   const currentPeriodUsage = count || 0;
+
+  console.log('📊 [getUserUsageStatsSupabase] 查询使用统计:', {
+    userId,
+    planType,
+    periodType,
+    periodLimit,
+    isUnlimited,
+    currentPeriodUsage,
+    start: start.toISOString(),
+    end: end.toISOString()
+  });
+
+  // ✅ 新增：查询有效的加油包，累加加油包次数到限额
+  try {
+    const now = new Date().toISOString();
+    const { data: creditPackages, error: creditError } = await supabase
+      .from("user_credit_packages")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "active");
+
+    if (!creditError && creditPackages && creditPackages.length > 0) {
+      let totalCreditPackageRemaining = 0;
+
+      for (const pkg of creditPackages) {
+        const credits = pkg.credits_remaining || 0;
+        const expiryDate = pkg.expiry_date;
+
+        // 检查是否过期
+        if (expiryDate < now) {
+          // 标记为过期
+          console.log(`[getUserUsageStatsSupabase] 加油包 ${pkg.id} 已过期，更新状态`);
+          await supabase
+            .from("user_credit_packages")
+            .update({ status: "expired", updated_at: now })
+            .eq("id", pkg.id);
+          continue;
+        }
+
+        totalCreditPackageRemaining += credits;
+        console.log(`[getUserUsageStatsSupabase] 有效加油包: ${pkg.package_type}, 剩余 ${credits} 次`);
+      }
+
+      // 将加油包剩余次数加到限额中
+      if (totalCreditPackageRemaining > 0 && !isUnlimited) {
+        const originalLimit = periodLimit;
+        periodLimit += totalCreditPackageRemaining;
+        console.log(`✅ [getUserUsageStatsSupabase] 加油包次数已累加:`, {
+          原始限额: originalLimit,
+          加油包剩余: totalCreditPackageRemaining,
+          总限额: periodLimit,
+        });
+      }
+    }
+  } catch (creditError) {
+    console.error("[getUserUsageStatsSupabase] Error querying credit packages:", creditError);
+    // 继续处理，不影响主要功能
+  }
 
   return {
     userId,
@@ -459,16 +526,30 @@ export async function recordRecommendationUsage(
   userId: string,
   metadata?: Record<string, unknown>
 ): Promise<{ success: boolean; error?: string }> {
+  console.log('📝 [recordRecommendationUsage] 开始记录使用...');
+  console.log('👤 用户ID:', userId);
+  console.log('📊 元数据:', metadata);
+  console.log('🌍 部署环境检查:', {
+    isChinaDeployment: isChinaDeployment(),
+    authProvider: process.env.AUTH_PROVIDER,
+    dbProvider: process.env.DATABASE_PROVIDER
+  });
+
   // 首先检查是否可以使用
   const { allowed, reason } = await canUseRecommendation(userId);
 
   if (!allowed) {
+    console.log('❌ [recordRecommendationUsage] 不允许使用:', reason);
     return { success: false, error: reason };
   }
 
+  console.log('✅ [recordRecommendationUsage] 用户有使用权限');
+
   if (isChinaDeployment()) {
+    console.log('🇨🇳 [recordRecommendationUsage] 使用国内版 (CloudBase)');
     return recordRecommendationUsageCloudBase(userId, metadata);
   } else {
+    console.log('🌍 [recordRecommendationUsage] 使用国际版 (Supabase)');
     return recordRecommendationUsageSupabase(userId, metadata);
   }
 }
@@ -477,19 +558,144 @@ async function recordRecommendationUsageSupabase(
   userId: string,
   metadata?: Record<string, unknown>
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = getSupabaseAdmin();
+  console.log('🌍 [recordRecommendationUsageSupabase] 开始记录使用 - 国际版');
+  console.log('👤 用户ID:', userId);
+  console.log('📊 元数据:', metadata);
 
+  const supabase = getSupabaseAdmin();
+  const nowISO = new Date().toISOString();
+
+  console.log('🔍 [recordRecommendationUsageSupabase] 查询加油包...');
+
+  console.log('📝 [recordRecommendationUsageSupabase] 准备记录使用:', {
+    userId,
+    metadata,
+    nowISO,
+  });
+
+  // ✅ 新增：优先扣除加油包的次数
+  try {
+    console.log('🔍 [recordRecommendationUsageSupabase] 查询活跃的加油包...');
+    const { data: creditPackages, error: creditError } = await supabase
+      .from("user_credit_packages")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .order("purchase_date", { ascending: true });
+
+    console.log('📊 [recordRecommendationUsageSupabase] 加油包查询结果:', {
+      error: creditError,
+      count: creditPackages?.length || 0,
+      packages: creditPackages?.map(p => ({
+        id: p.id,
+        type: p.package_type,
+        status: p.status,
+        remaining: p.credits_remaining,
+        expiry: p.expiry_date
+      }))
+    });
+
+    if (!creditError && creditPackages && creditPackages.length > 0) {
+      console.log(`✅ [recordRecommendationUsageSupabase] 找到 ${creditPackages.length} 个加油包`);
+
+      // 找到最早购买的未过期加油包（先进先出）
+      let targetPackage: any = null;
+
+      for (const pkg of creditPackages) {
+        console.log(`🔍 [recordRecommendationUsageSupabase] 检查加油包 ${pkg.id}:`, {
+          type: pkg.package_type,
+          status: pkg.status,
+          remaining: pkg.credits_remaining,
+          expiry: pkg.expiry_date,
+          now: nowISO
+        });
+
+        // 检查是否过期
+        if (pkg.expiry_date < nowISO) {
+          console.log(`⚠️ [recordRecommendationUsageSupabase] 加油包 ${pkg.id} 已过期，标记为 expired`);
+          // 标记为过期
+          await supabase
+            .from("user_credit_packages")
+            .update({ status: "expired", updated_at: nowISO })
+            .eq("id", pkg.id);
+          continue;
+        }
+
+        // 找到第一个有剩余次数的加油包
+        if (pkg.credits_remaining > 0) {
+          console.log(`✅ [recordRecommendationUsageSupabase] 找到有效加油包 ${pkg.id}`);
+          targetPackage = pkg;
+          break;
+        }
+      }
+
+      // 如果找到有效的加油包，扣除次数
+      if (targetPackage) {
+        console.log(`💰 [recordRecommendationUsageSupabase] 准备从加油包扣除次数:`, {
+          packageId: targetPackage.id,
+          packageType: targetPackage.package_type,
+          currentRemaining: targetPackage.credits_remaining
+        });
+
+        const newCreditsRemaining = Math.max(0, targetPackage.credits_remaining - 1);
+
+        const { error: updateError } = await supabase
+          .from("user_credit_packages")
+          .update({
+            credits_remaining: newCreditsRemaining,
+            updated_at: nowISO,
+          })
+          .eq("id", targetPackage.id);
+
+        if (updateError) {
+          console.error("❌ [recordRecommendationUsageSupabase] 扣除加油包次数失败:", updateError);
+          // 继续处理，记录到 recommendation_usage
+        } else {
+          console.log('✅ [recordRecommendationUsageSupabase] 已成功扣除加油包次数:', {
+            creditPackageId: targetPackage.id,
+            packageType: targetPackage.package_type,
+            原剩余: targetPackage.credits_remaining,
+            新剩余: newCreditsRemaining,
+          });
+
+          // 如果加油包用完了，标记为已用完
+          if (newCreditsRemaining === 0) {
+            await supabase
+              .from("user_credit_packages")
+              .update({ status: "used_up", updated_at: nowISO })
+              .eq("id", targetPackage.id);
+            console.log('✅ [recordRecommendationUsageSupabase] 加油包已用完:', targetPackage.id);
+          }
+
+          // 加油包记录成功，不记录到 recommendation_usage
+          console.log('✅ [recordRecommendationUsageSupabase] 使用次数已从加油包扣除，完成');
+          return { success: true };
+        }
+      } else {
+        console.log('⚠️ [recordRecommendationUsageSupabase] 没有找到有效的加油包（都已过期或用完）');
+      }
+    } else {
+      console.log('ℹ️ [recordRecommendationUsageSupabase] 没有找到加油包，将从订阅额度扣除');
+    }
+  } catch (creditError) {
+    console.error("❌ [recordRecommendationUsageSupabase] 查询加油包时发生错误:", creditError);
+    // 继续处理，记录到 recommendation_usage
+  }
+
+  // 没有加油包或加油包已用完，记录到 recommendation_usage
+  console.log('📝 [recordRecommendationUsageSupabase] 准备插入推荐使用记录到 recommendation_usage 表...');
   const { error } = await supabase.from("recommendation_usage").insert({
     user_id: userId,
     metadata: metadata || {},
-    created_at: new Date().toISOString(),
+    created_at: nowISO,
   });
 
   if (error) {
-    console.error("Error recording recommendation usage:", error);
+    console.error("❌ [recordRecommendationUsageSupabase] Error recording recommendation usage:", error);
     return { success: false, error: "Failed to record usage" };
   }
 
+  console.log('✅ [recordRecommendationUsageSupabase] 成功记录使用到 recommendation_usage 表');
   return { success: true };
 }
 

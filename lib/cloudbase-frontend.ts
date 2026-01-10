@@ -8,6 +8,16 @@ let authInstance: any = null;
 // 初始化CloudBase应用
 export async function initializeCloudBase(): Promise<any> {
   console.log('🚀 开始CloudBase初始化...');
+
+  // 检查是否应该使用 Supabase 而不是 CloudBase
+  const authProvider = process.env.NEXT_PUBLIC_AUTH_PROVIDER;
+  console.log('🔍 认证提供商检查:', authProvider);
+
+  if (authProvider === 'supabase') {
+    console.log('🌍 检测到国际版配置 (Supabase)，跳过 CloudBase 初始化');
+    return null;
+  }
+
   if (!app && typeof window !== 'undefined') {
     try {
       console.log('📡 正在获取环境变量...');

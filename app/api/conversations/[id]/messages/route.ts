@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/auth"
-import { query, add, update } from "@/lib/database/cloudbase"
+import { query, add, update, getDatabaseProvider } from "@/lib/database"
 
 // POST: 添加消息到对话
 export async function POST(
@@ -39,9 +39,13 @@ export async function POST(
     }
 
     // 验证对话属于当前用户
+    // 根据数据库提供商使用不同的ID字段
+    const provider = getDatabaseProvider()
+    const idField = provider === 'supabase' ? 'id' : '_id'
+
     const conversationResult = await query("conversations", {
       where: {
-        _id: conversationId,
+        [idField]: conversationId,
         user_id: user.id
       },
       limit: 1
@@ -73,8 +77,8 @@ export async function POST(
       ...messageData
     }
 
-    // 更新对话的 updated_at
-    const conversationDocId = conversationResult.data[0]._id
+    // 更新对话的 updated_at (使用前面声明的 idField)
+    const conversationDocId = conversationResult.data[0][idField]
     await update("conversations", conversationDocId, {
       updated_at: new Date().toISOString()
     })

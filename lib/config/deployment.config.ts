@@ -58,14 +58,24 @@ export const currentRegion: DeploymentRegion = "CN";
  * 判断是否为中国区域
  */
 export function isChinaDeployment(): boolean {
-  return deploymentConfig.region === "CN";
+  // 检查环境变量
+  const authProvider = process.env.AUTH_PROVIDER;
+  const dbProvider = process.env.DATABASE_PROVIDER;
+
+  // 如果明确配置为 Supabase，则是国际版
+  if (authProvider === 'supabase' || dbProvider === 'supabase') {
+    return false;
+  }
+
+  // 默认为中国版
+  return true;
 }
 
 /**
  * 判断是否为国际区域
  */
 export function isInternationalDeployment(): boolean {
-  return deploymentConfig.region === "INTL";
+  return !isChinaDeployment();
 }
 
 /**

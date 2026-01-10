@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/auth"
-import { add } from "@/lib/database/cloudbase"
+import { add, getDatabaseProvider } from "@/lib/database"
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,11 +35,20 @@ export async function POST(request: NextRequest) {
         ...conversationData
       }
     } catch (dbError: any) {
-      console.warn("Database insert failed, creating mock conversation:", dbError.message)
-      // 如果数据库插入失败，创建一个模拟的对话对象
-      conversation = {
-        id: `temp_${Date.now()}`,
-        ...conversationData
+      console.error("Database insert failed:", dbError.message)
+
+      // 在 Supabase 模式下,不应该使用临时 ID
+      const provider = getDatabaseProvider()
+      if (provider === 'supabase') {
+        // Supabase 模式: 抛出错误
+        throw new Error(`Failed to create conversation in Supabase: ${dbError.message}`)
+      } else {
+        // CloudBase 模式: 兼容旧逻辑,创建临时 ID
+        console.warn("Database insert failed, creating mock conversation:", dbError.message)
+        conversation = {
+          id: `temp_${Date.now()}`,
+          ...conversationData
+        }
       }
     }
 

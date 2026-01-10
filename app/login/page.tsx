@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sparkles, Mail, Lock, Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { LanguageToggle } from "@/components/language-toggle"
 
 // 微信登录图标组件
 const WechatIcon = () => (
@@ -41,7 +43,88 @@ const GoogleIcon = () => (
   </svg>
 )
 
+// 翻译字典
+const translations = {
+  zh: {
+    title: '欢迎回来',
+    description: '登录到您的 CodeGen AI 账户',
+    email: '邮箱',
+    emailPlaceholder: '输入您的邮箱',
+    password: '密码',
+    passwordPlaceholder: '输入您的密码',
+    signIn: '登录',
+    signingIn: '登录中...',
+    forgotPassword: '忘记密码?',
+    noAccount: '还没有账户?',
+    signUp: '立即注册',
+    orContinueWith: '或通过以下方式继续',
+    continueWithWeChat: '使用微信登录',
+    continueWithGoogle: '使用 Google 登录',
+    connecting: '连接中...',
+    agreeTerms: '我同意',
+    termsOfService: '服务条款',
+    privacyPolicy: '隐私政策',
+    and: '和',
+    mustAcceptTerms: '请先同意服务条款和隐私政策',
+    resetPassword: '重置密码',
+    resetPasswordDescription: '输入您的邮箱地址,我们将向您发送重置密码的链接',
+    backToLogin: '返回登录',
+    sending: '发送中...',
+    sendResetLink: '发送重置链接',
+    resetEmailSent: '密码重置邮件已发送!请检查您的收件箱',
+    error: '错误',
+    // 错误消息
+    qrcodeError: '获取微信登录二维码失败',
+    unknownError: '未知错误',
+    noQrcode: '未获取到微信登录二维码',
+    wechatError: '微信登录过程中发生错误',
+    googleOnlyIntl: 'Google登录仅在 国际版中可用',
+    googleError: 'Google登录过程中发生错误',
+    generalError: '发生错误,请稍后重试',
+  },
+  en: {
+    title: 'Welcome Back',
+    description: 'Sign in to your CodeGen AI account',
+    email: 'Email',
+    emailPlaceholder: 'Enter your email',
+    password: 'Password',
+    passwordPlaceholder: 'Enter your password',
+    signIn: 'Sign In',
+    signingIn: 'Signing in...',
+    forgotPassword: 'Forgot password?',
+    noAccount: "Don't have an account?",
+    signUp: 'Sign up',
+    orContinueWith: 'Or continue with',
+    continueWithWeChat: 'Continue with WeChat',
+    continueWithGoogle: 'Continue with Google',
+    connecting: 'Connecting...',
+    agreeTerms: 'I agree to the',
+    termsOfService: 'Terms of Service',
+    privacyPolicy: 'Privacy Policy',
+    and: 'and',
+    mustAcceptTerms: 'Please accept the Terms of Service and Privacy Policy',
+    resetPassword: 'Reset Password',
+    resetPasswordDescription: 'Enter your email address and we\'ll send you a link to reset your password',
+    backToLogin: 'Back to Login',
+    sending: 'Sending...',
+    sendResetLink: 'Send Reset Link',
+    resetEmailSent: 'Password reset email sent! Check your inbox',
+    error: 'Error',
+    // Error messages
+    qrcodeError: 'Failed to get WeChat login QR code',
+    unknownError: 'Unknown error',
+    noQrcode: 'Failed to get WeChat login QR code',
+    wechatError: 'An error occurred during WeChat login',
+    googleOnlyIntl: 'Google login is only available in international version',
+    googleError: 'An error occurred during Google login',
+    generalError: 'An error occurred, please try again later',
+  },
+}
+
 export default function LoginPage() {
+  // Initialize with "zh" to ensure SSR/CSR consistency
+  const [language, setLanguage] = useState<"zh" | "en">("zh")
+  const [isMounted, setIsMounted] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -52,6 +135,7 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState("")
   const [showResetForm, setShowResetForm] = useState(false)
   const [resetMessage, setResetMessage] = useState("")
+  const [acceptTerms, setAcceptTerms] = useState(false)
 
   const { signIn, signInWithWechat, signInWithGoogle, resetPassword } = useAuth()
   const router = useRouter()
@@ -59,8 +143,46 @@ export default function LoginPage() {
   // 检测当前版本
   const isInternational = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase'
 
+  // Load language preference from localStorage after mount
+  useEffect(() => {
+    setIsMounted(true)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedLanguage = localStorage.getItem('language') as "zh" | "en" | null
+        if (savedLanguage === "zh" || savedLanguage === "en") {
+          setLanguage(savedLanguage)
+        }
+      } catch (error) {
+        console.error('Error reading language from localStorage:', error)
+      }
+    }
+  }, [])
+
+  const handleLanguageChange = (newLanguage: "zh" | "en") => {
+    setLanguage(newLanguage)
+    // Save language preference to localStorage when user changes it
+    if (isMounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('language', newLanguage)
+      } catch (error) {
+        console.error('Error saving language to localStorage:', error)
+      }
+    }
+  }
+
+  const t = (key: string): string => {
+    return translations[language][key as keyof typeof translations.zh] || key
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 检查是否同意条款
+    if (!acceptTerms) {
+      setError(t('mustAcceptTerms'))
+      return
+    }
+
     setIsLoading(true)
     setError("")
 
@@ -72,13 +194,19 @@ export default function LoginPage() {
         router.push("/")
       }
     } catch (err: any) {
-      setError("An unexpected error occurred")
+      setError(t('error'))
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleWechatLogin = async () => {
+    // 检查是否同意条款
+    if (!acceptTerms) {
+      setError(t('mustAcceptTerms'))
+      return
+    }
+
     setIsWechatLoading(true)
     setError("")
 
@@ -91,32 +219,38 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(`获取微信登录二维码失败: ${errorData.error || '未知错误'}`)
+        throw new Error(`${t('qrcodeError')}: ${errorData.error || t('unknownError')}`)
       }
 
       const data = await response.json()
       const authUrl = data.qrcodeUrl
 
       if (!authUrl) {
-        throw new Error('未获取到微信登录二维码')
+        throw new Error(t('noQrcode'))
       }
 
       window.location.href = authUrl
 
     } catch (err: any) {
       console.error('[WeChat Login] Error:', err)
-      setError(err.message || "微信登录过程中发生错误")
+      setError(err.message || t('wechatError'))
       setIsWechatLoading(false)
     }
   }
 
   const handleGoogleLogin = async () => {
+    // 检查是否同意条款
+    if (!acceptTerms) {
+      setError(t('mustAcceptTerms'))
+      return
+    }
+
     setIsGoogleLoading(true)
     setError("")
 
     try {
       if (!signInWithGoogle) {
-        throw new Error('Google登录仅在 国际版中可用')
+        throw new Error(t('googleOnlyIntl'))
       }
 
       const { error } = await signInWithGoogle()
@@ -127,7 +261,7 @@ export default function LoginPage() {
       // Supabase会自动处理重定向,不需要手动设置loading
     } catch (err: any) {
       console.error('[Google Login] Error:', err)
-      setError(err.message || "Google登录过程中发生错误")
+      setError(err.message || t('googleError'))
       setIsGoogleLoading(false)
     }
   }
@@ -142,10 +276,10 @@ export default function LoginPage() {
       if (error) {
         setResetMessage(error.message)
       } else {
-        setResetMessage("Password reset email sent! Check your inbox.")
+        setResetMessage(t('resetEmailSent'))
       }
     } catch (err: any) {
-      setResetMessage("An unexpected error occurred")
+      setResetMessage(t('error'))
     } finally {
       setIsLoading(false)
     }
@@ -154,6 +288,9 @@ export default function LoginPage() {
   if (showResetForm) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
+        <div className="absolute top-4 right-4">
+          <LanguageToggle />
+        </div>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
@@ -161,21 +298,21 @@ export default function LoginPage() {
                 <Sparkles className="h-6 w-6 text-accent-foreground" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Reset Password</CardTitle>
+            <CardTitle className="text-2xl">{t('resetPassword')}</CardTitle>
             <CardDescription>
-              Enter your email address and we'll send you a link to reset your password.
+              {t('resetPasswordDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="reset-email">Email</Label>
+                <Label htmlFor="reset-email">{t('email')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="reset-email"
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder={t('emailPlaceholder')}
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     className="pl-10"
@@ -189,7 +326,7 @@ export default function LoginPage() {
                 </Alert>
               )}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Sending..." : "Send Reset Link"}
+                {isLoading ? t('sending') : t('sendResetLink')}
               </Button>
             </form>
           </CardContent>
@@ -199,7 +336,7 @@ export default function LoginPage() {
               onClick={() => setShowResetForm(false)}
               className="w-full"
             >
-              Back to Login
+              {t('backToLogin')}
             </Button>
           </CardFooter>
         </Card>
@@ -208,7 +345,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4 relative">
+      <div className="absolute top-4 right-4">
+        <LanguageToggle language={language} setLanguage={handleLanguageChange} />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -216,21 +356,21 @@ export default function LoginPage() {
               <Sparkles className="h-6 w-6 text-accent-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Welcome Back</CardTitle>
+          <CardTitle className="text-2xl">{t('title')}</CardTitle>
           <CardDescription>
-            Sign in to your CodeGen AI account
+            {t('description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={t('emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -239,13 +379,13 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('password')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder={t('passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 pr-10"
@@ -265,8 +405,27 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="login-terms"
+                checked={acceptTerms}
+                onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+              />
+              <label htmlFor="login-terms" className="text-sm text-muted-foreground">
+                {t('agreeTerms')}{" "}
+                <Link href="/privacy#terms" className="text-accent hover:underline">
+                  {t('termsOfService')}
+                </Link>
+                {" "}{t('and')}{" "}
+                <Link href="/privacy#privacy" className="text-accent hover:underline">
+                  {t('privacyPolicy')}
+                </Link>
+              </label>
+            </div>
+
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? t('signingIn') : t('signIn')}
             </Button>
           </form>
 
@@ -275,7 +434,7 @@ export default function LoginPage() {
               <Separator />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-background px-2 text-muted-foreground">{t('orContinueWith')}</span>
             </div>
           </div>
 
@@ -290,7 +449,7 @@ export default function LoginPage() {
             >
               <WechatIcon />
               <span className="ml-2">
-                {isWechatLoading ? "Connecting..." : "Continue with WeChat"}
+                {isWechatLoading ? t('connecting') : t('continueWithWeChat')}
               </span>
             </Button>
           )}
@@ -306,7 +465,7 @@ export default function LoginPage() {
             >
               <GoogleIcon />
               <span className="ml-2">
-                {isGoogleLoading ? "Connecting..." : "Continue with Google"}
+                {isGoogleLoading ? t('connecting') : t('continueWithGoogle')}
               </span>
             </Button>
           )}
@@ -323,13 +482,13 @@ export default function LoginPage() {
               onClick={() => setShowResetForm(true)}
               className="text-accent hover:underline"
             >
-              Forgot your password?
+              {t('forgotPassword')}
             </button>
           </div>
           <div className="text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            {t('noAccount')}{" "}
             <Link href="/register" className="text-accent hover:underline">
-              Sign up
+              {t('signUp')}
             </Link>
           </div>
         </CardFooter>

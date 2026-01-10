@@ -11,7 +11,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Sparkles, Mail, Lock, User, Eye, EyeOff, CheckCircle, Shield } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { useLanguage } from "@/lib/language-context"
 import { Separator } from "@/components/ui/separator"
+import { LanguageToggle } from "@/components/language-toggle"
 
 // 微信登录图标组件
 const WechatIcon = () => (
@@ -59,6 +61,7 @@ export default function RegisterPage() {
   const [acceptTerms, setAcceptTerms] = useState(false)
 
   const { signUp, signInWithWechat, signInWithGoogle } = useAuth()
+  const { t } = useLanguage()
   const router = useRouter()
 
   // 检测当前版本
@@ -77,22 +80,22 @@ export default function RegisterPage() {
 
   const validateForm = () => {
     if (!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName) {
-      setError("请填写所有字段")
+      setError(t('register.fillAllFields'))
       return false
     }
 
     if (formData.password.length < 6) {
-      setError("密码长度至少6位")
+      setError(t('register.passwordTooShort'))
       return false
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("两次密码输入不一致")
+      setError(t('register.passwordMismatch'))
       return false
     }
 
     if (!acceptTerms) {
-      setError("请同意服务条款和隐私政策")
+      setError(t('register.mustAcceptTerms'))
       return false
     }
 
@@ -125,7 +128,7 @@ export default function RegisterPage() {
 
     } catch (err: any) {
       console.error('注册异常:', err)
-      setError("注册失败，请稍后重试")
+      setError(t('register.registrationFailed'))
     } finally {
       setIsLoading(false)
     }
@@ -143,21 +146,21 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(`获取微信登录二维码失败: ${errorData.error || '未知错误'}`)
+        throw new Error(`${t('login.qrcodeError')}: ${errorData.error || t('login.unknownError')}`)
       }
 
       const data = await response.json()
       const authUrl = data.qrcodeUrl
 
       if (!authUrl) {
-        throw new Error('未获取到微信登录二维码')
+        throw new Error(t('login.noQrcode'))
       }
 
       window.location.href = authUrl
 
     } catch (err: any) {
       console.error('[WeChat Login] Error:', err)
-      setError(err.message || "微信登录过程中发生错误")
+      setError(err.message || t('login.wechatError'))
       setIsWechatLoading(false)
     }
   }
@@ -168,7 +171,7 @@ export default function RegisterPage() {
 
     try {
       if (!signInWithGoogle) {
-        throw new Error('Google登录仅在国际版中可用')
+        throw new Error(t('login.googleOnlyIntl'))
       }
 
       const { error } = await signInWithGoogle()
@@ -179,7 +182,7 @@ export default function RegisterPage() {
       // Supabase会自动处理重定向
     } catch (err: any) {
       console.error('[Google Login] Error:', err)
-      setError(err.message || "Google登录过程中发生错误")
+      setError(err.message || t('login.googleError'))
       setIsGoogleLoading(false)
     }
   }
@@ -187,27 +190,30 @@ export default function RegisterPage() {
   // 成功页面
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4 relative">
+        <div className="absolute top-4 right-4">
+          <LanguageToggle />
+        </div>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
-            <CardTitle className="text-2xl text-green-700">注册成功！</CardTitle>
+            <CardTitle className="text-2xl text-green-700">{t('register.successTitle')}</CardTitle>
             <CardDescription className="text-base">
-              欢迎加入！您的账户已成功注册。
+              {t('register.successMessage')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                您现在可以使用您的邮箱和密码登录系统。
+                {t('register.successInfo')}
               </p>
             </div>
           </CardContent>
           <CardFooter>
             <Button onClick={() => router.push("/login")} className="w-full">
-              前往登录
+              {t('register.goToLogin')}
             </Button>
           </CardFooter>
         </Card>
@@ -217,7 +223,10 @@ export default function RegisterPage() {
 
   // 基本信息填写步骤
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4 relative">
+      <div className="absolute top-4 right-4">
+        <LanguageToggle />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -225,21 +234,21 @@ export default function RegisterPage() {
               <Sparkles className="h-6 w-6 text-accent-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">创建账户</CardTitle>
+          <CardTitle className="text-2xl">{t('register.title')}</CardTitle>
           <CardDescription>
-            加入CodeGen AI，开始构建精彩的UI界面
+            {t('register.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
+              <Label htmlFor="fullName">{t('register.fullName')}</Label>
               <div className="relative">
                 <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="fullName"
                   type="text"
-                  placeholder="Enter your full name"
+                  placeholder={t('register.fullNamePlaceholder')}
                   value={formData.fullName}
                   onChange={(e) => handleInputChange("fullName", e.target.value)}
                   className="pl-10"
@@ -249,13 +258,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('register.email')}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={t('register.emailPlaceholder')}
                   value={formData.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   className="pl-10"
@@ -265,13 +274,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('register.password')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="请输入密码（至少6位）"
+                  placeholder={t('register.passwordPlaceholder')}
                   value={formData.password}
                   onChange={(e) => handleInputChange("password", e.target.value)}
                   className="pl-10 pr-10"
@@ -288,13 +297,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">确认密码</Label>
+              <Label htmlFor="confirmPassword">{t('register.confirmPassword')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder="请再次输入密码"
+                  placeholder={t('register.confirmPasswordPlaceholder')}
                   value={formData.confirmPassword}
                   onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                   className="pl-10 pr-10"
@@ -317,13 +326,13 @@ export default function RegisterPage() {
                 onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
               />
               <label htmlFor="terms" className="text-sm text-muted-foreground">
-                我同意{" "}
-                <Link href="/terms" className="text-accent hover:underline">
-                  服务条款
-                </Link>{" "}
-                和{" "}
-                <Link href="/privacy" className="text-accent hover:underline">
-                  隐私政策
+                {t('register.agreeTerms')}{" "}
+                <Link href="/privacy#terms" className="text-accent hover:underline">
+                  {t('register.termsOfService')}
+                </Link>
+                {" "}{t('login.and')}{" "}
+                <Link href="/privacy#privacy" className="text-accent hover:underline">
+                  {t('register.privacyPolicy')}
                 </Link>
               </label>
             </div>
@@ -335,7 +344,7 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "注册中..." : "注册账户"}
+              {isLoading ? t('register.signingUp') : t('register.signUp')}
             </Button>
           </form>
 
@@ -344,7 +353,7 @@ export default function RegisterPage() {
               <Separator />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or sign up with</span>
+              <span className="bg-background px-2 text-muted-foreground">{t('register.orSignUpWith')}</span>
             </div>
           </div>
 
@@ -359,7 +368,7 @@ export default function RegisterPage() {
             >
               <WechatIcon />
               <span className="ml-2">
-                {isWechatLoading ? "Connecting..." : "Continue with WeChat"}
+                {isWechatLoading ? t('login.connecting') : t('register.continueWithWeChat')}
               </span>
             </Button>
           )}
@@ -375,16 +384,16 @@ export default function RegisterPage() {
             >
               <GoogleIcon />
               <span className="ml-2">
-                {isGoogleLoading ? "Connecting..." : "Continue with Google"}
+                {isGoogleLoading ? t('login.connecting') : t('register.continueWithGoogle')}
               </span>
             </Button>
           )}
         </CardContent>
         <CardFooter className="text-center">
           <div className="text-sm text-muted-foreground">
-            已有账户？{" "}
+            {t('register.hasAccount')}{" "}
             <Link href="/login" className="text-accent hover:underline">
-              立即登录
+              {t('register.signIn')}
             </Link>
           </div>
         </CardFooter>

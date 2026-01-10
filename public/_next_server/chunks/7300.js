@@ -1,0 +1,1 @@
+"use strict";exports.id=7300,exports.ids=[7300],exports.modules={7300:(s,e,t)=>{t.d(e,{getBaseUrl:()=>o});function o(){return process.env.VERCEL_URL?`https://${process.env.VERCEL_URL}`:`http://localhost:${process.env.PORT||3e3}`}}};

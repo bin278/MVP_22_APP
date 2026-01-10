@@ -45,7 +45,15 @@
       "Bash(if exist:*)",
       "Bash(npm search:*)",
       "Bash(keytool:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(pnpm next export:*)",
+      "Bash(test:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(npx next build:*)",
+      "Bash(if [ -d \".next\" ])",
+      "Bash(then echo \"Removing .next cache...\")",
+      "Bash(else echo \"✓ .next directory not found \\(already clean\\)\")",
+      "Bash(fi:*)"
     ]
   }
 }

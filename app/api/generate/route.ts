@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { requireAuth } from '@/lib/auth/auth'
-import { add } from '@/lib/database/cloudbase'
-import { getDatabaseProvider } from '@/lib/database'
+import { add, getDatabaseProvider } from '@/lib/database'
 
 function formatCodeString(code: string): string {
   // Quick check: if code already has good formatting, return as-is
@@ -495,15 +494,8 @@ code {
       }
 
       let conversationResult
-      if (provider === 'cloudbase') {
-        // 使用 CloudBase
-        conversationResult = await add('conversations', conversationData)
-      } else {
-        // 使用 Supabase 或其他数据库
-        // 注意: 这里需要导入正确的 add 函数
-        const { add: supabaseAdd } = await import('@/lib/database/supabase')
-        conversationResult = await supabaseAdd('conversations', conversationData)
-      }
+      // 根据数据库提供商动态选择
+      conversationResult = await add('conversations', conversationData)
 
       const conversationId = conversationResult.id
       console.log('📝 Conversation created with ID:', conversationId)
@@ -519,12 +511,8 @@ code {
           updated_at: new Date().toISOString()
         }
 
-        if (provider === 'cloudbase') {
-          return await add('conversation_files', fileData)
-        } else {
-          const { add: supabaseAdd } = await import('@/lib/database/supabase')
-          return await supabaseAdd('conversation_files', fileData)
-        }
+        // 保存文件到数据库(根据提供商自动选择)
+        return await add('conversation_files', fileData)
       })
 
       await Promise.all(filePromises)
@@ -552,11 +540,56 @@ code {
         }
       } else if (provider === 'supabase') {
         // Supabase 错误处理
-        console.error('🔍 解决方案：请在Supabase控制台创建 conversations 和 conversation_files 表')
-        console.error('   1. 访问 https://app.supabase.com')
-        console.error('   2. 选择你的项目')
-        console.error('   3. 点击"SQL Editor"')
-        console.error('   4. 执行数据库迁移脚本创建表')
+        if (saveError.message && saveError.message.includes('relation') && saveError.message.includes('does not exist')) {
+          console.error('🔍 解决方案：请在Supabase控制台创建 conversations 和 conversation_files 表')
+          console.error('   1. 访问 https://app.supabase.com')
+          console.error('   2. 选择你的项目')
+          console.error('   3. 点击"SQL Editor"')
+          console.error('   4. 执行以下SQL创建表:')
+          console.error(`
+-- 创建 conversations 表
+CREATE TABLE IF NOT EXISTS conversations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID DEFAULT auth.uid() NOT NULL,
+  title TEXT NOT NULL,
+  type TEXT DEFAULT 'generation',
+  prompt TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 创建 conversation_files 表
+CREATE TABLE IF NOT EXISTS conversation_files (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+  user_id UUID DEFAULT auth.uid() NOT NULL,
+  file_path TEXT NOT NULL,
+  file_content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 启用RLS
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversation_files ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略
+CREATE POLICY "Users can view their own conversations" ON conversations
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own conversations" ON conversations
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own conversations" ON conversations
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view their own files" ON conversation_files
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own files" ON conversation_files
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+          `)
+        }
       }
 
       // 不阻止返回响应，但记录错误
