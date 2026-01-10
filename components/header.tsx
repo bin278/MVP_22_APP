@@ -127,10 +127,10 @@ export function Header({ language, setLanguage }: HeaderProps) {
             </DropdownMenu>
           ) : (
             <>
-              <Button variant="ghost" size="sm" className="text-xs sm:text-sm h-8 px-2 sm:px-3" asChild>
+              <Button variant="ghost" size="sm" className="text-xs sm:text-sm h-8 px-3 sm:px-4" asChild>
                 <Link href="/login">{t.signIn}</Link>
               </Button>
-              <Button size="sm" className="bg-accent hover:bg-accent/90 text-xs sm:text-sm h-8 px-2 sm:px-4" asChild>
+              <Button size="sm" className="bg-accent hover:bg-accent/90 text-xs sm:text-sm h-8 px-3 sm:px-4" asChild>
                 <Link href="/register">{t.getStarted}</Link>
               </Button>
             </>
