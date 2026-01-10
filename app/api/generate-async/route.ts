@@ -60,9 +60,9 @@ async function saveTaskToDB(task: GenerationTask) {
 
 async function getTaskFromDB(taskId: string): Promise<GenerationTask | null> {
   try {
-    const result = await query('generation_tasks', { taskId })
-    if (result && result.length > 0) {
-      return result[0] as GenerationTask
+    const result = await query('generation_tasks', { where: { taskId } })
+    if (result && result.data && result.data.length > 0) {
+      return result.data[0] as GenerationTask
     }
     return null
   } catch (error) {

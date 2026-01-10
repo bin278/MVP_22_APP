@@ -23,8 +23,8 @@ export async function GET(
     console.log(`🔍 从数据库查询任务: ${taskId}, 用户: ${user.id}`)
 
     // 直接从数据库查询任务
-    const result = await query('generation_tasks', { taskId })
-    const task = result && result.length > 0 ? result[0] as any : null
+    const result = await query('generation_tasks', { where: { taskId } })
+    const task = result && result.data && result.data.length > 0 ? result.data[0] as any : null
 
     console.log(`📋 任务查询结果:`, task ? { status: task.status, userId: task.userId } : 'null')
 
@@ -81,8 +81,8 @@ export async function DELETE(
     const { taskId } = await params
 
     // 从数据库查询任务
-    const result = await query('generation_tasks', { taskId })
-    const task = result && result.length > 0 ? result[0] as any : null
+    const result = await query('generation_tasks', { where: { taskId } })
+    const task = result && result.data && result.data.length > 0 ? result.data[0] as any : null
 
     if (!task) {
       return NextResponse.json(
