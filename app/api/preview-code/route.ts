@@ -141,11 +141,38 @@ export async function POST(request: NextRequest) {
     console.log('Contains ResponsiveContainer:', cleanCode.includes('ResponsiveContainer'))
     console.log('Clean code full length:', cleanCode.length)
 
+    // Fix malformed return statements like "return (\nconst X = 1;"
+    // This happens when AI generates code with return followed by constants/variables
+    const fixMalformedReturn = (code: string): string => {
+      // Pattern: return ( followed by const/let/var/function on next lines
+      // This is invalid JS - we need to remove the "return (" and wrap everything in a proper function
+      const returnWithConstPattern = /return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/g;
+
+      if (returnWithConstPattern.test(code)) {
+        console.log('⚠️ Detected malformed return statement - return followed by const/function');
+
+        // Remove the "return (" part and any closing parenthesis that might be at the end
+        let fixed = code
+          .replace(/return\s*\(\s*\n/g, '\n')  // Remove "return (" at the start
+          .replace(/\n\s*\)\s*$/g, '\n')      // Remove closing ")" at the end
+          .replace(/;\s*\)\s*$/g, ';')         // Remove ");" at end of lines
+          .trim();
+
+        console.log('Fixed malformed return - removed dangling return statement');
+        return fixed;
+      }
+
+      return code;
+    };
+
+    // Apply the fix before processing
+    cleanCode = fixMalformedReturn(cleanCode);
+
     // Ensure the code has a proper App component declaration
     // First check if code already has App function (avoid double wrapping)
     if (!cleanCode.includes('function App') && !cleanCode.includes('const App =') && !cleanCode.includes('App = ')) {
       console.log('Code does not have App function, will wrap it')
-      
+
       // Clean up any remaining invalid tokens before processing
       cleanCode = cleanCode
         .replace(/^\s*javascript\s*$/gm, '')
@@ -154,20 +181,20 @@ export async function POST(request: NextRequest) {
         .replace(/\s+javascript\s*$/gm, '')
         .replace(/\n\s*javascript\s*\n/g, '\n')
         .trim()
-      
+
       const trimmedCode = cleanCode.trim()
-      
+
       // Check if the code is a JSX return statement (most common case)
       // BUT NOT if it starts with 'function' (that's a component function, not a return statement)
       if (trimmedCode.startsWith('return') || (trimmedCode.startsWith('(') && !trimmedCode.startsWith('function') && !trimmedCode.match(/^\(\s*function/))) {
         // It's already a return statement, wrap it in App function
         cleanCode = 'function App() {\n' + cleanCode + '\n}'
         console.log('Wrapped return statement in App function')
-      } 
+      }
       // Check if it's a component function definition (function ComponentName or const ComponentName =)
       // This MUST come after checking for return statements
       // Also check if code starts with function/const after removing leading invalid tokens
-      else if (/^(function\s+\w+|const\s+\w+\s*=\s*(function|\(|=>))/.test(trimmedCode) || 
+      else if (/^(function\s+\w+|const\s+\w+\s*=\s*(function|\(|=>))/.test(trimmedCode) ||
                /^\s*(javascript\s+)?(function\s+\w+|const\s+\w+\s*=\s*(function|\(|=>))/.test(trimmedCode)) {
         // Remove any leading "javascript" word if present
         cleanCode = cleanCode.replace(/^\s*javascript\s+/m, '').trim()
@@ -175,7 +202,7 @@ export async function POST(request: NextRequest) {
         // It's a component function, extract the component name
         const functionMatch = finalTrimmedCode.match(/^function\s+(\w+)/)
         const constMatch = finalTrimmedCode.match(/^const\s+(\w+)\s*=/)
-        
+
         let componentName = null
         if (functionMatch) {
           componentName = functionMatch[1]
@@ -191,7 +218,7 @@ export async function POST(request: NextRequest) {
             console.log('Found component via fallback:', componentName)
           }
         }
-        
+
         if (componentName) {
           // CRITICAL: Keep the component function definition OUTSIDE App function
           // Then add App function that returns it
@@ -216,11 +243,37 @@ export async function POST(request: NextRequest) {
         cleanCode = 'function App() {\n  return (\n' + cleanCode + '\n  );\n}'
         console.log('Wrapped JSX in App function')
       }
-      
+
       console.log('Wrapped in function App():', cleanCode.substring(0, 400) + '...')
       console.log('Final cleanCode length:', cleanCode.length)
     } else {
-      console.log('Code already has App declaration, checking if it returns correctly...')
+      console.log('Code already has App declaration, validating...')
+
+      // Even if App function exists, it might be malformed
+      // Check for "return (" followed by const/let/var/function
+      const malformedReturnPattern = /function\s+App\s*\([^)]*\)\s*\{[^}]*return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/s;
+      if (malformedReturnPattern.test(cleanCode)) {
+        console.warn('⚠️ App function has malformed return statement - fixing...')
+
+        // Extract the code after "return (" and fix it
+        const appMatch = cleanCode.match(/(function\s+App\s*\([^)]*\)\s*\{)([\s\S]*?)(\}$)/);
+        if (appMatch) {
+          const appHeader = appMatch[1];  // "function App() {"
+          let appBody = appMatch[2];      // Everything between { and }
+
+          // Remove the malformed "return (" and closing ")"
+          appBody = appBody
+            .replace(/return\s*\(\s*\n/g, '\n')
+            .replace(/\n\s*\)\s*$/g, '\n')
+            .trim();
+
+          // Rebuild with proper return
+          cleanCode = `${appHeader}\n  return (\n${appBody}\n  );\n}`;
+          console.log('✅ Fixed malformed App function');
+          console.log('Fixed App preview:', cleanCode.substring(0, 400));
+        }
+      }
+
       // Check if existing App function has a return statement
       if (cleanCode.includes('function App') && !cleanCode.match(/function\s+App\s*\([^)]*\)\s*\{[^}]*return/)) {
         console.warn('WARNING: App function exists but may not have return statement!')
