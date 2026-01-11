@@ -134,6 +134,12 @@ export default function RegisterPage() {
   // 检测当前版本
   const isInternational = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase'
 
+  // 调试输出（开发环境）
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log('🔍 [Register] AUTH_PROVIDER:', process.env.NEXT_PUBLIC_AUTH_PROVIDER)
+    console.log('🌍 [Register] isInternational:', isInternational)
+  }
+
   // Load language preference from localStorage after mount
   useEffect(() => {
     setIsMounted(true)
