@@ -675,14 +675,74 @@ async function recordRecommendationUsageSupabase(
         console.log('⚠️ [recordRecommendationUsageSupabase] 没有找到有效的加油包（都已过期或用完）');
       }
     } else {
-      console.log('ℹ️ [recordRecommendationUsageSupabase] 没有找到加油包，将从订阅额度扣除');
+      console.log('ℹ️ [recordRecommendationUsageSupabase] 没有找到加油包，将检查订阅额度');
     }
   } catch (creditError) {
     console.error("❌ [recordRecommendationUsageSupabase] 查询加油包时发生错误:", creditError);
     // 继续处理，记录到 recommendation_usage
   }
 
-  // 没有加油包或加油包已用完，记录到 recommendation_usage
+  // 没有加油包或加油包已用完，检查订阅额度（包括免费版限额）
+  console.log('📊 [recordRecommendationUsageSupabase] 检查用户订阅额度...');
+
+  // 获取用户计划
+  const planType = await getUserPlanSupabase(userId);
+  const features = PLAN_FEATURES[planType];
+  const periodLimit = features.recommendationLimit;
+  const periodType = features.recommendationPeriod;
+
+  console.log('📋 [recordRecommendationUsageSupabase] 用户计划信息:', {
+    planType,
+    periodLimit,
+    periodType
+  });
+
+  // 如果是无限额度，直接记录使用
+  if (periodLimit === -1) {
+    console.log('♾️ [recordRecommendationUsageSupabase] 用户拥有无限额度，直接记录使用');
+    const { error } = await supabase.from("recommendation_usage").insert({
+      user_id: userId,
+      metadata: metadata || {},
+      created_at: nowISO,
+    });
+
+    if (error) {
+      console.error("❌ [recordRecommendationUsageSupabase] Error recording recommendation usage:", error);
+      return { success: false, error: "Failed to record usage" };
+    }
+
+    console.log('✅ [recordRecommendationUsageSupabase] 成功记录使用到 recommendation_usage 表');
+    return { success: true };
+  }
+
+  // 检查当前周期的使用次数
+  const { start, end } = getPeriodBounds(periodType);
+  const { count, error: countError } = await supabase
+    .from("recommendation_usage")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", start.toISOString())
+    .lte("created_at", end.toISOString());
+
+  const currentUsage = count || 0;
+
+  console.log('📊 [recordRecommendationUsageSupabase] 当前周期使用情况:', {
+    currentUsage,
+    periodLimit,
+    remaining: periodLimit - currentUsage,
+    periodStart: start.toISOString(),
+    periodEnd: end.toISOString()
+  });
+
+  // 检查是否超出限额
+  if (currentUsage >= periodLimit) {
+    const periodText = periodType === "daily" ? "今天" : "本月";
+    const errorMessage = `您${periodText}的 ${periodLimit} 次代码生成额度已用完。请升级到 Pro 或 Enterprise 版本，或购买加油包继续使用。`;
+    console.log(`❌ [recordRecommendationUsageSupabase] 超出${periodText}限额: ${currentUsage}/${periodLimit}`);
+    return { success: false, error: errorMessage };
+  }
+
+  // 未超出限额，记录使用
   console.log('📝 [recordRecommendationUsageSupabase] 准备插入推荐使用记录到 recommendation_usage 表...');
   const { error } = await supabase.from("recommendation_usage").insert({
     user_id: userId,
@@ -785,7 +845,72 @@ async function recordRecommendationUsageCloudBase(
       // 继续处理，记录到 recommendation_usage
     }
 
-    // 没有加油包或加油包已用完，记录到 recommendation_usage
+    // 没有加油包或加油包已用完，检查订阅额度（包括免费版限额）
+    console.log('📊 [recordRecommendationUsageCloudBase] 检查用户订阅额度...');
+
+    // 获取用户计划
+    const planType = await getUserPlanCloudBase(userId);
+    const features = PLAN_FEATURES[planType];
+    const periodLimit = features.recommendationLimit;
+    const periodType = features.recommendationPeriod;
+
+    console.log('📋 [recordRecommendationUsageCloudBase] 用户计划信息:', {
+      planType,
+      periodLimit,
+      periodType
+    });
+
+    // 如果是无限额度，直接记录使用
+    if (periodLimit === -1) {
+      console.log('♾️ [recordRecommendationUsageCloudBase] 用户拥有无限额度，直接记录使用');
+      const result = await db.collection("recommendation_usage").add({
+        user_id: userId,
+        metadata: metadata || {},
+        created_at: nowISO,
+      });
+
+      console.log('✅ [recordRecommendationUsageCloudBase] 成功记录使用:', result.id);
+      return { success: true };
+    }
+
+    // 检查当前周期的使用次数
+    const { start, end } = getPeriodBounds(periodType);
+    const _ = db.command;
+
+    let currentUsage = 0;
+    try {
+      const countResult = await db
+        .collection("recommendation_usage")
+        .where({
+          user_id: userId,
+          created_at: _.gte(start.toISOString()).and(_.lte(end.toISOString())),
+        })
+        .count();
+
+      currentUsage = countResult.total || 0;
+    } catch (countError) {
+      console.error("[recordRecommendationUsageCloudBase] Error counting usage:", countError);
+      // 如果计数失败（可能是集合不存在），假设已用0次
+      currentUsage = 0;
+    }
+
+    console.log('📊 [recordRecommendationUsageCloudBase] 当前周期使用情况:', {
+      currentUsage,
+      periodLimit,
+      remaining: periodLimit - currentUsage,
+      periodStart: start.toISOString(),
+      periodEnd: end.toISOString()
+    });
+
+    // 检查是否超出限额
+    if (currentUsage >= periodLimit) {
+      const periodText = periodType === "daily" ? "今天" : "本月";
+      const errorMessage = `您${periodText}的 ${periodLimit} 次代码生成额度已用完。请升级到 Pro 或 Enterprise 版本，或购买加油包继续使用。`;
+      console.log(`❌ [recordRecommendationUsageCloudBase] 超出${periodText}限额: ${currentUsage}/${periodLimit}`);
+      return { success: false, error: errorMessage };
+    }
+
+    // 未超出限额，记录使用
     const result = await db.collection("recommendation_usage").add({
       user_id: userId,
       metadata: metadata || {},

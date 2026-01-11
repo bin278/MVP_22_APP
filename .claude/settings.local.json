@@ -56,7 +56,9 @@
       "Bash(fi:*)",
       "Bash(npx eslint:*)",
       "Bash(pnpm update:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(nslookup:*)",
+      "Bash(vercel domains:*)"
     ]
   }
 }
