@@ -222,8 +222,9 @@ export default function RegisterPage() {
         full_name: formData.fullName
       })
 
-      if (result.success) {
-        console.log('注册成功:', result.user)
+      // signUp 返回 { error: null | string }
+      if (!result.error) {
+        console.log('注册成功')
         setSuccess(true)
       } else {
         console.error('注册失败:', result.error)
