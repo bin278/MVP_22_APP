@@ -88,6 +88,25 @@ export async function testDatabaseConnection(): Promise<boolean> {
   }
 }
 
+// 允许的表名白名单
+const ALLOWED_TABLES = ['users', 'user_subscriptions', 'usage_records', 'tasks', 'sessions'];
+
+// 验证表名
+function validateTableName(tableName: string): string {
+  if (!ALLOWED_TABLES.includes(tableName)) {
+    throw new Error(`Invalid table name: ${tableName}`);
+  }
+  return tableName;
+}
+
+// 验证列名（只允许字母、数字、下划线）
+function validateColumnName(columnName: string): string {
+  if (!/^[a-zA-Z0-9_]+$/.test(columnName)) {
+    throw new Error(`Invalid column name: ${columnName}`);
+  }
+  return columnName;
+}
+
 // 统一的数据添加函数 - 支持所有数据库提供商
 export async function add(tableName: string, data: any) {
   const provider = getDatabaseProvider();
@@ -102,11 +121,12 @@ export async function add(tableName: string, data: any) {
     case 'tencent-cloud':
       // 腾讯云PostgreSQL使用INSERT语句
       const { query } = await import('./tencent-cloud');
-      const columns = Object.keys(data).join(', ');
+      const validatedTable = validateTableName(tableName);
+      const columns = Object.keys(data).map(validateColumnName).join(', ');
       const values = Object.values(data);
       const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
       const result = await query(
-        `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders}) RETURNING *`,
+        `INSERT INTO ${validatedTable} (${columns}) VALUES (${placeholders}) RETURNING *`,
         values
       );
       return { id: result[0]?.id, data: result[0] };
@@ -129,20 +149,21 @@ export async function query(tableName: string, options: any = {}) {
     case 'tencent-cloud':
       // 腾讯云PostgreSQL查询
       const { query: tencentQuery } = await import('./tencent-cloud');
+      const validatedTable = validateTableName(tableName);
       // 构建SELECT查询
-      let queryStr = `SELECT * FROM ${tableName}`;
+      let queryStr = `SELECT * FROM ${validatedTable}`;
       const params: any[] = [];
 
       if (options.where) {
         const conditions = Object.entries(options.where).map(([key, value]) => {
           params.push(value);
-          return `${key} = $${params.length}`;
+          return `${validateColumnName(key)} = $${params.length}`;
         });
         queryStr += ` WHERE ${conditions.join(' AND ')}`;
       }
 
       if (options.orderBy) {
-        queryStr += ` ORDER BY ${options.orderBy}`;
+        queryStr += ` ORDER BY ${validateColumnName(options.orderBy)}`;
         if (options.orderDirection === 'desc') {
           queryStr += ' DESC';
         }
@@ -172,11 +193,12 @@ export async function update(tableName: string, docId: string, data: any) {
       return await cloudbaseUpdate(tableName, docId, data);
     case 'tencent-cloud':
       const { query: tencentQuery } = await import('./tencent-cloud');
+      const validatedTable = validateTableName(tableName);
       const updates = Object.entries(data).map(([key, value], index) => {
-        return `${key} = $${index + 2}`;
+        return `${validateColumnName(key)} = $${index + 2}`;
       }).join(', ');
       const result = await tencentQuery(
-        `UPDATE ${tableName} SET ${updates} WHERE id = $1 RETURNING *`,
+        `UPDATE ${validatedTable} SET ${updates} WHERE id = $1 RETURNING *`,
         [docId, ...Object.values(data)]
       );
       return { data: result[0], error: null };
@@ -198,7 +220,8 @@ export async function remove(tableName: string, docId: string) {
       return await cloudbaseRemove(tableName, docId);
     case 'tencent-cloud':
       const { query: tencentQuery } = await import('./tencent-cloud');
-      await tencentQuery(`DELETE FROM ${tableName} WHERE id = $1`, [docId]);
+      const validatedTable = validateTableName(tableName);
+      await tencentQuery(`DELETE FROM ${validatedTable} WHERE id = $1`, [docId]);
       return { success: true, error: null };
     default:
       throw new Error(`Unknown database provider: ${provider}`);

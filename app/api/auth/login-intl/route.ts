@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabaseProvider } from '@/lib/database';
 import { signInWithEmail, signInWithGoogle, getGoogleAuthUrl } from '@/lib/auth/supabase-auth';
 import { getUserAdapter } from '@/lib/database';
+import { validateEmail, validatePassword, ValidationError } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,11 +73,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 邮箱密码登录
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
+    try {
+      validateEmail(email);
+      validatePassword(password);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
     }
 
     const result = await signInWithEmail(email, password);

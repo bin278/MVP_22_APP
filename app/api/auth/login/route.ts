@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import { getDatabase } from '@/lib/database/cloudbase';
 import { getUserPlan } from '@/lib/subscription/usage-tracker';
+import { validateEmail, validatePassword, ValidationError } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,11 +12,14 @@ export async function POST(request: NextRequest) {
     console.log('API登录请求:', { email });
 
     // 验证输入
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: '邮箱和密码是必需的' },
-        { status: 400 }
-      );
+    try {
+      validateEmail(email);
+      validatePassword(password);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
     }
 
     // 获取数据库连接
@@ -43,8 +48,9 @@ export async function POST(request: NextRequest) {
 
     const user = userResult.data[0];
 
-    // 验证密码（注意：生产环境中密码应该加密存储）
-    if (user.password !== password) {
+    // 验证密码
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       return NextResponse.json(
         { error: '邮箱或密码错误' },
         { status: 401 }
@@ -57,7 +63,14 @@ export async function POST(request: NextRequest) {
     const subscriptionPlan = await getUserPlan(user._id);
 
     // 创建JWT token（与微信登录保持一致的格式）
-    const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET is not configured');
+      return NextResponse.json(
+        { error: '服务器配置错误' },
+        { status: 500 }
+      );
+    }
     const tokenPayload = {
       userId: user._id, // 使用userId字段，与微信登录一致
       email: user.email,

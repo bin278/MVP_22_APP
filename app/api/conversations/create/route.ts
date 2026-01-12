@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/auth"
 import { add, getDatabaseProvider } from "@/lib/database"
+import { validateStringLength, ValidationError } from "@/lib/validation"
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +18,18 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { title } = body
+
+    // 验证标题
+    if (title) {
+      try {
+        validateStringLength(title, 'Title', 1, 200)
+      } catch (error) {
+        if (error instanceof ValidationError) {
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+        throw error
+      }
+    }
 
     // 创建新对话
     const conversationData = {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabaseProvider } from '@/lib/database';
 import { signUpWithEmail } from '@/lib/auth/supabase-auth';
+import { validateEmail, validatePassword, validateStringLength, ValidationError } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,28 +29,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证输入
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
-
-    // 验证邮箱格式
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
-
-    // 验证密码强度
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
+    try {
+      validateEmail(email);
+      validatePassword(password);
+      if (name) {
+        validateStringLength(name, 'Name', 1, 100);
+      }
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
     }
 
     console.log('🌍 国际版注册请求:', { email, name });

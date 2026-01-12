@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcrypt';
+import { validateEmail, validatePassword, validateStringLength, ValidationError } from '@/lib/validation';
 
-// 邮箱格式验证
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+const SALT_ROUNDS = 10;
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,27 +12,17 @@ export async function POST(request: NextRequest) {
     console.log('📝 [Register API] 注册请求:', { email, fullName, provider: process.env.AUTH_PROVIDER });
 
     // 验证输入
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: '邮箱和密码是必需的' },
-        { status: 400 }
-      );
-    }
-
-    // 验证邮箱格式
-    if (!validateEmail(email)) {
-      return NextResponse.json(
-        { error: '邮箱格式不正确' },
-        { status: 400 }
-      );
-    }
-
-    // 验证密码长度
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: '密码长度至少6位' },
-        { status: 400 }
-      );
+    try {
+      validateEmail(email);
+      validatePassword(password);
+      if (fullName) {
+        validateStringLength(fullName, '姓名', 1, 100);
+      }
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
     }
 
     // 根据认证提供商选择注册方式
@@ -166,10 +154,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // 加密密码
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
       // 创建用户文档
       const userDoc = {
         email: email,
-        password: password, // 注意：生产环境中应该加密存储
+        password: hashedPassword,
         fullName: fullName || '',
         createdAt: new Date(),
         updatedAt: new Date(),

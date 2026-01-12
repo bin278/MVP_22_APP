@@ -10,6 +10,7 @@ import cloudbase from "@cloudbase/node-sdk";
 import { isChinaDeployment } from "@/lib/config/deployment.config";
 import { PlanType } from "../payment/payment-config-cn";
 import { PLAN_FEATURES } from "./features";
+import { getCachedPlan, setCachedPlan } from "@/lib/cache/subscription-cache";
 
 // ==========================================
 // 数据库客户端
@@ -99,11 +100,15 @@ export interface UsageStats {
  * 获取用户当前订阅计划
  */
 export async function getUserPlan(userId: string): Promise<PlanType> {
-  if (isChinaDeployment()) {
-    return getUserPlanCloudBase(userId);
-  } else {
-    return getUserPlanSupabase(userId);
-  }
+  const cached = getCachedPlan(userId);
+  if (cached) return cached as PlanType;
+
+  const plan = isChinaDeployment()
+    ? await getUserPlanCloudBase(userId)
+    : await getUserPlanSupabase(userId);
+
+  setCachedPlan(userId, plan);
+  return plan;
 }
 
 async function getUserPlanSupabase(userId: string): Promise<PlanType> {
