@@ -1,10 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-async function callDeepSeekAPI(prompt: string) {
+// 验证生成的代码是否有明显错误
+function validateGeneratedCode(code: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  // 检查1: return 后面不能直接跟 const/let/var/function
+  if (/return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/.test(code)) {
+    errors.push('Invalid return statement: return cannot be followed by const/let/var/function')
+  }
+
+  // 检查2: 检查未闭合的 JSX 标签
+  const openTags = (code.match(/<[A-Z][a-zA-Z]*/g) || []).length
+  const closeTags = (code.match(/<\/[A-Z][a-zA-Z]*/g) || []).length
+  if (openTags !== closeTags && openTags > 0) {
+    errors.push(`Unmatched JSX tags: ${openTags} opening tags vs ${closeTags} closing tags`)
+  }
+
+  // 检查3: 检查是否有未闭合的括号（简化检查）
+  const openParens = (code.match(/\(/g) || []).length
+  const closeParens = (code.match(/\)/g) || []).length
+  if (openParens !== closeParens) {
+    errors.push(`Unmatched parentheses: ${openParens} opening vs ${closeParens} closing`)
+  }
+
+  // 检查4: 检查是否有 javascript: 前缀（常见错误）
+  if (/^\s*javascript\s+/m.test(code)) {
+    errors.push('Invalid "javascript" prefix detected in code')
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
+async function callDeepSeekAPI(prompt: string, retryCount = 0): Promise<string> {
   const apiKey = process.env.DEEPSEEK_API_KEY
   const baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
   const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
+  const maxRetries = 2
 
   if (!apiKey) {
     throw new Error('DEEPSEEK_API_KEY is not configured')
@@ -15,16 +50,57 @@ async function callDeepSeekAPI(prompt: string) {
     baseURL: baseUrl,
   })
 
+  // 如果是重试，在提示中添加错误信息
+  let enhancedPrompt = prompt.trim()
+  if (retryCount > 0) {
+    enhancedPrompt += `\n\nIMPORTANT: Your previous response had syntax errors. Please ensure:
+1. NEVER write "return (" followed by const/let/var/function declarations
+2. Declare all variables BEFORE the return statement
+3. Return ONLY valid JSX from the component
+4. Use proper matching tags and parentheses`
+  }
+
   const completion = await client.chat.completions.create({
     model: model,
     messages: [
       {
         role: 'system',
-        content: `You are a professional frontend developer. Generate a complete React component based on user requirements. Return ONLY the React component code without any imports or exports. Use modern React hooks and functional components. Include inline styles or Tailwind classes. Make it visually appealing and responsive.`
+        content: `You are a professional frontend developer. Generate a complete React component based on user requirements.
+
+CRITICAL RULES:
+1. Return ONLY the React component code without any imports or exports
+2. Use modern React hooks (useState, useEffect, etc.) and functional components
+3. Include inline styles or Tailwind classes for styling
+4. Make it visually appealing and responsive
+5. ALWAYS declare variables and hooks BEFORE the return statement
+6. The return statement must ONLY contain JSX expressions
+7. NEVER use "javascript:" prefix or similar invalid tokens
+
+CORRECT STRUCTURE EXAMPLE:
+function App() {
+  const [count, setCount] = React.useState(0);
+  const handleClick = () => setCount(count + 1);
+
+  return (
+    <div className="p-4">
+      <h1>Counter: {count}</h1>
+      <button onClick={handleClick}>Increment</button>
+    </div>
+  );
+}
+
+INCORRECT STRUCTURE (DO NOT DO THIS):
+function App() {
+  return (
+  const [count, setCount] = React.useState(0);  // ❌ WRONG
+  // ...
+}
+
+Follow the correct structure pattern.`
       },
       {
         role: 'user',
-        content: prompt.trim()
+        content: enhancedPrompt
       }
     ],
     max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '2000'),
@@ -34,6 +110,20 @@ async function callDeepSeekAPI(prompt: string) {
   const content = completion.choices[0]?.message?.content
   if (!content) {
     throw new Error('Empty response from DeepSeek API')
+  }
+
+  // 验证生成的代码
+  const validation = validateGeneratedCode(content)
+
+  if (!validation.valid && retryCount < maxRetries) {
+    console.warn(`⚠️ Generated code has errors, retrying (${retryCount + 1}/${maxRetries}):`, validation.errors)
+    // 递归重试
+    return callDeepSeekAPI(prompt, retryCount + 1)
+  }
+
+  if (!validation.valid) {
+    console.error('❌ Generated code still has errors after retries:', validation.errors)
+    // 即使有错误也返回，让后续的修复逻辑处理
   }
 
   return content

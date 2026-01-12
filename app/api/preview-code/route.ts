@@ -98,27 +98,248 @@ export async function POST(request: NextRequest) {
 
     // Clean up the component code before embedding
     let cleanCode = appCode
+
+    // Helper function to remove TypeScript interface definitions with nested braces
+    const removeInterfaces = (code: string): string => {
+      let result = code
+      let hasChanges = true
+
+      while (hasChanges) {
+        hasChanges = false
+        // Find interface declarations
+        const interfaceRegex = /interface\s+\w+\s*(?:<[^>]+>)?\s*\{/g
+        let match: RegExpExecArray | null
+
+        while ((match = interfaceRegex.exec(result)) !== null) {
+          const startIndex = match.index
+          // The opening brace is at the end of the match
+          let braceCount = 1
+          let endIndex = match.index + match[0].length
+
+          // Count braces starting from after the opening brace
+          for (let i = endIndex; i < result.length; i++) {
+            if (result[i] === '{') braceCount++
+            else if (result[i] === '}') {
+              braceCount--
+              if (braceCount === 0) {
+                endIndex = i + 1
+                break
+              }
+            }
+          }
+
+          // Remove the entire interface definition
+          const before = result.substring(0, startIndex)
+          const after = result.substring(endIndex)
+          result = before + after
+          hasChanges = true
+          break // Start over after each removal
+        }
+      }
+
+      return result
+    }
+
+    // Helper function to remove generic type parameters from React hooks
+    // Handles window.React.useState<T> and React.useState<T> patterns
+    const removeGenericsFromHooks = (code: string): string => {
+      let result = code
+
+      // Remove generics from window.React.HookName<...> patterns
+      const windowReactHookRegex = /window\.React\.(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)</g
+      let match: RegExpExecArray | null
+
+      // First, handle window.React.HookName<...> patterns
+      while ((match = windowReactHookRegex.exec(result)) !== null) {
+        const hookName = match[1]
+        const fullMatch = 'window.React.' + hookName
+        const startIndex = match.index
+        const afterHook = result.substring(startIndex + fullMatch.length)
+
+        // Check if followed by < with optional whitespace
+        const nextCharMatch = afterHook.match(/^\s*</)
+
+        if (nextCharMatch) {
+          let bracketCount = 1
+          let endIndex = startIndex + fullMatch.length + nextCharMatch[0].length
+
+          // Count brackets to find matching >
+          for (let i = endIndex; i < result.length; i++) {
+            if (result[i] === '<') bracketCount++
+            else if (result[i] === '>') {
+              bracketCount--
+              if (bracketCount === 0) {
+                endIndex = i + 1
+                break
+              }
+            }
+          }
+
+          // Remove <...>
+          result = result.substring(0, startIndex + fullMatch.length) + result.substring(endIndex)
+          // Reset regex to search again
+          windowReactHookRegex.lastIndex = 0
+        }
+      }
+
+      // Then, handle standalone HookName<...> patterns (without window.React.)
+      const standaloneHookRegex = /\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)</g
+
+      while ((match = standaloneHookRegex.exec(result)) !== null) {
+        const hookName = match[1]
+        const startIndex = match.index
+        const afterHook = result.substring(startIndex + hookName.length)
+
+        // Check if followed by < with optional whitespace
+        const nextCharMatch = afterHook.match(/^\s*</)
+
+        if (nextCharMatch) {
+          let bracketCount = 1
+          let endIndex = startIndex + hookName.length + nextCharMatch[0].length
+
+          // Count brackets to find matching >
+          for (let i = endIndex; i < result.length; i++) {
+            if (result[i] === '<') bracketCount++
+            else if (result[i] === '>') {
+              bracketCount--
+              if (bracketCount === 0) {
+                endIndex = i + 1
+                break
+              }
+            }
+          }
+
+          // Remove <...>
+          result = result.substring(0, startIndex + hookName.length) + result.substring(endIndex)
+          // Reset regex to search again
+          standaloneHookRegex.lastIndex = 0
+        }
+      }
+
+      return result
+    }
+
+    // Remove TypeScript type annotations - MUST DO THIS FIRST
+    console.log('🔧 Before interface removal, code sample:', cleanCode.substring(0, 500))
+
+    // Remove interface definitions
+    cleanCode = removeInterfaces(cleanCode)
+
+    // Remove type definitions - handle multi-line object types
+    const removeTypes = (code: string): string => {
+      let result = code
+      let hasChanges = true
+
+      while (hasChanges) {
+        hasChanges = false
+        // Find type declarations: type Name = {
+        const typeRegex = /type\s+\w+\s*(?:<[^>]+>)?\s*=\s*\{/g
+        let match: RegExpExecArray | null
+
+        while ((match = typeRegex.exec(result)) !== null) {
+          const startIndex = match.index
+          let braceCount = 1
+          let endIndex = match.index + match[0].length
+
+          // Count braces starting from after the opening brace
+          for (let i = endIndex; i < result.length; i++) {
+            if (result[i] === '{') braceCount++
+            else if (result[i] === '}') {
+              braceCount--
+              if (braceCount === 0) {
+                endIndex = i + 1
+                break
+              }
+            }
+          }
+
+          // Remove the entire type definition including the semicolon if present
+          if (endIndex < result.length && result[endIndex] === ';') {
+            endIndex++
+          }
+
+          const before = result.substring(0, startIndex)
+          const after = result.substring(endIndex)
+          result = before + after
+          hasChanges = true
+          break // Start over after each removal
+        }
+      }
+
+      return result
+    }
+
+    cleanCode = removeTypes(cleanCode)
+
+    console.log('🔧 After interface/type removal, code sample:', cleanCode.substring(0, 500))
+
+    cleanCode = cleanCode
       // Remove export statements
       .replace(/export\s+default\s+/g, '')
       .replace(/export\s+/g, '')
-      // Remove import statements (we provide everything globally)
+      // Transform React imports BEFORE removing them
+      // Convert: import React, { useState, useEffect } from 'react'
+      .replace(/import\s+React\s*,\s*{[^}]+}\s+from\s+['"\`]react['"\`];?\s*\n/g, () => {
+        // Remove this import completely, hooks will use React.namespace
+        return ''
+      })
+      .replace(/import\s+React\s+from\s+['"\`]react['"\`];?\s*\n/g, '')
+      .replace(/import\s+{[^}]+}\s+from\s+['"\`]react['"\`];?\s*\n/g, () => {
+        // Remove hooks-only imports, they'll use React.namespace
+        return ''
+      })
+      // Remove other import statements
       // Handle multi-line imports first (like { LineChart, Line, ... } from 'recharts')
       .replace(/import\s*{\s*[\s\S]*?\s*}\s*from\s+['"`][^'"`]*['"`];?/g, '')
       .replace(/import\s+.*?\s+from\s+['"\`]lucide-react['"\`];?\s*\n/g, '')
-      .replace(/import\s+.*?\s+from\s+['"\`]react['"\`];?\s*\n/g, '')
+      // Remove react-dom imports
       .replace(/import\s+.*?\s+from\s+['"\`]react-dom['"\`];?\s*\n/g, '')
-      .replace(/import\s+.*?\s+from\s+['"\`].*?['"\`];?\s*\n/g, '')
+      // Remove other imports from third-party packages (excluding react, already handled)
+      .replace(/import\s+.*?\s+from\s+['"\`](?!react['"])[^'"`]*['"\`];?\s*\n/g, '')
       .replace(/import\s*\(\s*['"\`].*?['"\`]\s*\);?\s*\n/g, '')
       .replace(/const\s+\w+\s*=\s*require\s*\(['"\`].*?['"\`]\);?\s*\n/g, '')
-      // Replace React hooks with React namespace
-      .replace(/\buseState\b/g, 'React.useState')
-      .replace(/\buseEffect\b/g, 'React.useEffect')
-      .replace(/\buseCallback\b/g, 'React.useCallback')
-      .replace(/\buseMemo\b/g, 'React.useMemo')
-      .replace(/\buseRef\b/g, 'React.useRef')
-      .replace(/\buseContext\b/g, 'React.useContext')
-      .replace(/\buseReducer\b/g, 'React.useReducer')
-      .replace(/\buseLayoutEffect\b/g, 'React.useLayoutEffect')
+      // Replace hooks with window.React.namespace to ensure they work in Babel-compiled scope
+      .replace(/\buseState\b/g, 'window.React.useState')
+      .replace(/\buseEffect\b/g, 'window.React.useEffect')
+      .replace(/\buseCallback\b/g, 'window.React.useCallback')
+      .replace(/\buseMemo\b/g, 'window.React.useMemo')
+      .replace(/\buseRef\b/g, 'window.React.useRef')
+      .replace(/\buseContext\b/g, 'window.React.useContext')
+      .replace(/\buseReducer\b/g, 'window.React.useReducer')
+      .replace(/\buseLayoutEffect\b/g, 'window.React.useLayoutEffect')
+      .trim()
+
+    // Remove generic type parameters from hooks (e.g., useState<Todo[]> -> useState)
+    // Pattern: Match hooks with <...> type parameters
+    console.log('🔧 Before removeGenericsFromHooks, checking for hooks with generics:')
+    console.log('Contains useState<', cleanCode.includes('useState<'))
+    console.log('Contains window.React.useState<', cleanCode.includes('window.React.useState<'))
+
+    // Find a sample to debug
+    const useStateMatch = cleanCode.match(/window\.React\.useState<[^>]+>/)
+    if (useStateMatch) {
+      console.log('Found useState with generics:', useStateMatch[0])
+    }
+
+    cleanCode = removeGenericsFromHooks(cleanCode)
+
+    console.log('🔧 After removeGenericsFromHooks:')
+    console.log('Contains useState<', cleanCode.includes('useState<'))
+    console.log('Contains window.React.useState<', cleanCode.includes('window.React.useState<'))
+
+    // Remove type annotations in function parameters
+    cleanCode = cleanCode.replace(/\(\s*([^)]+):\s*[A-Z]\w+/g, '($1')
+    // Remove type annotations from variables (more aggressive pattern)
+    cleanCode = cleanCode.replace(/:\s*[A-Z]\w+(\[\])?(\s*[,\);=])/g, '$2')
+    cleanCode = cleanCode.replace(/:\s*\{[^}]+\}(\s*[,\);=])/g, '$1')
+
+    // Remove TypeScript 'as' type assertions (e.g., value as Category, value as any)
+    cleanCode = cleanCode.replace(/\s+as\s+\w+/g, '')
+    cleanCode = cleanCode.replace(/\s+as\s+\{[^}]+\}/g, '') // Remove as { ... }
+    cleanCode = cleanCode.replace(/\s+as\s+\([^)]+\)/g, '') // Remove as ( ... )
+    cleanCode = cleanCode.replace(/\s+as\s+<[^>]+>/g, '') // Remove as < ... >
+
+    cleanCode = cleanCode
       // Handle javascript: protocol in links (ONLY replace javascript: protocol, not the word itself)
       // Only replace javascript: protocol, not standalone javascript word to avoid breaking code
       .replace(/javascript:\s*[^;]*;?/gi, 'void(0);')
@@ -503,6 +724,7 @@ export async function POST(request: NextRequest) {
       const Search = createIconWrapper('Search');
       const Cloud = createIconWrapper('Cloud');
       const Sun = createIconWrapper('Sun');
+      const Moon = createIconWrapper('Moon');
       const CloudRain = createIconWrapper('CloudRain');
       const Wind = createIconWrapper('Wind');
       const Thermometer = createIconWrapper('Thermometer');
@@ -518,6 +740,7 @@ export async function POST(request: NextRequest) {
       const Minus = createIconWrapper('Minus');
       const Edit = createIconWrapper('Edit');
       const Trash = createIconWrapper('Trash');
+      const Trash2 = createIconWrapper('Trash2');
       const Save = createIconWrapper('Save');
       const Download = createIconWrapper('Download');
       const Upload = createIconWrapper('Upload');
@@ -703,11 +926,9 @@ export async function POST(request: NextRequest) {
         console.log('✅ Simple chart components loaded');
       })();
 
-      // Setup chart components BEFORE Babel compiles the code
-      console.log('🔧 Setting up chart components before Babel compilation...');
-
       // Component code - Babel will compile this automatically
       // Note: Code is embedded directly here, Babel will transform JSX automatically
+      // Hooks have been transformed to window.React.useState etc. during code cleaning
 
       ${escapedCode}
       
@@ -717,24 +938,9 @@ export async function POST(request: NextRequest) {
       console.log('Babel version:', window.Babel?.version || 'unknown');
       console.log('React version:', window.React?.version || 'unknown');
       console.log('ReactDOM version:', window.ReactDOM?.version || 'unknown');
-      
+
       if (typeof App !== 'undefined') {
         console.log('✅ App function exists');
-        try {
-          const testResult = App();
-          console.log('App() call result:', testResult);
-          if (!testResult) {
-            console.error('ERROR: App() returned null/undefined!');
-            console.error('App function code:', App.toString());
-            // Try to find what components are available
-            console.log('Available components:', Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k)));
-          } else {
-            console.log('✅ App() returns valid React element');
-          }
-        } catch (e) {
-          console.error('ERROR calling App():', e);
-          console.error('Error stack:', e.stack);
-        }
       } else {
         console.error('❌ ERROR: App is not defined after Babel compilation!');
         // List all functions defined
@@ -818,18 +1024,6 @@ export async function POST(request: NextRequest) {
             // Render the component with memory optimization
             try {
               console.log('Rendering App component...');
-
-              // Test if App function returns something
-              let appResult;
-              try {
-                appResult = App();
-                if (!appResult) {
-                  throw new Error('App function returned null or undefined');
-                }
-              } catch (testError) {
-                console.error('ERROR calling App function:', testError);
-                throw testError;
-              }
 
               // Clear any existing content
               rootEl.innerHTML = '';

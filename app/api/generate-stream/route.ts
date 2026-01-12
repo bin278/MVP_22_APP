@@ -212,6 +212,13 @@ async function generateSegment(prompt: string, model: string, user: any): Promis
     let apiKey: string;
 
     switch (modelConfig.provider) {
+      case 'dashscope':
+        apiKey = process.env.DASHSCOPE_API_KEY!;
+        client = new OpenAI({
+          apiKey: apiKey,
+          baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        });
+        break;
       case 'deepseek':
         apiKey = process.env.DEEPSEEK_API_KEY!;
         client = new OpenAI({
@@ -344,39 +351,28 @@ async function startAsyncFallback(
       messages: [
         {
           role: 'system',
-          content: `Generate a complete React component. Return ONLY the React component code, no explanations, no markdown, no JSON structure.
+          content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Requirements:
-1. Use proper code formatting with consistent indentation (2 spaces)
-2. Include all necessary React imports
-3. Create a functional component with proper JSX structure
-4. Use Tailwind CSS classes for styling
-5. Make it immediately runnable
-6. Export as default
+Required files: src/App.tsx, src/index.css, package.json, README.md
 
-Example output:
-import React from 'react';
+CODE SIMPLICITY RULES:
+- Single component only (no src/components/, src/utils/, etc.)
+- Use basic React hooks: useState, useEffect
+- Keep component under 150 lines
+- Simple inline styles with Tailwind CSS classes
+- No complex patterns (no Context, Redux, custom hooks)
+- Focus on clarity over features
 
-function App() {
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Hello World</h1>
-        <p className="text-gray-600">Welcome to my app!</p>
-      </div>
-    </div>
-  );
-}
-
-export default App;`
+Return JSON:
+{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
         },
         {
           role: 'user',
           content: fullPrompt
         }
       ],
-      max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '4000'),
-      temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE || '0.7'),
+      max_tokens: Math.min(parseInt(process.env.DEEPSEEK_MAX_TOKENS!), 8192),
+      temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
     })
 
     const additionalContent = completion.choices[0]?.message?.content || ''
@@ -690,6 +686,12 @@ export async function POST(request: NextRequest) {
     console.log(`🔧 Configuring API for provider: ${modelConfig.provider}`);
 
     switch (modelConfig.provider) {
+      case 'dashscope':
+        console.log('🎯 Using Alibaba Cloud DashScope (百炼) API');
+        apiKey = process.env.DASHSCOPE_API_KEY
+        baseUrl = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+        model = requestedModel
+        break
       case 'deepseek':
         console.log('🎯 Using DeepSeek API');
         apiKey = process.env.DEEPSEEK_API_KEY
@@ -803,38 +805,27 @@ export async function POST(request: NextRequest) {
             messages: [
               {
                 role: 'system',
-                content: `Generate a complete React component. Return ONLY the React component code, no explanations, no markdown, no JSON structure.
+                content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Requirements:
-1. Use proper code formatting with consistent indentation (2 spaces)
-2. Include all necessary React imports
-3. Create a functional component with proper JSX structure
-4. Use Tailwind CSS classes for styling
-5. Make it immediately runnable
-6. Export as default
+Required files: src/App.tsx, src/index.css, package.json, README.md
 
-Example output:
-import React from 'react';
+CODE SIMPLICITY RULES:
+- Single component only (no src/components/, src/utils/, etc.)
+- Use basic React hooks: useState, useEffect
+- Keep component under 150 lines
+- Simple inline styles with Tailwind CSS classes
+- No complex patterns (no Context, Redux, custom hooks)
+- Focus on clarity over features
 
-function App() {
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Hello World</h1>
-        <p className="text-gray-600">Welcome to my app!</p>
-      </div>
-    </div>
-  );
-}
-
-export default App;`
+Return JSON:
+{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
               },
               {
                 role: 'user',
                 content: prompt.trim()
               }
             ],
-            max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '4000'),
+            max_tokens: Math.min(parseInt(process.env.DEEPSEEK_MAX_TOKENS || '8192'), 8192),
             temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE || '0.7'),
             stream: true, // Enable streaming
           })

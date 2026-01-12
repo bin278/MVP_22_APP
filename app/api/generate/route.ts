@@ -47,16 +47,96 @@ function formatCodeString(code: string): string {
   return code
 }
 
-async function generateCodeWithRetry(prompt: string, maxRetries: number = 1) {
-  const apiKey = process.env.DEEPSEEK_API_KEY
-  const baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
-  const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
+// 验证生成的 JSON 结构
+function validateGeneratedJson(jsonContent: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
 
-  if (!apiKey || apiKey === 'your_deepseek_api_key_here') {
-    throw new Error('DeepSeek API key is not configured. Please set DEEPSEEK_API_KEY in your environment variables. Get your API key from https://platform.deepseek.com/')
+  try {
+    const parsed = JSON.parse(jsonContent)
+
+    // 检查必需的字段
+    if (!parsed.files || typeof parsed.files !== 'object') {
+      errors.push('Missing or invalid "files" field')
+    }
+
+    if (!parsed.projectName || typeof parsed.projectName !== 'string') {
+      errors.push('Missing or invalid "projectName" field')
+    }
+
+    // 检查是否有 App.tsx
+    if (parsed.files && !parsed.files['src/App.tsx'] && !parsed.files['App.tsx']) {
+      errors.push('Missing App.tsx file')
+    }
+
+    // 检查是否有 README.md
+    if (parsed.files && !parsed.files['README.md']) {
+      errors.push('Missing README.md file')
+    }
+
+    // 检查 App.tsx 代码质量
+    const appCode = parsed.files['src/App.tsx'] || parsed.files['App.tsx'] || ''
+    if (appCode) {
+      // 检查常见的语法错误
+      if (/return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/.test(appCode)) {
+        errors.push('App.tsx has invalid return statement followed by declarations')
+      }
+
+      // 检查是否有基本的 React 结构
+      if (!appCode.includes('export default') && !appCode.includes('export default App')) {
+        errors.push('App.tsx missing "export default" statement')
+      }
+
+      // 检查是否有 function 或 const 组件定义
+      if (!/function\s+\w+|const\s+\w+\s*=/.test(appCode)) {
+        errors.push('App.tsx missing component definition')
+      }
+    }
+
+  } catch (parseError: any) {
+    errors.push(`Invalid JSON: ${parseError.message}`)
   }
 
-  // Initialize OpenAI client with DeepSeek configuration
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
+async function generateCodeWithRetry(prompt: string, model: string = 'qwen-plus', maxRetries: number = 2) {
+  // 导入模型配置
+  const { AVAILABLE_MODELS } = await import('@/lib/subscription-tiers')
+  const modelConfig = AVAILABLE_MODELS[model]
+
+  if (!modelConfig) {
+    throw new Error(`Unsupported model: ${model}`)
+  }
+
+  // 根据 provider 选择 API 配置
+  let apiKey: string | undefined
+  let baseUrl: string | undefined
+
+  switch (modelConfig.provider) {
+    case 'dashscope':
+      apiKey = process.env.DASHSCOPE_API_KEY
+      baseUrl = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+      break
+    case 'deepseek':
+      apiKey = process.env.DEEPSEEK_API_KEY
+      baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
+      break
+    case 'zhipu':
+      apiKey = process.env.GLM_API_KEY
+      baseUrl = process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/'
+      break
+    default:
+      throw new Error(`Unsupported provider: ${modelConfig.provider}`)
+  }
+
+  if (!apiKey || apiKey.includes('your-') || apiKey.includes('your_')) {
+    throw new Error(`${modelConfig.provider} API key is not configured. Please set the API key in your environment variables.`)
+  }
+
+  // Initialize OpenAI client with provider configuration
   const client = new OpenAI({
     apiKey: apiKey,
     baseURL: baseUrl,
@@ -66,38 +146,72 @@ async function generateCodeWithRetry(prompt: string, maxRetries: number = 1) {
     try {
       console.log(`Attempt ${attempt}/${maxRetries} to generate code`)
 
+      // 如果是重试，添加错误提示
+      let enhancedSystemPrompt = `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
+
+Required files: src/App.tsx, src/index.css, package.json, README.md
+
+CODE SIMPLICITY RULES:
+- Single component only (no src/components/, src/utils/, etc.)
+- Use basic React hooks: useState, useEffect
+- Keep component under 150 lines
+- Simple inline styles with Tailwind CSS classes
+- No complex patterns (no Context, Redux, custom hooks)
+- Focus on clarity over features
+
+README.md format:
+# Project Title
+Simple description.
+
+## Installation
+\\\`\\\`\\\`bash
+npm install
+npm run dev
+\\\`\\\`\\\`
+
+Return JSON:
+{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}
+
+Example of CORRECT structure:
+function App() {
+  const [data, setData] = React.useState(null);
+  const handleClick = () => { };
+  return (
+    <div>{data}</div>
+  );
+}
+
+Example of INCORRECT structure (DO NOT DO THIS):
+function App() {
+  return (
+  const [data, setData] = React.useState(null);
+  // ...
+}`
+
+      if (attempt > 1) {
+        enhancedSystemPrompt += `
+
+⚠️ PREVIOUS RESPONSE ERROR. Fix:
+1. Valid JSON with "files" and "projectName"
+2. App.tsx: proper function, hooks before return
+3. Include export default App
+4. README.md is required`
+      }
+
       const completion = await client.chat.completions.create({
         model: model,
         messages: [
           {
             role: 'system',
-            content: `Generate a complete, well-formatted React component. IMPORTANT:
-
-1. Use proper code formatting with consistent indentation (2 spaces)
-2. Include all necessary React imports
-3. Create a functional component with proper JSX structure
-4. Use Tailwind CSS classes for styling
-5. Ensure the code is immediately runnable
-
-Return ONLY this JSON structure:
-{
-  "files": {
-    "src/App.tsx": "import React from 'react';\n\nfunction App() {\n  return (\n    <div className=\\"p-4\\">\n      <h1>Hello World</h1>\n    </div>\n  );\n}\n\nexport default App;",
-    "src/index.css": "body { margin: 0; font-family: system-ui, sans-serif; }",
-    "package.json": "{\\"name\\": \\"app\\", \\"version\\": \\"1.0.0\\"}"
-  },
-  "projectName": "my-app"
-}
-
-Make sure the App.tsx code is properly formatted with newlines and indentation!`
+            content: enhancedSystemPrompt
           },
           {
             role: 'user',
             content: prompt.trim()
           }
         ],
-        max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '4000'),
-        temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE || '0.7'),
+        max_tokens: Math.min(modelConfig.maxTokens, 8192),
+        temperature: 0.7,
       })
 
       const generatedContent = completion.choices[0]?.message?.content
@@ -106,11 +220,36 @@ Make sure the App.tsx code is properly formatted with newlines and indentation!`
         throw new Error('Empty response from AI service')
       }
 
-      console.log('AI response length:', generatedContent.length)
+      // 验证生成的 JSON
+      const validation = validateGeneratedJson(generatedContent)
+
+      if (!validation.valid && attempt < maxRetries) {
+        console.warn(`⚠️ Generated JSON has errors, retrying (${attempt + 1}/${maxRetries}):`, validation.errors)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        continue
+      }
+
+      if (!validation.valid) {
+        console.error('❌ Generated JSON still has errors after retries:', validation.errors)
+        // 继续返回，让前端处理错误
+      }
+
+      console.log('✅ AI response length:', generatedContent.length)
+
+      // Log finish reason to check if response was truncated
+      const finishReason = completion.choices[0]?.finish_reason
+      console.log('📍 Finish reason:', finishReason)
+      if (finishReason === 'length') {
+        console.warn('⚠️ Response was truncated due to max_tokens limit!')
+      }
+
+      // Log a preview of the response
+      console.log('🔍 Response preview (first 500 chars):', generatedContent.substring(0, 500).replace(/\n/g, '\\n'))
+
       return generatedContent
 
     } catch (error: any) {
-      console.error(`Attempt ${attempt} failed:`, error.message)
+      console.error(`❌ Attempt ${attempt} failed:`, error.message)
 
       if (attempt === maxRetries) {
         throw error
@@ -120,6 +259,8 @@ Make sure the App.tsx code is properly formatted with newlines and indentation!`
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
   }
+
+  throw new Error('Failed to generate code after all retries')
 }
 
 export async function POST(request: Request) {
@@ -184,69 +325,112 @@ export async function POST(request: Request) {
         jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1)
         console.log('Cleaned JSON content')
       } else if (jsonStart !== -1) {
-        // If JSON is incomplete, try to fix it
+        // JSON is incomplete, extract content safely instead of blindly fixing
         jsonContent = jsonContent.substring(jsonStart)
-        console.log('Attempting to fix incomplete JSON, original length:', jsonContent.length)
+        console.warn('⚠️ Response appears truncated, using safe extraction')
 
-        // More aggressive JSON fixing
-        let fixedJson = jsonContent
+        // Use safe extraction similar to async API
+        try {
+          // Try to parse what we have first
+          parsedResponse = JSON.parse(jsonContent)
+          console.log('✅ Managed to parse partial JSON')
+        } catch (parseError) {
+          // If that fails, extract files manually using regex
+          console.log('📦 Extracting files using regex patterns...')
 
-        // Count braces and brackets
-        const openBraces = (fixedJson.match(/\{/g) || []).length
-        const closeBraces = (fixedJson.match(/\}/g) || []).length
-        const openBrackets = (fixedJson.match(/\[/g) || []).length
-        const closeBrackets = (fixedJson.match(/\]/g) || []).length
+          const files: Record<string, string> = {}
 
-        // Count quotes (simple approach - assume even number means balanced)
-        const quotes = (fixedJson.match(/"/g) || []).length
+          // Extract App.tsx
+          const appMatch = jsonContent.match(/"src\/App\.tsx"\s*:\s*"((?:[^"\\]|\\.)*)/s)
+          if (appMatch) {
+            let appCode = appMatch[1]
+            appCode = appCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+            files['src/App.tsx'] = appCode.trim()
+            console.log('✅ Extracted src/App.tsx')
+          } else {
+            console.warn('⚠️ Failed to extract App.tsx with regex')
+          }
 
-        // Fix unbalanced structures
-        if (closeBraces < openBraces) {
-          const missingBraces = openBraces - closeBraces
-          fixedJson += '}'.repeat(missingBraces)
-          console.log(`Added ${missingBraces} missing closing braces`)
-        }
-        if (closeBrackets < openBrackets) {
-          const missingBrackets = openBrackets - closeBrackets
-          fixedJson += ']'.repeat(missingBrackets)
-          console.log(`Added ${missingBrackets} missing closing brackets`)
-        }
-        if (quotes % 2 !== 0) {
-          fixedJson += '"'
-          console.log('Added missing closing quote')
-        }
+          // Extract index.css
+          const cssMatch = jsonContent.match(/"src\/index\.css"\s*:\s*"((?:[^"\\]|\\.)*)/s)
+          if (cssMatch) {
+            let cssCode = cssMatch[1]
+            cssCode = cssCode.replace(/\\n/g, '\n').replace(/\\"/g, '"')
+            files['src/index.css'] = cssCode.trim()
+            console.log('✅ Extracted src/index.css')
+          }
 
-        // Try to find and fix the last incomplete string
-        const lastStringMatch = fixedJson.match(/"([^"]*)$/m)
-        if (lastStringMatch && !lastStringMatch[1].endsWith('"')) {
-          // Find the last quote and add closing quote
-          const lastQuoteIndex = fixedJson.lastIndexOf('"')
-          if (lastQuoteIndex !== -1) {
-            const afterLastQuote = fixedJson.substring(lastQuoteIndex + 1)
-            // If there's content after the last quote without another quote, this might be incomplete
-            if (afterLastQuote.includes(',') || afterLastQuote.includes('}')) {
-              // Try to close the string properly
-              fixedJson = fixedJson.substring(0, lastQuoteIndex + 1) + afterLastQuote
+          // Extract README.md
+          const readmeMatch = jsonContent.match(/"README\.md"\s*:\s*"((?:[^"\\]|\\.)*)/s)
+          if (readmeMatch) {
+            let readmeCode = readmeMatch[1]
+            readmeCode = readmeCode.replace(/\\n/g, '\n').replace(/\\"/g, '"')
+            files['README.md'] = readmeCode.trim()
+            console.log('✅ Extracted README.md')
+          }
+
+          // Extract package.json
+          const pkgMatch = jsonContent.match(/"package\.json"\s*:\s*(\{(?:[^"\\]|\\.)*?\})/s)
+          if (pkgMatch) {
+            try {
+              const pkgJson = JSON.parse(pkgMatch[1].replace(/\\"/g, '"'))
+              files['package.json'] = JSON.stringify(pkgJson, null, 2)
+              console.log('✅ Extracted package.json')
+            } catch (e) {
+              files['package.json'] = JSON.stringify({
+                "name": "generated-app",
+                "version": "0.1.0",
+                "dependencies": {
+                  "react": "^18.2.0",
+                  "react-dom": "^18.2.0"
+                }
+              }, null, 2)
             }
           }
-        }
 
-        jsonContent = fixedJson
-        console.log('JSON fixing completed, new length:', jsonContent.length)
+          // Create a valid response
+          parsedResponse = {
+            files,
+            projectName: 'generated-app'
+          }
+
+          // Skip the JSON.parse loop below
+          const fileNames = Object.keys(files)
+          console.log(`📁 Extracted ${fileNames.length} files:`, fileNames.join(', '))
+        }
       }
 
-      // Try to parse the response as JSON with multiple attempts
-      console.log('📄 Attempting JSON parse...')
-      const jsonParseStartTime = performance.now()
-      let parseAttempt = 1
-      const maxParseAttempts = 3
+      // Only try JSON.parse if we haven't already parsed it via safe extraction
+      if (!parsedResponse) {
+        // Try to parse the response as JSON with multiple attempts
+        console.log('📄 Attempting JSON parse...')
+        const jsonParseStartTime = performance.now()
+        let parseAttempt = 1
+        const maxParseAttempts = 3
 
-      while (parseAttempt <= maxParseAttempts) {
-        try {
+        while (parseAttempt <= maxParseAttempts) {
+          try {
           console.log(`JSON parse attempt ${parseAttempt}/${maxParseAttempts}`)
           parsedResponse = JSON.parse(jsonContent)
           const jsonParseEndTime = performance.now()
           console.log(`✅ JSON parsed successfully in ${(jsonParseEndTime - jsonParseStartTime).toFixed(2)}ms`)
+
+          // Log generated files
+          const fileNames = Object.keys(parsedResponse.files || {})
+          console.log(`📁 Generated ${fileNames.length} files:`, fileNames.join(', '))
+          if (fileNames.length > 0) {
+            console.log('📋 File details:', fileNames.map(name => ({
+              name,
+              size: parsedResponse.files[name].length,
+              preview: parsedResponse.files[name].substring(0, 100).replace(/\n/g, '\\n')
+            })))
+          }
+
+          // Check if README.md is missing
+          if (!parsedResponse.files['README.md']) {
+            console.warn('⚠️ README.md is missing from generated files!')
+          }
+
           break
         } catch (parseError: any) {
           console.log(`JSON parse attempt ${parseAttempt} failed:`, parseError.message)
@@ -281,6 +465,7 @@ export async function POST(request: Request) {
           parseAttempt++
         }
       }
+      } // End of if (!parsedResponse)
 
       // Ensure code formatting is preserved
       if (parsedResponse.files && parsedResponse.files['src/App.tsx']) {

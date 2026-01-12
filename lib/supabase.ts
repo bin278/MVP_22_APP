@@ -36,14 +36,41 @@ export async function createSupabaseClient(): Promise<SupabaseClient | null> {
   if (typeof window === 'undefined') {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    return url && anonKey ? createClient(url, anonKey) : null
+
+    if (!url || !anonKey) {
+      console.error('Supabase URL or Anon Key is missing')
+      return null
+    }
+
+    // 添加超时配置
+    return createClient(url, anonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+      global: {
+        fetch: (url, options) => {
+          return fetch(url, {
+            ...options,
+            // 添加 10 秒超时
+            signal: AbortSignal.timeout(10000),
+          })
+        },
+      },
+    })
   }
 
   // 客户端从 API 获取
   try {
     const env = await getPublicEnv()
     if (env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
+      })
     }
   } catch (error) {
     console.error('Failed to create Supabase client:', error)

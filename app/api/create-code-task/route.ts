@@ -191,8 +191,8 @@ export default App;`
           content: prompt.trim()
         }
       ],
-      max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '4000'),
-      temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE || '0.7'),
+      max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS!),
+      temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
     })
 
     // 获取完整响应

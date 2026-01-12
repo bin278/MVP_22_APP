@@ -13,21 +13,21 @@ export const SUBSCRIPTION_TIERS = {
     nameZh: '免费版',
     limits: {},
     maxRequests: 30,
-    models: ['deepseek-chat']
+    models: ['qwen-turbo']
   },
   pro: {
     name: 'Pro',
     nameZh: '专业版',
     limits: {},
     maxRequests: 500,
-    models: ['deepseek-chat', 'deepseek-coder', 'glm-4.6']
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-coder-turbo']
   },
   enterprise: {
     name: 'Enterprise',
     nameZh: '企业版',
     limits: {},
     maxRequests: -1, // 无限
-    models: ['deepseek-chat', 'deepseek-coder', 'glm-4.6']
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-coder-turbo']
   }
 };
 
@@ -67,6 +67,50 @@ export const AVAILABLE_MODELS = {
     contextWindow: 32768,
     maxTokens: 4096,
     pricing: { input: 0.001, output: 0.002 }
+  },
+  'qwen-turbo': {
+    id: 'qwen-turbo',
+    name: 'Qwen Turbo',
+    nameZh: '通义千问 Turbo',
+    description: 'Fast and efficient AI model',
+    descriptionZh: '快速高效的AI模型',
+    provider: 'dashscope',
+    contextWindow: 8192,
+    maxTokens: 2000,
+    pricing: { input: 0.0008, output: 0.002 }
+  },
+  'qwen-plus': {
+    id: 'qwen-plus',
+    name: 'Qwen Plus',
+    nameZh: '通义千问 Plus',
+    description: 'Balanced performance and quality',
+    descriptionZh: '性能与质量平衡',
+    provider: 'dashscope',
+    contextWindow: 32768,
+    maxTokens: 4096,
+    pricing: { input: 0.004, output: 0.012 }
+  },
+  'qwen-max': {
+    id: 'qwen-max',
+    name: 'Qwen Max',
+    nameZh: '通义千问 Max',
+    description: 'Most capable model for complex tasks',
+    descriptionZh: '最强大的模型,适合复杂任务',
+    provider: 'dashscope',
+    contextWindow: 32768,
+    maxTokens: 8192,
+    pricing: { input: 0.02, output: 0.06 }
+  },
+  'qwen-coder-turbo': {
+    id: 'qwen-coder-turbo',
+    name: 'Qwen Coder Turbo',
+    nameZh: '通义千问代码版',
+    description: 'Specialized for coding tasks',
+    descriptionZh: '专为编程任务优化',
+    provider: 'dashscope',
+    contextWindow: 16384,
+    maxTokens: 4096,
+    pricing: { input: 0.0008, output: 0.002 }
   }
 };
 
@@ -92,9 +136,9 @@ export function canUseModel(tier: SubscriptionTier, modelId: string): boolean {
 export function getDefaultModel(tier?: SubscriptionTier): string {
   if (tier && SUBSCRIPTION_TIERS[tier]) {
     const tierModels = SUBSCRIPTION_TIERS[tier].models;
-    return tierModels[0] || 'deepseek-chat';
+    return tierModels[0] || 'qwen-turbo';
   }
-  return 'deepseek-chat';
+  return 'qwen-turbo';
 }
 
 /**

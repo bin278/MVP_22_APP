@@ -58,7 +58,8 @@
       "Bash(pnpm update:*)",
       "Bash(echo:*)",
       "Bash(nslookup:*)",
-      "Bash(vercel domains:*)"
+      "Bash(vercel domains:*)",
+      "Bash(iconv:*)"
     ]
   }
 }

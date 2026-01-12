@@ -19,13 +19,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.DEEPSEEK_API_KEY
-    const baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
-    const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
+    // 获取模型配置
+    const { AVAILABLE_MODELS, getDefaultModel } = await import('@/lib/subscription-tiers')
+    const modelId = getDefaultModel(user.subscription_tier)
+    const modelConfig = AVAILABLE_MODELS[modelId]
 
-    if (!apiKey || apiKey === 'your_actual_api_key_here') {
+    if (!modelConfig) {
       return NextResponse.json(
-        { error: 'DeepSeek API key is not configured' },
+        { error: `Unsupported model: ${modelId}` },
+        { status: 500 }
+      )
+    }
+
+    // 根据 provider 选择 API 配置
+    let apiKey: string | undefined
+    let baseUrl: string | undefined
+
+    switch (modelConfig.provider) {
+      case 'dashscope':
+        apiKey = process.env.DASHSCOPE_API_KEY
+        baseUrl = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+        break
+      case 'deepseek':
+        apiKey = process.env.DEEPSEEK_API_KEY
+        baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
+        break
+      case 'zhipu':
+        apiKey = process.env.GLM_API_KEY
+        baseUrl = process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/'
+        break
+      default:
+        return NextResponse.json(
+          { error: `Unsupported provider: ${modelConfig.provider}` },
+          { status: 500 }
+        )
+    }
+
+    if (!apiKey || apiKey.includes('your_') || apiKey.includes('your-')) {
+      return NextResponse.json(
+        { error: `${modelConfig.provider} API key is not configured` },
         { status: 500 }
       )
     }
@@ -42,7 +74,7 @@ export async function POST(request: NextRequest) {
     try {
       // 直接调用AI，不设置主动超时，让CloudBase平台自然处理60秒超时
       const completion = await client.chat.completions.create({
-        model: model,
+        model: modelId,
         messages: [
           {
             role: 'system',
@@ -66,8 +98,8 @@ Response: "function App() { return <div><div>Hello</div><button>Click me</button
             content: `Current code:\n\`\`\`typescript\n${code}\n\`\`\`\n\nInstruction: ${instruction}\n\nReturn only the modified code:`
           }
         ],
-        max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '3000'), // 增加token限制
-        temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE || '0.5'), // 中等随机性
+        max_tokens: modelConfig.maxTokens,
+        temperature: 0.7, // 中等随机性
       })
 
       console.log('✅ 同步代码修改完成')

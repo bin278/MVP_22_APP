@@ -244,6 +244,22 @@ function GeneratePageContent() {
   const isManualRefreshRef = useRef<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Refs to track current values (to avoid closure issues in polling)
+  const codeUsageRef = useRef(codeUsage)
+  useEffect(() => {
+    codeUsageRef.current = codeUsage
+  }, [codeUsage])
+
+  const isGeneratingRef = useRef(isGenerating)
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating
+  }, [isGenerating])
+
+  const generatedProjectRef = useRef(generatedProject)
+  useEffect(() => {
+    generatedProjectRef.current = generatedProject
+  }, [generatedProject])
+
   // 解析markdown链接的函数
   const renderContentWithLinks = (content: string) => {
     // 匹配markdown链接格式 [text](url)
@@ -284,6 +300,21 @@ function GeneratePageContent() {
     return parts.length > 0 ? parts : content
   }
 
+  // 文件排序辅助函数：App.tsx 始终排在第一位
+  const sortFilePaths = (files: Record<string, string>): string[] => {
+    return Object.keys(files).sort((a, b) => {
+      // App.tsx 相关文件始终排在第一位
+      const aIsApp = a.includes('App.tsx')
+      const bIsApp = b.includes('App.tsx')
+
+      if (aIsApp && !bIsApp) return -1
+      if (!aIsApp && bIsApp) return 1
+
+      // 其他文件按字母顺序排序
+      return a.localeCompare(b)
+    })
+  }
+
   // GitHub integration state
   const { session: authSession } = useAuth()
   const [githubConnected, setGithubConnected] = useState(false)
@@ -318,11 +349,12 @@ function GeneratePageContent() {
 
   // 轮询检查任务状态
   const pollTaskStatus = async (taskId: string) => {
-    // 延迟2秒开始轮询，给后端时间创建和开始处理任务
+    // 立即开始轮询，但要给后端一点时间创建任务
+    // 第一次轮询延迟 500ms，之后每 1 秒轮询一次
     setTimeout(async () => {
       let pollCount = 0
       let consecutive404Count = 0
-      const maxPolls = 150 // 5分钟 (150 * 2秒)
+      const maxPolls = 300 // 5分钟 (300 * 1秒)
       const maxConsecutive404 = 5 // 最多连续5次404
 
       const pollInterval = setInterval(async () => {
@@ -351,6 +383,14 @@ function GeneratePageContent() {
               clearInterval(pollInterval)
               setError(status.error || '生成失败，请重试')
               setIsGenerating(false)
+              setIsModifying(false)
+              setCurrentTaskId(null)
+              setAsyncTaskId(null)
+            } else if (status.status === 'cancelled') {
+              clearInterval(pollInterval)
+              setError('任务已取消')
+              setIsGenerating(false)
+              setIsModifying(false)
               setCurrentTaskId(null)
               setAsyncTaskId(null)
             }
@@ -362,9 +402,10 @@ function GeneratePageContent() {
             if (consecutive404Count >= maxConsecutive404) {
               clearInterval(pollInterval)
               setError('任务创建失败，请重试')
-            setIsGenerating(false)
-            setCurrentTaskId(null)
-            setAsyncTaskId(null)
+              setIsGenerating(false)
+              setIsModifying(false)
+              setCurrentTaskId(null)
+              setAsyncTaskId(null)
             }
           } else {
             // 其他错误，继续轮询
@@ -374,7 +415,8 @@ function GeneratePageContent() {
           if (pollCount >= maxPolls) {
             clearInterval(pollInterval)
             setError('生成超时，请重试')
-      setIsGenerating(false)
+            setIsGenerating(false)
+            setIsModifying(false)
             setCurrentTaskId(null)
             setAsyncTaskId(null)
           }
@@ -390,8 +432,8 @@ function GeneratePageContent() {
             setAsyncTaskId(null)
           }
         }
-      }, 2000) // 每2秒检查一次
-    }, 2000) // 延迟2秒开始轮询
+      }, 1000) // 每1秒检查一次
+    }, 500) // 延迟500ms开始轮询
   }
 
   // 取消异步生成
@@ -409,6 +451,7 @@ function GeneratePageContent() {
       })
 
       setIsGenerating(false)
+      setIsModifying(false)
       setGenerationMode('async')
       setCurrentTaskId(null)
       setAsyncTaskId(null)
@@ -731,7 +774,9 @@ function GeneratePageContent() {
             projectName: data.conversation.title || "Loaded Project",
             files,
           })
-          setSelectedFile(Object.keys(files)[0] || "src/App.tsx")
+          // 使用排序函数，确保第一个文件是 App.tsx
+          const sortedFiles = sortFilePaths(files)
+          setSelectedFile(sortedFiles[0] || "src/App.tsx")
         } else {
           setGeneratedProject(null)
         }
@@ -774,12 +819,48 @@ function GeneratePageContent() {
     "创建一个响应式的导航菜单"
   ]
 
-  // Load prefilled prompt from localStorage
+  // Load prefilled prompt from localStorage and auto-generate
   useEffect(() => {
     const prefillPrompt = localStorage.getItem('prefillPrompt')
+    console.log('📝 Checking for prefillPrompt:', prefillPrompt)
     if (prefillPrompt) {
-      setPrompt(prefillPrompt)
+      console.log('✅ Found prefillPrompt, setting prompt and waiting for codeUsage')
       localStorage.removeItem('prefillPrompt') // Clear it after use
+
+      // 设置 prompt
+      setPrompt(prefillPrompt)
+
+      // 等待 codeUsage 加载完成后再生成
+      const checkAndGenerate = () => {
+        const currentCodeUsage = codeUsageRef.current
+        const currentIsGenerating = isGeneratingRef.current
+        const currentHasProject = !!generatedProjectRef.current
+
+        console.log('🔍 Checking if ready to generate:', {
+          hasCodeUsage: currentCodeUsage !== null,
+          isGenerating: currentIsGenerating,
+          hasGeneratedProject: currentHasProject,
+          codeUsageValue: currentCodeUsage,
+          promptValue: prompt
+        })
+
+        if (currentCodeUsage !== null && !currentIsGenerating && !currentHasProject) {
+          console.log('✅ All ready, triggering auto-generation with prompt:', prefillPrompt)
+          // 等待一下让 prompt 状态更新
+          setTimeout(() => {
+            handleGenerate().catch(error => {
+              console.error('❌ Auto-generation failed:', error)
+              setIsGenerating(false)
+            })
+          }, 100)
+        } else if (currentCodeUsage === null) {
+          console.log('⏳ codeUsage not loaded yet, waiting...')
+          setTimeout(checkAndGenerate, 500)
+        }
+      }
+
+      // 开始检查（延迟一点让页面初始化）
+      setTimeout(checkAndGenerate, 500)
     }
   }, [])
 
@@ -939,21 +1020,20 @@ function GeneratePageContent() {
   const handleGenerate = async () => {
     if (!prompt.trim()) return
 
-    // 等待使用数据加载完成
-    if (codeUsage === null) {
-      const message = language === 'en'
-        ? 'Loading usage data, please wait...'
-        : '正在加载使用数据，请稍候...'
-      alert(message)
-      return
+    // 如果 codeUsage 还在加载，使用默认值（允许继续）
+    const usageData = codeUsage || {
+      current: 0,
+      limit: 10,
+      remaining: 10,
+      isUnlimited: false
     }
 
     // 检查使用次数限制
-    if (!codeUsage.isUnlimited && codeUsage.remaining <= 0) {
+    if (!usageData.isUnlimited && usageData.remaining <= 0) {
       // 显示提示信息
       const message = language === 'en'
-        ? `You have reached your monthly limit of ${codeUsage.limit} code generations.\n\nPlease upgrade your plan to continue generating code.`
-        : `您已达到本月的 ${codeUsage.limit} 次代码生成限制。\n\n请升级您的订阅计划以继续生成代码。`
+        ? `You have reached your monthly limit of ${usageData.limit} code generations.\n\nPlease upgrade your plan to continue generating code.`
+        : `您已达到本月的 ${usageData.limit} 次代码生成限制。\n\n请升级您的订阅计划以继续生成代码。`
 
       alert(message)
 
@@ -1321,8 +1401,13 @@ function GeneratePageContent() {
       pollTaskStatus(taskId)
 
       console.log('🎉 修改请求已提交，等待处理完成...')
+      // 注意：不在这里设置 setIsModifying(false)
+      // 任务完成后会在 handleAsyncTaskCompleted 中设置
     } catch (error: any) {
       console.error('Error modifying code:', error)
+
+      // 只有在出错时才设置为 false
+      setIsModifying(false)
 
       // Determine error message based on error type
       let errorMessage = error.message || 'Failed to modify code'
@@ -1330,7 +1415,7 @@ function GeneratePageContent() {
       let alertMessage = ''
 
       if (error.statusCode === 402) {
-        errorMessage = language === 'en' 
+        errorMessage = language === 'en'
           ? 'Insufficient API Balance'
           : 'API 余额不足'
         errorDetails = language === 'en'
@@ -1395,16 +1480,15 @@ function GeneratePageContent() {
         }
         return newMessages
       })
-      
+
       // 保存错误消息到数据库
       if (currentConversationId) {
         await saveMessage('assistant', errorContent)
       }
 
       alert(alertMessage || (language === 'en' ? 'Failed to modify code. Please try again.' : '修改代码失败，请重试。'))
-    } finally {
-      setIsModifying(false)
     }
+    // 移除了 finally 块，因为异步模式下状态应该在 handleAsyncTaskCompleted 中更新
   }
 
   const handlePreview = async () => {
@@ -1422,14 +1506,33 @@ function GeneratePageContent() {
       return
     }
 
-    const currentCode = generatedProject.files[selectedFile] || ''
+    // Only allow previewing .tsx files
+    if (!selectedFile.endsWith('.tsx')) {
+      // Try to find src/App.tsx
+      const appFile = Object.keys(generatedProject.files).find(f => f.endsWith('App.tsx') || f === 'src/App.tsx')
+      if (appFile) {
+        console.log('⚠️ Non-TSX file selected for preview, switching to:', appFile)
+        setSelectedFile(appFile)
+        // Don't return, let the preview continue with the App.tsx file
+      } else {
+        setPreviewError('Preview is only available for .tsx files')
+        console.log('❌ No .tsx file found for preview')
+        return
+      }
+    }
+
+    // Use the App.tsx file or the currently selected .tsx file
+    const previewFile = selectedFile.endsWith('.tsx') ? selectedFile :
+      Object.keys(generatedProject.files).find(f => f.endsWith('App.tsx') || f === 'src/App.tsx') || selectedFile
+
+    const currentCode = generatedProject.files[previewFile] || ''
     if (!currentCode || currentCode.trim().length === 0) {
       setPreviewError('No code available to preview')
-      console.log('❌ No code available for selected file:', selectedFile)
+      console.log('❌ No code available for file:', previewFile)
       return
     }
 
-    console.log('✅ Starting preview for file:', selectedFile, 'code length:', currentCode.length)
+    console.log('✅ Starting preview for file:', previewFile, 'code length:', currentCode.length)
 
     setIsPreviewLoading(true)
     setPreviewError(null)
@@ -1452,7 +1555,8 @@ function GeneratePageContent() {
         body: JSON.stringify({
           code: currentCode,
           files: generatedProject.files,
-          device: previewDevice, // Pass device info to API
+          device: previewDevice,
+          selectedFile: previewFile, // Tell API which file to preview
         }),
       })
 
@@ -1906,14 +2010,14 @@ function GeneratePageContent() {
                   {/* 生成按钮 */}
                   <Button
                     onClick={handleGenerate}
-                    disabled={isGenerating || !(generatedProject ? modifyInstruction.trim() : prompt.trim()) || codeUsage === null}
+                    disabled={isGenerating || isModifying || !(generatedProject ? modifyInstruction.trim() : prompt.trim()) || codeUsage === null}
                     size="lg"
                     className="w-full bg-accent hover:bg-accent/90"
                   >
-                    {isGenerating ? (
+                    {(isGenerating || isModifying) ? (
                       <>
                         <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        {t.generating}
+                        {generatedProject ? (language === "en" ? "Modifying..." : "修改中...") : t.generating}
                       </>
                     ) : (
                       <>
@@ -2044,14 +2148,6 @@ function GeneratePageContent() {
                                     <div className="text-xs text-muted-foreground">
                                       {language === 'en' ? 'AI is generating your code...' : 'AI正在生成您的代码...'}
                                     </div>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={cancelAsyncGeneration}
-                                        className="text-xs h-6 px-2"
-                                      >
-                                        {language === 'en' ? 'Cancel' : '取消'}
-                                      </Button>
                                   </div>
 
                                   <div className="flex items-center justify-center py-8">
@@ -2220,7 +2316,7 @@ function GeneratePageContent() {
 
             {/* Output Section - 移动端全宽,桌面端占2列 */}
             <div className="space-y-4 col-span-1 lg:col-span-2">
-              {isGenerating ? (
+              {(isGenerating || isModifying) ? (
                 <>
                   {/* AI Code Generation Display */}
                   <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -2233,36 +2329,29 @@ function GeneratePageContent() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h2 className="text-sm sm:text-base md:text-xl font-semibold text-foreground truncate">
-                              🎨 {language === "en" ? "AI is crafting your code..." : "AI正在为您精心制作代码..."}
+                              {isModifying ? (
+                                <>
+                                  🔧 {language === "en" ? "AI is modifying your code..." : "AI正在为您修改代码..."}
+                                </>
+                              ) : (
+                                <>
+                                  🎨 {language === "en" ? "AI is crafting your code..." : "AI正在为您精心制作代码..."}
+                                </>
+                              )}
                             </h2>
                             <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                              {language === "en" ? "Creating a beautiful, functional component..." : "正在创建一个美观、实用的组件..."}
+                              {isModifying ? (
+                                <>
+                                  {language === "en" ? "Applying your changes to the component..." : "正在应用您的修改..."}
+                                </>
+                              ) : (
+                                <>
+                                  {language === "en" ? "Creating a beautiful, functional component..." : "正在创建一个美观、实用的组件..."}
+                                </>
+                              )}
                             </p>
                           </div>
                         </div>
-                        <Button
-                          onClick={() => {
-                            console.log('🛑 用户取消生成')
-                            // 取消生成
-                            if (asyncTaskId) {
-                              cancelAsyncGeneration()
-                            } else {
-                              // 设置状态并取消
-                              setIsGenerating(false)
-                              setError(language === "en" ? "Generation cancelled" : "生成已取消")
-                              // 创建新的abortController并立即取消
-                              const controller = new AbortController()
-                              controller.abort()
-                              setAbortController(controller)
-                            }
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7 px-2 sm:h-auto sm:px-3 flex-shrink-0 border-red-200 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:hover:bg-red-950"
-                        >
-                          <span className="hidden xs:inline">{language === "en" ? "Cancel" : "取消"}</span>
-                          <span className="xs:hidden">✕</span>
-                        </Button>
                       </div>
 
                     </div>
@@ -2272,22 +2361,47 @@ function GeneratePageContent() {
                       <div className="text-center max-w-md sm:max-w-lg mx-auto">
                         <div className="relative mb-4 sm:mb-8">
                           <div className="w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto shadow-xl">
-                            <svg className="w-8 h-8 sm:w-12 sm:h-12 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
+                            {isModifying ? (
+                              <svg className="w-8 h-8 sm:w-12 sm:h-12 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            ) : (
+                              <svg className="w-8 h-8 sm:w-12 sm:h-12 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                            )}
                           </div>
                           <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-2xl sm:rounded-3xl blur-lg opacity-30 animate-pulse"></div>
                         </div>
 
                         <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 sm:mb-4 px-2">
-                          {language === "en" ? "AI Magic in Progress" : "AI魔法进行中"}
+                          {isModifying ? (
+                            <>
+                              {language === "en" ? "AI Refinement in Progress" : "AI优化进行中"}
+                            </>
+                          ) : (
+                            <>
+                              {language === "en" ? "AI Magic in Progress" : "AI魔法进行中"}
+                            </>
+                          )}
                         </h3>
 
                         <p className="text-muted-foreground mb-4 sm:mb-8 leading-relaxed text-sm sm:text-base px-4">
-                          {language === "en"
-                            ? "Crafting a beautiful, fully-featured React component..."
-                            : "正在精心打造功能完整、美观的React组件..."
-                          }
+                          {isModifying ? (
+                            <>
+                              {language === "en"
+                                ? "Applying your modifications to create an even better component..."
+                                : "正在应用您的修改，打造更好的组件..."
+                              }
+                            </>
+                          ) : (
+                            <>
+                              {language === "en"
+                                ? "Crafting a beautiful, fully-featured React component..."
+                                : "正在精心打造功能完整、美观的React组件..."
+                              }
+                            </>
+                          )}
                         </p>
 
                         <div className="flex justify-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
@@ -2359,7 +2473,7 @@ function GeneratePageContent() {
                             console.log('🔘 Preview button clicked')
                             handlePreview()
                           }}
-                          disabled={isPreviewLoading || !generatedProject || !generatedProject.files[selectedFile]}
+                          disabled={isPreviewLoading || !generatedProject || !generatedProject.files[selectedFile] || !selectedFile.endsWith('.tsx')}
                           className="gap-1.5 sm:gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600 disabled:opacity-50 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
                         >
                           {isPreviewLoading ? (
@@ -2767,13 +2881,6 @@ function GeneratePageContent() {
                               >
                                 <RefreshCw className={`w-4 h-4 ${isPreviewLoading ? 'animate-spin' : ''}`} />
                               </button>
-                              <button
-                                onClick={handleClosePreview}
-                                className="text-gray-400 hover:text-gray-600 text-sm p-1 rounded hover:bg-gray-100"
-                                title={language === "en" ? "Close Preview" : "关闭预览"}
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
                             </div>
                           </div>
                           <div
@@ -2913,7 +3020,7 @@ function GeneratePageContent() {
                         {/* File Browser */}
                         <div className="border-r border-border bg-secondary/20 p-2 overflow-y-auto">
                           <div className="space-y-1">
-                            {Object.keys(generatedProject.files).map((filePath) => (
+                            {sortFilePaths(generatedProject.files).map((filePath) => (
                               <button
                                 key={filePath}
                                 onClick={() => setSelectedFile(filePath)}

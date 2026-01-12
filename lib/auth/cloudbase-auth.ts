@@ -266,7 +266,10 @@ export async function cloudbaseSignInWithWechat(params: {
     }
 
     // 2. 生成 JWT Token
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
 
     // 定义过期时间（秒）
     const accessTokenExpiresIn = user.pro ? 90 * 24 * 60 * 60 : 60 * 60; // Pro: 90天, 普通: 1小时

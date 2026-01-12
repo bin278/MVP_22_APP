@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/auth'
 import { taskQueue } from '../generate-async/route'
+import { query } from '@/lib/database'
 import OpenAI from 'openai'
 
 // 任务状态枚举
@@ -40,22 +41,69 @@ function broadcastTaskUpdate(taskId: string, data: any) {
   })
 }
 
+// 检查任务是否被取消
+async function checkIfTaskCancelled(taskId: string): Promise<boolean> {
+  try {
+    // 由于修改任务也存储在 generation_tasks 表中（通过 generate-async API）
+    const result = await query('generation_tasks', { where: { taskId } })
+    const task = result && result.data && result.data.length > 0 ? result.data[0] as any : null
+    return task?.status === TaskStatus.CANCELLED
+  } catch (error) {
+    console.error('检查任务状态失败:', error)
+    return false
+  }
+}
+
 // 代码修改函数
 async function modifyCodeAsync(
   code: string,
   instruction: string,
+  model: string,
   onProgress: (progress: number) => void
 ): Promise<string> {
+  // 导入模型配置
+  const { AVAILABLE_MODELS } = require('@/lib/subscription-tiers')
+  const modelConfig = AVAILABLE_MODELS[model]
+
+  if (!modelConfig) {
+    throw new Error(`Unsupported model: ${model}`)
+  }
+
+  // 根据 provider 选择 API 配置
+  let apiKey: string | undefined
+  let baseURL: string | undefined
+
+  switch (modelConfig.provider) {
+    case 'dashscope':
+      apiKey = process.env.DASHSCOPE_API_KEY
+      baseURL = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+      break
+    case 'deepseek':
+      apiKey = process.env.DEEPSEEK_API_KEY
+      baseURL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1'
+      break
+    case 'zhipu':
+      apiKey = process.env.GLM_API_KEY
+      baseURL = process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/'
+      break
+    default:
+      throw new Error(`Unsupported provider: ${modelConfig.provider}`)
+  }
+
+  if (!apiKey) {
+    throw new Error(`${modelConfig.provider} API key is not configured`)
+  }
+
   const client = new OpenAI({
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+    apiKey: apiKey,
+    baseURL: baseURL,
   })
 
   onProgress(10)
 
   try {
     const completion = await client.chat.completions.create({
-      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+      model: model,
       messages: [
         {
           role: 'system',
@@ -79,8 +127,8 @@ Response: "function App() { return <div><div>Hello</div><button>Click me</button
           content: `Current code:\n\`\`\`typescript\n${code}\n\`\`\`\n\nInstruction: ${instruction}\n\nReturn only the modified code:`
         }
       ],
-      max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS || '4000'),
-      temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE || '0.5'),
+      max_tokens: modelConfig.maxTokens,
+      temperature: 0.7,
     })
 
     onProgress(80)
@@ -192,11 +240,28 @@ async function processModificationTask(task: ModificationTask) {
       message: '开始处理代码修改...'
     })
 
+    // 检查任务是否被取消
+    if (await checkIfTaskCancelled(task.taskId)) {
+      console.log(`🛑 修改任务 ${task.taskId} 已被取消，停止处理`)
+      taskQueue.delete(task.taskId)
+      return
+    }
+
     // 执行代码修改
+    const { getDefaultModel } = require('@/lib/subscription-tiers')
+    const modelId = getDefaultModel(user.subscription_tier)
+
     const result = await modifyCodeAsync(
       task.code,
       task.instruction,
-      (progress) => {
+      modelId,
+      async (progress) => {
+        // 在进度更新时检查是否被取消
+        if (await checkIfTaskCancelled(task.taskId)) {
+          console.log(`🛑 修改任务 ${task.taskId} 在修改过程中被取消`)
+          throw new Error('TASK_CANCELLED')
+        }
+
         task.progress = 10 + (progress * 0.8) // 10-90%
         task.updatedAt = new Date().toISOString()
         taskQueue.set(task.taskId, task)
@@ -229,6 +294,18 @@ async function processModificationTask(task: ModificationTask) {
     console.log(`✅ 异步修改任务 ${task.taskId} 完成`)
 
   } catch (error: any) {
+    // 检查是否是用户取消
+    if (error.message === 'TASK_CANCELLED') {
+      console.log(`🛑 异步修改任务 ${task.taskId} 已被用户取消`)
+
+      // 从内存队列中删除
+      taskQueue.delete(task.taskId)
+
+      // 不更新数据库（已经通过 DELETE API 更新为 cancelled）
+      // 不广播取消状态（DELETE API 已处理）
+      return
+    }
+
     console.error(`❌ 异步修改任务 ${task.taskId} 失败:`, error)
 
     // 任务失败
