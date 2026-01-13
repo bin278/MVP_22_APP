@@ -15,6 +15,7 @@ import {
   clearAuthState,
   getStoredAuthState
 } from './auth/auth-state-manager'
+import { setUsageCache, clearUsageCache } from './cache/usage-cache'
 
 // CloudBase用户类型
 interface CloudBaseUser {
@@ -311,6 +312,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         console.log('用户认证状态已保存到localStorage');
 
+        // 登录成功后获取并缓存生成次数
+        fetch('/api/subscription/check-usage', {
+          headers: { Authorization: `Bearer ${sessionData.accessToken}` }
+        }).then(res => res.json()).then(data => {
+          if (data.success && data.usage) {
+            setUsageCache(data.usage.isUnlimited ? Infinity : data.usage.remaining);
+          }
+        }).catch(() => {});
+
         return { error: null };
       } catch (error: any) {
         console.error('Supabase登录失败:', error);
@@ -348,6 +358,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             );
           });
           console.log('用户认证状态已保存到localStorage');
+
+          // 登录成功后获取并缓存生成次数
+          fetch('/api/subscription/check-usage', {
+            headers: { Authorization: `Bearer ${sessionData.accessToken}` }
+          }).then(res => res.json()).then(data => {
+            if (data.success && data.usage) {
+              setUsageCache(data.usage.isUnlimited ? Infinity : data.usage.remaining);
+            }
+          }).catch(() => {});
         }
 
         return { error: null };
@@ -365,6 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // 使用新的认证状态管理器清除所有认证状态
       clearAuthState();
+      clearUsageCache();
       console.log('用户认证状态已清除');
     }
   }

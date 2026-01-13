@@ -55,15 +55,13 @@ export function HeroSection({ language }: HeroSectionProps) {
   const router = useRouter()
 
   const handleGenerate = () => {
-    // 允许空输入直接进入生成页面
     const trimmedPrompt = prompt.trim()
     console.log('[HeroSection] Navigating to generate page', trimmedPrompt ? `with prompt: ${trimmedPrompt}` : 'with empty prompt')
 
-    // Save the prompt to localStorage before navigating (even if empty)
     if (trimmedPrompt) {
       localStorage.setItem('prefillPrompt', trimmedPrompt)
     } else {
-      localStorage.removeItem('prefillPrompt') // Clear any existing prompt
+      localStorage.removeItem('prefillPrompt')
     }
     router.push("/generate")
   }

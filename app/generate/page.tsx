@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth-context"
 import type { GeneratedProject } from "@/lib/code-generator"
+import { decrementUsageCache, getUsageCache } from "@/lib/cache/usage-cache"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConversationSidebar } from "@/components/conversation-sidebar"
@@ -240,6 +241,7 @@ function GeneratePageContent() {
   const [lastPreviewCode, setLastPreviewCode] = useState<string>('')
   const [isStaticPreview, setIsStaticPreview] = useState(false) // 静态预览模式
   const [error, setError] = useState<string | null>(null)
+  const [usageExhausted, setUsageExhausted] = useState(false)
   const previewRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isManualRefreshRef = useRef<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -465,6 +467,9 @@ function GeneratePageContent() {
   // 处理异步任务完成
   const handleAsyncTaskCompleted = async (status: TaskStatus) => {
     if (status.result) {
+      // 生成成功，更新缓存的剩余次数
+      decrementUsageCache();
+
       console.log('📦 处理异步任务结果', {
         hasResult: !!status.result,
         currentConversationId,
@@ -820,47 +825,41 @@ function GeneratePageContent() {
   ]
 
   // Load prefilled prompt from localStorage and auto-generate
+  const autoGenerateTriggered = useRef(false)
   useEffect(() => {
+    if (autoGenerateTriggered.current) return
+
     const prefillPrompt = localStorage.getItem('prefillPrompt')
     console.log('📝 Checking for prefillPrompt:', prefillPrompt)
     if (prefillPrompt) {
-      console.log('✅ Found prefillPrompt, setting prompt and waiting for codeUsage')
+      autoGenerateTriggered.current = true
+      console.log('✅ Found prefillPrompt, setting prompt and checking usage cache')
       localStorage.removeItem('prefillPrompt') // Clear it after use
 
       // 设置 prompt
       setPrompt(prefillPrompt)
 
-      // 等待 codeUsage 加载完成后再生成
-      const checkAndGenerate = () => {
-        const currentCodeUsage = codeUsageRef.current
-        const currentIsGenerating = isGeneratingRef.current
-        const currentHasProject = !!generatedProjectRef.current
+      // 检查缓存的生成次数
+      const cachedUsage = getUsageCache()
+      console.log('📊 Cached usage:', cachedUsage)
 
-        console.log('🔍 Checking if ready to generate:', {
-          hasCodeUsage: currentCodeUsage !== null,
-          isGenerating: currentIsGenerating,
-          hasGeneratedProject: currentHasProject,
-          codeUsageValue: currentCodeUsage,
-          promptValue: prompt
-        })
-
-        if (currentCodeUsage !== null && !currentIsGenerating && !currentHasProject) {
-          console.log('✅ All ready, triggering auto-generation with prompt:', prefillPrompt)
-          // 等待一下让 prompt 状态更新
-          setTimeout(() => {
-            handleGenerate().catch(error => {
-              console.error('❌ Auto-generation failed:', error)
-              setIsGenerating(false)
-            })
-          }, 100)
-        } else if (currentCodeUsage === null) {
-          console.log('⏳ codeUsage not loaded yet, waiting...')
-          setTimeout(checkAndGenerate, 500)
-        }
+      // 如果缓存显示次数用完，显示提示
+      if (cachedUsage !== null && cachedUsage <= 0) {
+        setUsageExhausted(true)
+        return
       }
 
-      // 开始检查（延迟一点让页面初始化）
-      setTimeout(checkAndGenerate, 500)
+      // 如果有缓存且有次数，直接生成
+      if (cachedUsage !== null && cachedUsage > 0) {
+        setTimeout(() => {
+          console.log('✅ Triggering auto-generation with prompt:', prefillPrompt)
+          handleGenerate(prefillPrompt).catch(error => {
+            console.error('❌ Auto-generation failed:', error)
+            setIsGenerating(false)
+          })
+        }, 300)
+      }
+      // 如果没有缓存，让 handleGenerate 内部的 codeUsage 检查来处理
     }
   }, [])
 
@@ -1017,8 +1016,16 @@ function GeneratePageContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isGenerating, generatedProject, previewUrl])
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return
+  const handleGenerate = async (overridePrompt?: string) => {
+    const actualPrompt = overridePrompt || prompt
+    if (!actualPrompt.trim()) return
+
+    // 先检查 localStorage 缓存的次数
+    const cachedUsage = getUsageCache()
+    if (cachedUsage !== null && cachedUsage <= 0) {
+      setUsageExhausted(true)
+      return
+    }
 
     // 如果 codeUsage 还在加载，使用默认值（允许继续）
     const usageData = codeUsage || {
@@ -1030,23 +1037,12 @@ function GeneratePageContent() {
 
     // 检查使用次数限制
     if (!usageData.isUnlimited && usageData.remaining <= 0) {
-      // 显示提示信息
-      const message = language === 'en'
-        ? `You have reached your monthly limit of ${usageData.limit} code generations.\n\nPlease upgrade your plan to continue generating code.`
-        : `您已达到本月的 ${usageData.limit} 次代码生成限制。\n\n请升级您的订阅计划以继续生成代码。`
-
-      alert(message)
-
-      // 可选：自动跳转到订阅页面
-      // if (confirm(language === 'en' ? 'Go to subscription page?' : '前往订阅页面？')) {
-      //   window.location.href = '/subscription'
-      // }
-
+      setUsageExhausted(true)
       return
     }
 
     // Validate prompt length
-    const trimmedPrompt = prompt.trim()
+    const trimmedPrompt = actualPrompt.trim()
     if (trimmedPrompt.length > 1000) {
       alert('Prompt is too long. Please keep it under 1000 characters for faster generation.')
       return
@@ -1824,6 +1820,30 @@ function GeneratePageContent() {
 
   return (
     <SidebarProvider defaultOpen={false}>
+
+      {/* 次数用完提示 */}
+      {usageExhausted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">
+              {language === 'zh' ? '生成次数已用完' : 'Usage Exhausted'}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {language === 'zh'
+                ? '您的生成次数已用完，请升级订阅以继续使用。'
+                : 'You have used all your generation quota. Please upgrade your subscription to continue.'}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setUsageExhausted(false)}>
+                {language === 'zh' ? '关闭' : 'Close'}
+              </Button>
+              <Button onClick={() => window.location.href = '/subscription'}>
+                {language === 'zh' ? '升级订阅' : 'Upgrade'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="min-h-screen bg-background flex w-full">
         <ConversationSidebar
