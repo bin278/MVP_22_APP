@@ -40,8 +40,8 @@ const nextConfig = {
     // CloudBase 构建标识
     CLOUDBASE_BUILD: process.env.CLOUDBASE_BUILD || 'false',
   },
-  // CloudBase 静态资源优化
-  assetPrefix: process.env.CLOUDBASE_BUILD ? process.env.NEXT_PUBLIC_APP_URL : '',
+  // CloudBase 静态资源优化 - 始终使用完整 URL 以支持小程序和移动浏览器
+  assetPrefix: process.env.NEXT_PUBLIC_APP_URL || '',
   // CloudBase 域名重写
   async rewrites() {
     if (process.env.CLOUDBASE_BUILD) {
