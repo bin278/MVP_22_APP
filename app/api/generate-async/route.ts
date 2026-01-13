@@ -52,10 +52,12 @@ export const taskQueue = (global as any).taskQueue as Map<string, GenerationTask
 // 数据库任务存储辅助函数
 async function saveTaskToDB(task: GenerationTask) {
   try {
-    await add('generation_tasks', task)
-    console.log(`✅ 任务已保存到数据库: ${task.taskId}`)
+    const result = await add('generation_tasks', task)
+    console.log(`✅ 任务已保存到数据库: ${task.taskId}`, result)
+    return result
   } catch (error) {
-    console.error('保存任务到数据库失败:', error)
+    console.error('❌ 保存任务到数据库失败:', error)
+    throw error // 抛出错误，让调用者知道保存失败
   }
 }
 
