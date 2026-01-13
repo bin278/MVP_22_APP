@@ -7,10 +7,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // 添加 Turbopack 配置以解决 lockfile 警告
-  turbopack: {
-    root: process.cwd(),
-  },
   // CloudBase 部署配置或 Capacitor 静态导出
   output: process.env.CLOUDBASE_BUILD ? 'standalone' : undefined,
   // CloudBase 环境变量配置
