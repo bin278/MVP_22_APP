@@ -205,82 +205,54 @@ function createProjectFromAIResponse(aiContent: string): any {
     if (closeBraces < openBraces || quotes % 2 !== 0) {
       console.warn('⚠️ Response appears truncated, using safe extraction method')
 
-      // 尝试提取完整的文件内容，而不是盲目修复 JSON
+      // 动态提取所有文件
       const files: Record<string, string> = {}
 
-      // 提取 App.tsx - 查找 "src/App.tsx": 后面的内容
-      const appStartMatch = jsonContent.match(/"src\/App\.tsx"\s*:\s*"/s)
-      if (appStartMatch) {
-        const startIndex = appStartMatch.index + appStartMatch[0].length
-        let appCode = ''
+      // 匹配所有文件路径模式
+      const filePatterns = [
+        /\"(src\/App\.tsx)\"\s*:\s*\"/gs,
+        /\"(src\/index\.css)\"\s*:\s*\"/gs,
+        /\"(src\/components\/[^"]+\.tsx)\"\s*:\s*\"/gs,
+        /\"(src\/hooks\/[^"]+\.ts)\"\s*:\s*\"/gs,
+        /\"(src\/utils\/[^"]+\.ts)\"\s*:\s*\"/gs,
+        /\"(src\/types\/[^"]+\.ts)\"\s*:\s*\"/gs,
+        /\"(src\/context\/[^"]+\.tsx)\"\s*:\s*\"/gs,
+        /\"(README\.md)\"\s*:\s*\"/gs,
+      ]
 
-        // 从 "src/App.tsx":" 之后开始，找到匹配的结束引号
-        let i = startIndex
-        while (i < jsonContent.length) {
-          const char = jsonContent[i]
+      // 提取每个匹配的文件
+      for (const pattern of filePatterns) {
+        let match
+        while ((match = pattern.exec(jsonContent)) !== null) {
+          const filePath = match[1]
+          const startIndex = match.index + match[0].length
+          let content = ''
 
-          // 如果遇到转义引号 \\"，保留并跳过
-          if (char === '\\' && i + 1 < jsonContent.length && jsonContent[i + 1] === '"') {
-            appCode += '\\"'  // 保留转义
-            i += 2
-            continue
+          let i = startIndex
+          while (i < jsonContent.length) {
+            const char = jsonContent[i]
+            if (char === '\\' && i + 1 < jsonContent.length && jsonContent[i + 1] === '"') {
+              content += '\\"'
+              i += 2
+              continue
+            }
+            if (char === '"') {
+              let escapeCount = 0
+              for (let j = i - 1; j >= startIndex && jsonContent[j] === '\\'; j--) {
+                escapeCount++
+              }
+              if (escapeCount % 2 === 0) break
+            }
+            content += char
+            i++
           }
 
-          // 如果遇到未转义的引号，这是字符串的结束
-          if (char === '"') {
-            // 检查是否转义
-            let escapeCount = 0
-            for (let j = i - 1; j >= startIndex && jsonContent[j] === '\\'; j--) {
-              escapeCount++
-            }
-            if (escapeCount % 2 === 0) {
-              // 未转义的引号，字符串结束
-              break
-            }
+          content = content.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+          if (content.trim()) {
+            files[filePath] = content.trim()
+            console.log(`✅ Extracted ${filePath}, length:`, content.length)
           }
-
-          appCode += char
-          i++
         }
-
-        // 清理转义字符
-        appCode = appCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
-        files['src/App.tsx'] = appCode.trim()
-        console.log('✅ Extracted src/App.tsx, length:', appCode.length)
-      } else {
-        console.warn('⚠️ Failed to extract App.tsx with regex')
-      }
-
-      // 提取 index.css
-      const cssStartMatch = jsonContent.match(/"src\/index\.css"\s*:\s*"/s)
-      if (cssStartMatch) {
-        const startIndex = cssStartMatch.index + cssStartMatch[0].length
-        let cssCode = ''
-
-        let i = startIndex
-        while (i < jsonContent.length) {
-          const char = jsonContent[i]
-          if (char === '\\' && i + 1 < jsonContent.length && jsonContent[i + 1] === '"') {
-            cssCode += '\\"'
-            i += 2
-            continue
-          }
-          if (char === '"') {
-            let escapeCount = 0
-            for (let j = i - 1; j >= startIndex && jsonContent[j] === '\\'; j--) {
-              escapeCount++
-            }
-            if (escapeCount % 2 === 0) {
-              break
-            }
-          }
-          cssCode += char
-          i++
-        }
-
-        cssCode = cssCode.replace(/\\n/g, '\n').replace(/\\"/g, '"')
-        files['src/index.css'] = cssCode.trim()
-        console.log('✅ Extracted src/index.css, length:', cssCode.length)
       }
 
       // 提取 package.json - 使用括号匹配
@@ -523,27 +495,53 @@ async function generateCodeAsync(
       messages: [
         {
           role: 'system',
-          content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
+          content: `You are an expert React developer. Generate a complete, production-ready React application as JSON.
 
-Required files: src/App.tsx, src/index.css, package.json, README.md
+REQUIRED FILES:
+- src/App.tsx (main component)
+- src/index.css (styles with Tailwind CSS)
+- package.json (with all dependencies)
+- README.md (project documentation)
 
-CODE SIMPLICITY RULES:
-- Single component only (no src/components/, src/utils/, etc.)
-- Use basic React hooks: useState, useEffect
-- Keep component under 150 lines
-- Simple inline styles with Tailwind CSS classes
-- No complex patterns (no Context, Redux, custom hooks)
-- Focus on clarity over features
+OPTIONAL FILES (create as needed for complex projects):
+- src/components/*.tsx (reusable components)
+- src/hooks/*.ts (custom hooks)
+- src/utils/*.ts (utility functions)
+- src/types/*.ts (TypeScript types)
+- src/context/*.tsx (React Context)
 
-README.md format:
+CODE QUALITY RULES:
+- Use TypeScript with proper types
+- Use React hooks: useState, useEffect, useCallback, useMemo, useContext
+- Use Tailwind CSS for styling
+- Write clean, maintainable, well-structured code
+- Add comments for complex logic
+- Handle loading and error states
+- Make components responsive
+
+COMPLEXITY GUIDELINES:
+- Simple requests: Single component in App.tsx
+- Medium requests: Multiple components in src/components/
+- Complex requests: Full project structure with hooks, utils, context
+
+README.md should include:
 # Project Title
-Simple description.
+Description of the project.
+
+## Features
+- Feature 1
+- Feature 2
 
 ## Installation
+\`\`\`bash
 npm install
 npm run dev
+\`\`\`
 
-Return JSON:
+## Usage
+How to use the application.
+
+Return valid JSON:
 {"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
         },
         {
