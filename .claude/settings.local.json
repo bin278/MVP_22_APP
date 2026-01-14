@@ -59,7 +59,12 @@
       "Bash(echo:*)",
       "Bash(nslookup:*)",
       "Bash(vercel domains:*)",
-      "Bash(iconv:*)"
+      "Bash(iconv:*)",
+      "Bash(ping:*)",
+      "Bash(cloudbase --version:*)",
+      "Bash(pnpm remove:*)",
+      "Bash(Remove-Item -Recurse -Force .next)",
+      "Bash(head:*)"
     ]
   }
 }

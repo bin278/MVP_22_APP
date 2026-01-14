@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as babel from '@babel/core'
 
 // Calculate code complexity to prevent preview crashes
 // Optimized algorithm to better reflect actual complexity
@@ -502,16 +503,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Escape the code for embedding in HTML script tag
-    // Need to escape: </script> tags and handle special characters
-    const escapedCode = cleanCode
-      .replace(/<\/script>/gi, '<\\/script>')  // Escape closing script tags (critical!)
-      .replace(/<!--/g, '<\\!--')             // Escape HTML comments start
-      .replace(/-->/g, '--\\>')               // Escape HTML comments end
-      .replace(/<script/gi, '<\\script')       // Escape opening script tags too
+    // 服务端 Babel 编译
+    let compiledCode: string
+    try {
+      const result = babel.transformSync(cleanCode, {
+        presets: [['@babel/preset-react', { runtime: 'classic' }]],
+        filename: 'app.jsx',
+      })
+      compiledCode = result?.code || ''
+      console.log('✅ Server-side Babel compilation successful')
+    } catch (babelError: any) {
+      console.error('❌ Babel compilation error:', babelError.message)
+      return NextResponse.json(
+        { error: 'Code compilation failed', details: babelError.message },
+        { status: 400 }
+      )
+    }
 
-    console.log('Final escaped code:', escapedCode.substring(0, 300) + '...')
-    console.log('Code length:', escapedCode.length)
+    // Escape for HTML embedding
+    const escapedCode = compiledCode
+      .replace(/<\/script>/gi, '<\\/script>')
+      .replace(/<!--/g, '<\\!--')
+      .replace(/-->/g, '--\\>')
+
+    console.log('Final compiled code:', escapedCode.substring(0, 300) + '...')
 
     // Create a complete HTML preview with the actual generated code
     const previewHtml = `
@@ -523,7 +538,6 @@ export async function POST(request: NextRequest) {
     <title>Generated App - Live Preview</title>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide-react/0.263.1/umd/lucide-react.js"></script>
     <style>
@@ -633,7 +647,7 @@ export async function POST(request: NextRequest) {
 
     <div id="root" class="preview-container" style="display: none;"></div>
     
-    <script type="text/babel">
+    <script>
       // Enhanced icon components using Lucide React
       const IconComponent = ({ name, className = "w-4 h-4", ...props }) => {
         try {
@@ -926,179 +940,25 @@ export async function POST(request: NextRequest) {
         console.log('✅ Simple chart components loaded');
       })();
 
-      // Component code - Babel will compile this automatically
-      // Note: Code is embedded directly here, Babel will transform JSX automatically
-      // Hooks have been transformed to window.React.useState etc. during code cleaning
-
+      // Component code - 服务端已预编译
       ${escapedCode}
-      
-      // Debug: Check if App is defined after Babel compilation
-      console.log('=== After Babel compilation ===');
-      console.log('typeof App:', typeof App);
-      console.log('Babel version:', window.Babel?.version || 'unknown');
-      console.log('React version:', window.React?.version || 'unknown');
-      console.log('ReactDOM version:', window.ReactDOM?.version || 'unknown');
 
-      if (typeof App !== 'undefined') {
-        console.log('✅ App function exists');
-      } else {
-        console.error('❌ ERROR: App is not defined after Babel compilation!');
-        // List all functions defined
-        const allFunctions = Object.keys(window).filter(k => typeof window[k] === 'function');
-        console.log('Available functions:', allFunctions.slice(0, 20)); // Show first 20
-        console.log('Total functions:', allFunctions.length);
-        
-        // Check for Babel compilation errors
-        if (window.Babel && window.Babel.transform) {
-          try {
-            const testTransform = window.Babel.transform('function Test() { return <div>Test</div>; }', { presets: ['react'] });
-            console.log('Babel transform test successful');
-          } catch (babelErr) {
-            console.error('Babel transform test failed:', babelErr);
-          }
-        }
-      }
-
-      // Test chart components availability
-      console.log('🧪 Testing chart components availability...');
-      console.log('ResponsiveContainer available:', typeof ResponsiveContainer);
-      console.log('LineChart available:', typeof LineChart);
-      console.log('BarChart available:', typeof BarChart);
-
-      // After Babel compiles, App should be available
-      // Optimized rendering with memory management
+      // 直接渲染（无需等待 Babel）
       (function() {
-        let checkCount = 0;
-        const maxChecks = 50; // Reduced from 150 to 50 (5 seconds max)
-        let babelLoadTimeout = false;
-        let reactRoot = null; // Store root reference for cleanup
-
-        const checkAndRender = function() {
-          checkCount++;
-
-          console.log('Check attempt', checkCount, 'typeof App:', typeof App, 'Babel loaded:', typeof window.Babel);
-
-          try {
-            // Check if Babel is loaded
-            if (typeof window.Babel === 'undefined') {
-              if (checkCount < 20) { // Reduced from 30
-                setTimeout(checkAndRender, 100);
-                return;
-              } else {
-                babelLoadTimeout = true;
-                throw new Error('Babel compiler failed to load. Please check your internet connection.');
-              }
-            }
-
-            // Verify App component exists
-            if (typeof App === 'undefined') {
-              if (checkCount >= maxChecks) {
-                const errorMsg = babelLoadTimeout
-                  ? 'Babel compiler failed to load. Please check your internet connection.'
-                  : 'App component not found after compilation timeout. The code may have syntax errors.';
-                throw new Error(errorMsg);
-              }
-
-              setTimeout(checkAndRender, 100);
-              return;
-            }
-
-            // Hide loading and show content
-            const loadingEl = document.getElementById('loading');
-            const rootEl = document.getElementById('root');
-
-            if (!rootEl) {
-              throw new Error('Root element not found');
-            }
-
-            if (loadingEl) loadingEl.style.display = 'none';
-            rootEl.style.display = 'block';
-
-            // Ensure root element fills the container
-            rootEl.style.width = '100%';
-            rootEl.style.height = '100%';
-            rootEl.style.minHeight = '100vh';
-            rootEl.style.display = 'flex';
-            rootEl.style.flexDirection = 'column';
-
-            // Render the component with memory optimization
-            try {
-              console.log('Rendering App component...');
-
-              // Clear any existing content
-              rootEl.innerHTML = '';
-
-              // Create React root with cleanup support
-              reactRoot = ReactDOM.createRoot(rootEl);
-              const appElement = React.createElement(App);
-
-              // Render with error boundary
-              reactRoot.render(appElement);
-
-              console.log('Component rendered successfully');
-
-              // Memory cleanup: Clear unnecessary references
-              setTimeout(() => {
-                if (loadingEl && loadingEl.parentNode) {
-                  loadingEl.parentNode.removeChild(loadingEl);
-                }
-              }, 1000);
-
-            } catch (renderError) {
-              throw new Error('Failed to render component: ' + renderError.message);
-            }
-          } catch (error) {
-            console.error('Render error:', error);
-            const loadingEl = document.getElementById('loading');
-            if (loadingEl) {
-              loadingEl.innerHTML = \`
-                <div class="error">
-                  <h3>❌ Render Error</h3>
-                  <p><strong>Could not render the component:</strong></p>
-                  <p>\${error.message}</p>
-                  <div class="error-details">
-                    <strong>Error Details:</strong><br>
-                    \${error.stack || 'No stack trace available'}
-                  </div>
-                  <div class="error-details" style="margin-top: 16px;">
-                    <strong>Possible causes:</strong><br>
-                    • Syntax errors in generated code<br>
-                    • Missing React imports<br>
-                    • Invalid JSX syntax<br>
-                    • Babel compilation failed<br>
-                    • Component code is incomplete<br>
-                    • Browser memory limit exceeded
-                  </div>
-                  <p style="margin-top: 16px; font-size: 14px; color: #7f1d1d;">
-                    💡 <strong>Tip:</strong> Try refreshing the preview or regenerating simpler code.
-                  </p>
-                </div>
-              \`;
-            }
-
-            // Cleanup function
-            window.cleanupPreview = function() {
-              if (reactRoot) {
-                try {
-                  reactRoot.unmount();
-                  reactRoot = null;
-                } catch (e) {
-                  console.error('Error unmounting React root:', e);
-                }
-              }
-            };
-          }
-        };
-
-        // Start checking after a short delay
-        setTimeout(checkAndRender, 500);
-
-        // Cleanup on page unload to prevent memory leaks
-        window.addEventListener('beforeunload', function() {
-          if (window.cleanupPreview) {
-            window.cleanupPreview();
-          }
-        });
+        var loadingEl = document.getElementById('loading');
+        var rootEl = document.getElementById('root');
+        try {
+          if (typeof App === 'undefined') throw new Error('App component not found');
+          loadingEl.style.display = 'none';
+          rootEl.style.display = 'flex';
+          rootEl.style.flexDirection = 'column';
+          rootEl.style.minHeight = '100vh';
+          ReactDOM.createRoot(rootEl).render(React.createElement(App));
+          console.log('✅ Rendered successfully');
+        } catch (e) {
+          console.error('Render error:', e);
+          loadingEl.innerHTML = '<div class="error"><h3>Render Error</h3><p>' + e.message + '</p></div>';
+        }
       })();
 
     </script>
