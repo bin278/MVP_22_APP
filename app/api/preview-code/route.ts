@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as babel from '@babel/core'
+import presetReact from '@babel/preset-react'
+import presetTypescript from '@babel/preset-typescript'
 
 // Calculate code complexity to prevent preview crashes
 // Optimized algorithm to better reflect actual complexity
@@ -622,8 +624,8 @@ export async function POST(request: NextRequest) {
           // 编译组件
           const result = babel.transformSync(componentCode, {
             presets: [
-              ['@babel/preset-react', { runtime: 'classic' }],
-              ['@babel/preset-typescript', { isTSX: true, allExtensions: true }]
+              [presetReact, { runtime: 'classic' }],
+              [presetTypescript, { isTSX: true, allExtensions: true }]
             ],
             filename: `${componentName}.tsx`,
           })
@@ -672,7 +674,7 @@ export async function POST(request: NextRequest) {
 
       const result = babel.transformSync(processedAppCode, {
         presets: [
-          ['@babel/preset-react', { runtime: 'classic' }]
+          [presetReact, { runtime: 'classic' }]
         ],
         filename: 'app.jsx',
         sourceType: 'module',
