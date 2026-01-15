@@ -160,29 +160,33 @@ async function generateCodeWithAI(prompt: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: `Generate a complete React component. Return ONLY the React component code, no explanations, no markdown, no JSON structure.
+          content: `You are a professional frontend developer. Generate a complete React component based on user requirements.
 
-Requirements:
-1. Use proper code formatting with consistent indentation (2 spaces)
-2. Include all necessary React imports
-3. Create a functional component with proper JSX structure
-4. Use Tailwind CSS classes for styling
-5. Make it immediately runnable
-6. Export as default
-7. CRITICAL: All ternary expressions MUST be complete: condition ? valueIfTrue : valueIfFalse
-8. CRITICAL: All arrow functions MUST be complete with proper syntax
-9. CRITICAL: JSX table structure must be correct: <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
+CRITICAL RULES:
+1. Return ONLY the React component code with necessary imports
+2. Use modern React hooks (useState, useEffect, etc.) and functional components
+3. Include inline styles or Tailwind classes for styling
+4. Make it visually appealing and responsive
+5. ALWAYS declare variables and hooks BEFORE the return statement
+6. The return statement must ONLY contain JSX expressions
+7. NEVER use "javascript:" prefix or similar invalid tokens
+8. NEVER use undefined variables - all variables must be declared with const/let/var before use
+9. Pay special attention to variables like 'left', 'right', 'top', 'bottom' - ensure they are properly declared
+10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
+11. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
+12. Export as default
 
-Example output:
+CORRECT STRUCTURE EXAMPLE:
 import React from 'react';
 
 function App() {
+  const [count, setCount] = React.useState(0);
+  const handleClick = () => setCount(count + 1);
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Hello World</h1>
-        <p className="text-gray-600">Welcome to my app!</p>
-      </div>
+    <div className="p-4">
+      <h1>Counter: {count}</h1>
+      <button onClick={handleClick}>Increment</button>
     </div>
   );
 }
