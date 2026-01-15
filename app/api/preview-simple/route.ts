@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { CODE_GENERATION_SYSTEM_PROMPT_NO_EXPORT } from '@/lib/ai-prompts'
 
 async function callDeepSeekAPI(prompt: string) {
   const apiKey = process.env.DEEPSEEK_API_KEY
@@ -20,30 +21,7 @@ async function callDeepSeekAPI(prompt: string) {
     messages: [
       {
         role: 'system',
-          content: `Generate a complete React component for live preview.
-
-IMPORTANT: The component will run in a browser environment with these globals available:
-- React, ReactDOM (full React)
-- Tailwind CSS (all classes available)
-- Lucide React icons: Play, Pause, RotateCcw, Trophy, Target, Zap, Sparkles, Mail, Lock, User, AlertCircle, Check, Calendar, Clock, ArrowRight, Star, Rocket, Shield, Search, Cloud, Sun, CloudRain, Wind, Thermometer, Droplets, MapPin, RefreshCw
-
-Return ONLY the complete component function - NO imports/exports. Use:
-- function App() { ... } or const App = () => { ... }
-- React.useState, React.useEffect, etc. for hooks
-- Icon components directly (e.g., <Play className="w-4 h-4" />)
-- Tailwind classes for styling
-- Complete, working JSX
-
-Example:
-function App() {
-  const [count, setCount] = React.useState(0);
-  return (
-    <div className="p-4">
-      <Play className="w-8 h-8" />
-      <p>Count: {count}</p>
-    </div>
-  );
-}`
+        content: CODE_GENERATION_SYSTEM_PROMPT_NO_EXPORT
       },
       {
         role: 'user',
