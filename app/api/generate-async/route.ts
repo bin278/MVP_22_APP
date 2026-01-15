@@ -757,45 +757,37 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ 任务创建完成，准备启动异步处理: ${taskId}`)
 
-    // 在 Vercel Serverless 环境中，必须等待任务完成后再返回响应
-    // 因为函数返回后会立即终止，不会执行后台任务
+    // 异步执行任务（不等待，立即返回响应）
+    const taskPromise = (async () => {
+      try {
+        console.log(`🚀 [ASYNC] 异步任务已启动: ${taskId}`)
+        await processAsyncTask(task, existingContent, isModification)
+        console.log(`✅ [ASYNC] 异步任务完成: ${taskId}`)
+      } catch (error) {
+        console.error(`❌ [ASYNC] 异步任务处理失败 [${taskId}]:`, error)
+      }
+    })()
+
+    // 尝试使用 waitUntil 确保任务在响应返回后继续执行
     try {
-      console.log(`🚀 [SYNC] 开始执行任务: ${taskId}`)
-      await processAsyncTask(task, existingContent, isModification)
-      console.log(`✅ [SYNC] 任务完成: ${taskId}`)
-
-      // 获取最新的任务状态
-      const completedTask = taskQueue.get(taskId) || await getTaskFromDB(taskId)
-
-      return NextResponse.json({
-        success: true,
-        taskId,
-        status: completedTask?.status || 'completed',
-        result: completedTask?.result,
-        message: '任务处理完成'
-      })
-    } catch (error: any) {
-      console.error(`❌ [SYNC] 任务处理失败 [${taskId}]:`, error)
-
-      // 更新任务状态为失败
-      task.status = TaskStatus.FAILED
-      task.error = error.message
-      task.updatedAt = new Date().toISOString()
-      taskQueue.set(taskId, task)
-      await updateTaskInDB(taskId, {
-        status: TaskStatus.FAILED,
-        error: error.message,
-        updatedAt: task.updatedAt
-      })
-
-      return NextResponse.json({
-        success: false,
-        taskId,
-        status: 'failed',
-        error: error.message,
-        message: '任务处理失败'
-      })
+      // @ts-ignore
+      if (globalThis.waitUntil) {
+        // @ts-ignore
+        globalThis.waitUntil(taskPromise)
+      }
+    } catch (e) {
+      // waitUntil 不可用，任务可能在本地环境运行
     }
+
+    console.log(`📤 [API] 立即返回响应，任务在后台执行: ${taskId}`)
+
+    // 立即返回响应，不等待异步任务完成
+    return NextResponse.json({
+      success: true,
+      taskId,
+      status: 'accepted',
+      message: '异步任务已提交处理'
+    })
 
   } catch (error: any) {
     console.error('创建异步任务失败:', error)
