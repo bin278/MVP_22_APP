@@ -123,6 +123,9 @@ function getAIClient(model: string) {
   let apiKey: string | undefined
   let baseURL: string | undefined
 
+  // 设置超时时间为 50 秒，留 5 秒给其他操作
+  const timeout = 50000
+
   switch (modelConfig.provider) {
     case 'dashscope':
       console.log('🔑 使用阿里云百炼 API:', {
@@ -133,6 +136,7 @@ function getAIClient(model: string) {
       return new OpenAI({
         apiKey: process.env.DASHSCOPE_API_KEY,
         baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        timeout,
       })
     case 'deepseek':
       console.log('🔑 使用 DeepSeek API:', {
@@ -143,17 +147,20 @@ function getAIClient(model: string) {
       return new OpenAI({
         apiKey: process.env.DEEPSEEK_API_KEY,
         baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+        timeout,
       })
     case 'zhipu':
       console.log('🔑 使用智谱 AI API')
       return new OpenAI({
         apiKey: process.env.GLM_API_KEY,
         baseURL: process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/',
+        timeout,
       })
     default:
       console.log('🔑 使用 OpenAI API')
       return new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
+        timeout,
       })
   }
 }
