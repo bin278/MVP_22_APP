@@ -7,6 +7,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // 确保 Babel 包在服务端可用
+  serverExternalPackages: ['@babel/core', '@babel/preset-react', '@babel/preset-typescript'],
   // CloudBase 部署配置或 Capacitor 静态导出
   output: process.env.CLOUDBASE_BUILD ? 'standalone' : undefined,
   // CloudBase 环境变量配置
