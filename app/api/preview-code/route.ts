@@ -44,6 +44,11 @@ export async function POST(request: NextRequest) {
   try {
     const { code, files, device = 'desktop' } = await request.json()
 
+    // 调试：打印接收到的代码的前 500 个字符
+    console.log('🔍 Received code (first 500 chars):', code?.substring(0, 500))
+    console.log('🔍 Code includes actual newlines:', code?.includes('\n'))
+    console.log('🔍 Code includes literal \\n:', code?.includes('\\n'))
+
     if (!code || typeof code !== 'string') {
       return NextResponse.json(
         { error: 'Code is required' },
@@ -95,7 +100,26 @@ export async function POST(request: NextRequest) {
 
     // Get all files for multi-file support
     const allFiles = files || {}
-    const appCode = code.trim()
+    let appCode = code.trim()
+
+    // 修复：将字面 \n 转换为实际换行符
+    if (appCode.includes('\\n') && !appCode.includes('\n')) {
+      console.log('🔧 Converting literal \\n to actual newlines')
+      // 只转换换行符和制表符，不要转换引号（引号可能是代码中的字符串）
+      appCode = appCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ')
+    }
+
+    // 修复：替换 AI 生成的占位符 [...] 为空数组
+    if (appCode.includes('[...]')) {
+      console.log('🔧 Replacing [...] placeholders with empty arrays')
+      appCode = appCode.replace(/\[\.\.\.\]/g, '[]')
+    }
+
+    // 修复：替换 AI 生成的占位符 {...} 为空对象
+    if (appCode.includes('{...}')) {
+      console.log('🔧 Replacing {...} placeholders with empty objects')
+      appCode = appCode.replace(/\{\.\.\.\}/g, '{}')
+    }
 
     // Clean up the component code before embedding
     let cleanCode = appCode
@@ -275,6 +299,22 @@ export async function POST(request: NextRequest) {
     console.log('🔧 After interface/type removal, code sample:', cleanCode.substring(0, 500))
 
     cleanCode = cleanCode
+      // Remove HTML comments (like <!-- src/App.tsx -->)
+      .replace(/<!--[\s\S]*?-->/g, '')
+      // Remove TypeScript type annotations from const declarations with generics (e.g., const App: React.FC<Props> = -> const App =)
+      .replace(/const\s+(\w+)\s*:\s*[^=]+=\s*(?=\(|function)/g, (_, name) => `const ${name} = `)
+      // Remove TypeScript type annotations from array destructuring (e.g., const [a, b]: Type = -> const [a, b] =)
+      .replace(/(\])\s*:\s*[^=]+=/g, '$1 =')
+      // Remove TypeScript type annotations from arrow function parameters (e.g., (param: string) => -> (param) =>)
+      // 只处理包含 TypeScript 类型注解的箭头函数参数
+      .replace(/\(([^)]*)\)\s*=>/g, (match, params) => {
+        // 只有当参数包含 TypeScript 类型关键字时才处理
+        if (/:\s*(string|number|boolean|any|void|never|unknown|null|undefined|React\.\w+|Array<|Promise<)/.test(params)) {
+          const cleanParams = params.replace(/:\s*(string|number|boolean|any|void|never|unknown|null|undefined|React\.\w+|Array<[^>]+>|Promise<[^>]+>|\w+\[\])/g, '')
+          return `(${cleanParams}) =>`
+        }
+        return match
+      })
       // Remove export statements
       .replace(/export\s+default\s+/g, '')
       .replace(/export\s+/g, '')
@@ -328,11 +368,22 @@ export async function POST(request: NextRequest) {
     console.log('Contains useState<', cleanCode.includes('useState<'))
     console.log('Contains window.React.useState<', cleanCode.includes('window.React.useState<'))
 
-    // Remove type annotations in function parameters
-    cleanCode = cleanCode.replace(/\(\s*([^)]+):\s*[A-Z]\w+/g, '($1')
-    // Remove type annotations from variables (more aggressive pattern)
-    cleanCode = cleanCode.replace(/:\s*[A-Z]\w+(\[\])?(\s*[,\);=])/g, '$2')
-    cleanCode = cleanCode.replace(/:\s*\{[^}]+\}(\s*[,\);=])/g, '$1')
+    // Remove type annotations in function parameters (only for TypeScript code)
+    // 只在检测到 TypeScript 特征时才移除类型注解
+    const hasTypeScriptFeatures = /:\s*(string|number|boolean|any|void|never|unknown|null|undefined|React\.\w+|Array<|Promise<|Record<|Partial<|Required<)/.test(cleanCode)
+    if (hasTypeScriptFeatures) {
+      // 只移除函数参数中的类型注解，格式: (param: Type)
+      cleanCode = cleanCode.replace(/\(([^)]*)\)/g, (match, params) => {
+        // 只处理包含类型注解的参数
+        if (/:\s*(string|number|boolean|any|void|never|unknown|null|undefined|React\.\w+|Array<|Promise<)/.test(params)) {
+          const cleanParams = params.replace(/:\s*(string|number|boolean|any|void|never|unknown|null|undefined|React\.\w+|Array<[^>]+>|Promise<[^>]+>|\w+\[\])/g, '')
+          return `(${cleanParams})`
+        }
+        return match
+      })
+      // Remove return type annotations: ): Type {  or ): Type =>
+      cleanCode = cleanCode.replace(/\)\s*:\s*(string|number|boolean|any|void|never|unknown|null|undefined|React\.\w+|JSX\.Element|Array<[^>]+>|Promise<[^>]+>|\w+\[\])(\s*[{=])/g, ')$2')
+    }
 
     // Remove TypeScript 'as' type assertions (e.g., value as Category, value as any)
     cleanCode = cleanCode.replace(/\s+as\s+\w+/g, '')
@@ -341,6 +392,8 @@ export async function POST(request: NextRequest) {
     cleanCode = cleanCode.replace(/\s+as\s+<[^>]+>/g, '') // Remove as < ... >
 
     cleanCode = cleanCode
+      // Fix broken template strings in JSX attributes (e.g., title={${...}} -> title={`${...}`})
+      .replace(/=\{(\$\{[^}]+\}[^}]*)\}/g, '={`$1`}')
       // Handle javascript: protocol in links (ONLY replace javascript: protocol, not the word itself)
       // Only replace javascript: protocol, not standalone javascript word to avoid breaking code
       .replace(/javascript:\s*[^;]*;?/gi, 'void(0);')
@@ -392,7 +445,11 @@ export async function POST(request: NextRequest) {
 
     // Ensure the code has a proper App component declaration
     // First check if code already has App function (avoid double wrapping)
-    if (!cleanCode.includes('function App') && !cleanCode.includes('const App =') && !cleanCode.includes('App = ')) {
+    const hasAppDeclaration = cleanCode.includes('function App') ||
+                              cleanCode.includes('const App =') ||
+                              cleanCode.includes('const App:') ||
+                              cleanCode.includes('App = ')
+    if (!hasAppDeclaration) {
       console.log('Code does not have App function, will wrap it')
 
       // Clean up any remaining invalid tokens before processing
@@ -473,7 +530,7 @@ export async function POST(request: NextRequest) {
 
       // Even if App function exists, it might be malformed
       // Check for "return (" followed by const/let/var/function
-      const malformedReturnPattern = /function\s+App\s*\([^)]*\)\s*\{[^}]*return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/s;
+      const malformedReturnPattern = /function\s+App\s*\([^)]*\)\s*\{[^}]*return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/;
       if (malformedReturnPattern.test(cleanCode)) {
         console.warn('⚠️ App function has malformed return statement - fixing...')
 
@@ -503,17 +560,134 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 处理多文件组件
+    let componentScripts = ''
+    const componentFiles = Object.entries(allFiles).filter(([path]) =>
+      path.startsWith('src/components/') && (path.endsWith('.jsx') || path.endsWith('.tsx'))
+    )
+
+    if (componentFiles.length > 0) {
+      console.log(`🔧 Processing ${componentFiles.length} component files`)
+
+      for (const [filePath, fileCode] of componentFiles) {
+        try {
+          // 获取组件名
+          const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
+          if (!componentName) continue
+
+          let componentCode = String(fileCode).trim()
+
+          // 修复换行符
+          if (componentCode.includes('\\n') && !componentCode.includes('\n')) {
+            // 只转换换行符和制表符，不要转换引号
+            componentCode = componentCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ')
+          }
+
+          // 替换占位符
+          componentCode = componentCode.replace(/\[\.\.\.\]/g, '[]').replace(/\{\.\.\.\}/g, '{}')
+
+          // 移除 import 语句
+          componentCode = componentCode.replace(/^import\s+.*?['"];?\s*$/gm, '')
+
+          // 移除 TypeScript 类型
+          componentCode = removeInterfaces(componentCode)
+          componentCode = componentCode.replace(/:\s*\w+(\[\])?(\s*[,\)\}=])/g, '$2')
+          // 移除 TypeScript 泛型（但不要删除 JSX 标签）
+          // 只删除常见的 TypeScript 泛型类型，避免误删 JSX 标签
+          componentCode = componentCode.replace(/<(string|number|boolean|any|unknown|never|void|null|undefined|object|Array|Promise|Record|Partial|Required|Pick|Omit)>/gi, '')
+
+          // 替换 React hooks
+          componentCode = componentCode
+            .replace(/\bReact\.(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer)\b/g, 'window.React.$1')
+            .replace(/\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer)\b(?!\s*:)/g, 'window.React.$1')
+
+          // 移除 export default
+          componentCode = componentCode.replace(/export\s+default\s+(\w+)\s*;?\s*$/, '')
+
+          // 编译组件
+          const result = babel.transformSync(componentCode, {
+            presets: [
+              ['@babel/preset-react', { runtime: 'classic' }],
+              ['@babel/preset-typescript', { isTSX: true, allExtensions: true }]
+            ],
+            filename: `${componentName}.tsx`,
+          })
+
+          if (result?.code) {
+            const escapedComponentCode = result.code
+              .replace(/<\/script>/gi, '<\\/script>')
+              .replace(/<!--/g, '<\\!--')
+              .replace(/-->/g, '--\\>')
+
+            componentScripts += `
+      // Component: ${componentName}
+      ${escapedComponentCode}
+      window.${componentName} = ${componentName};
+      console.log('✅ Loaded component: ${componentName}');
+`
+            console.log(`✅ Compiled component: ${componentName}`)
+          }
+        } catch (err: any) {
+          console.warn(`⚠️ Failed to compile component ${filePath}:`, err.message)
+        }
+      }
+    }
+
+    // 替换 App.jsx 中的组件导入为全局引用
+    let processedAppCode = cleanCode
+    for (const [filePath] of componentFiles) {
+      const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
+      if (componentName) {
+        // import Header from './components/Header' → const Header = window.Header
+        const importRegex = new RegExp(`import\\s+${componentName}\\s+from\\s+['"]\\./components/${componentName}['"];?`, 'g')
+        processedAppCode = processedAppCode.replace(importRegex, `const ${componentName} = window.${componentName};`)
+      }
+    }
+
     // 服务端 Babel 编译
     let compiledCode: string
     try {
-      const result = babel.transformSync(cleanCode, {
-        presets: [['@babel/preset-react', { runtime: 'classic' }]],
+      // 调试：将 processedAppCode 写入临时文件
+      const fs = require('fs')
+      const tempPath = 'f:/project1/APP/11/temp_debug_code.jsx'
+      fs.writeFileSync(tempPath, processedAppCode, 'utf8')
+      console.log('🔍 Wrote processedAppCode to:', tempPath)
+
+      // 修复中文引号为英文引号
+      processedAppCode = processedAppCode
+        .replace(/"/g, '"')
+        .replace(/"/g, '"')
+        .replace(/'/g, "'")
+        .replace(/'/g, "'")
+
+      const result = babel.transformSync(processedAppCode, {
+        presets: [
+          ['@babel/preset-react', { runtime: 'classic' }]
+        ],
         filename: 'app.jsx',
+        sourceType: 'module',
       })
       compiledCode = result?.code || ''
+      // 移除 Babel 编译后残留的 import 语句
+      compiledCode = compiledCode.replace(/^import\s+.*?;?\s*$/gm, '')
       console.log('✅ Server-side Babel compilation successful')
     } catch (babelError: any) {
       console.error('❌ Babel compilation error:', babelError.message)
+      // 打印错误位置附近的代码
+      const errorMatch = babelError.message.match(/\((\d+):(\d+)\)/)
+      if (errorMatch) {
+        const errorLine = parseInt(errorMatch[1])
+        const lines = processedAppCode.split('\n')
+        console.error('🔍 Code around error (lines', errorLine - 5, 'to', errorLine + 5, '):')
+        for (let i = Math.max(0, errorLine - 6); i < Math.min(lines.length, errorLine + 5); i++) {
+          console.error(`${i + 1}: ${lines[i]}`)
+        }
+        // 打印错误行的字符编码
+        const errorLineContent = lines[errorLine - 1]
+        if (errorLineContent) {
+          console.error('🔍 Error line char codes:', [...errorLineContent].map((c, i) => `${i}:${c.charCodeAt(0)}`).join(' '))
+        }
+      }
       return NextResponse.json(
         { error: 'Code compilation failed', details: babelError.message },
         { status: 400 }
@@ -540,6 +714,7 @@ export async function POST(request: NextRequest) {
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide-react/0.263.1/umd/lucide-react.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <style>
       * {
         box-sizing: border-box;
@@ -939,6 +1114,9 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Simple chart components loaded');
       })();
+
+      // Child components - 预编译的子组件
+      ${componentScripts}
 
       // Component code - 服务端已预编译
       ${escapedCode}
