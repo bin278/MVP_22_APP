@@ -598,6 +598,9 @@ export async function POST(request: NextRequest) {
 
           let componentCode = String(fileCode).trim()
 
+          console.log(`📄 Component ${componentName} raw code length:`, componentCode.length)
+          console.log(`📄 Component ${componentName} raw code preview:`, componentCode.substring(0, 200))
+
           // 修复换行符
           if (componentCode.includes('\\n') && !componentCode.includes('\n')) {
             // 只转换换行符和制表符，不要转换引号
