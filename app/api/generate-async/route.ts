@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { requireAuth } from '@/lib/auth/auth'
 import { add, update, query } from '@/lib/database'
 import OpenAI from 'openai'
@@ -768,16 +769,8 @@ export async function POST(request: NextRequest) {
       }
     })()
 
-    // 尝试使用 waitUntil 确保任务在响应返回后继续执行
-    try {
-      // @ts-ignore
-      if (globalThis.waitUntil) {
-        // @ts-ignore
-        globalThis.waitUntil(taskPromise)
-      }
-    } catch (e) {
-      // waitUntil 不可用，任务可能在本地环境运行
-    }
+    // 使用 waitUntil 确保任务在响应返回后继续执行
+    waitUntil(taskPromise)
 
     console.log(`📤 [API] 立即返回响应，任务在后台执行: ${taskId}`)
 
