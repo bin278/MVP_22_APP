@@ -30,8 +30,8 @@ function validateGeneratedCode(code: string): { valid: boolean; errors: string[]
     errors.push('Invalid "javascript" prefix detected in code')
   }
 
-  // 检查5: 检查常见的未定义变量（left, right, top, bottom 等）
-  const commonUndefinedVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b']
+  // 检查5: 检查常见的未定义变量（left, right, top, bottom, store 等）
+  const commonUndefinedVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b', '\\bstore\\b']
   for (const varPattern of commonUndefinedVars) {
     const regex = new RegExp(varPattern, 'g')
     const matches = code.match(regex)
