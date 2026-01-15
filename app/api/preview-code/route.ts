@@ -580,8 +580,12 @@ export async function POST(request: NextRequest) {
     // 处理多文件组件
     let componentScripts = ''
     const componentFiles = Object.entries(allFiles).filter(([path]) =>
-      path.startsWith('src/components/') && (path.endsWith('.jsx') || path.endsWith('.tsx'))
+      (path.startsWith('src/components/') || path.startsWith('components/')) &&
+      (path.endsWith('.jsx') || path.endsWith('.tsx'))
     )
+
+    console.log('📁 All files received:', Object.keys(allFiles))
+    console.log('📁 Component files found:', componentFiles.map(([p]) => p))
 
     if (componentFiles.length > 0) {
       console.log(`🔧 Processing ${componentFiles.length} component files`)
@@ -655,9 +659,17 @@ export async function POST(request: NextRequest) {
     for (const [filePath] of componentFiles) {
       const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
       if (componentName) {
-        // import Header from './components/Header' → const Header = window.Header
-        const importRegex = new RegExp(`import\\s+${componentName}\\s+from\\s+['"]\\./components/${componentName}['"];?`, 'g')
-        processedAppCode = processedAppCode.replace(importRegex, `const ${componentName} = window.${componentName};`)
+        // 支持多种导入路径格式
+        // import Header from './components/Header'
+        // import Header from '../components/Header'
+        // import Header from '@/components/Header'
+        const importPatterns = [
+          new RegExp(`import\\s+${componentName}\\s+from\\s+['"][./]*components/${componentName}['"];?`, 'g'),
+          new RegExp(`import\\s+${componentName}\\s+from\\s+['"]@/components/${componentName}['"];?`, 'g'),
+        ]
+        for (const pattern of importPatterns) {
+          processedAppCode = processedAppCode.replace(pattern, `const ${componentName} = window.${componentName};`)
+        }
       }
     }
 
