@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'crypto'
 import { getDatabase } from '@/lib/database/cloudbase'
@@ -73,38 +74,37 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ 任务保存成功，准备异步处理')
 
-      // 触发异步代码生成（可以是后台任务或队列）
-      // 这里暂时返回任务ID，客户端通过轮询或WebSocket获取结果
-      setImmediate(async () => {
-        try {
-          console.log('🤖 开始异步AI代码生成...')
-          const generatedCode = await generateCodeWithAI(prompt.trim())
+      // 使用 waitUntil 在响应后继续执行后台任务
+      waitUntil(
+        (async () => {
+          try {
+            console.log('🤖 开始异步AI代码生成...')
+            const generatedCode = await generateCodeWithAI(prompt.trim())
 
-          // 更新数据库状态
-          await db.collection('code_generation_tasks').where({
-            taskId
-          }).update({
-            status: 'completed',
-            code: generatedCode,
-            codeLength: generatedCode.length,
-            completedAt: new Date(),
-            updatedAt: new Date()
-          })
+            await db.collection('code_generation_tasks').where({
+              taskId
+            }).update({
+              status: 'completed',
+              code: generatedCode,
+              codeLength: generatedCode.length,
+              completedAt: new Date(),
+              updatedAt: new Date()
+            })
 
-          console.log('✅ 异步代码生成完成')
-        } catch (error: any) {
-          console.error('❌ 异步代码生成失败:', error)
+            console.log('✅ 异步代码生成完成')
+          } catch (error: any) {
+            console.error('❌ 异步代码生成失败:', error)
 
-          // 更新错误状态
-          await db.collection('code_generation_tasks').where({
-            taskId
-          }).update({
-            status: 'failed',
-            error: error.message,
-            updatedAt: new Date()
-          })
-        }
-      })
+            await db.collection('code_generation_tasks').where({
+              taskId
+            }).update({
+              status: 'failed',
+              error: error.message,
+              updatedAt: new Date()
+            })
+          }
+        })()
+      )
 
       return NextResponse.json({
         code: 0,
