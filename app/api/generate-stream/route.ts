@@ -5,6 +5,9 @@ import { requireAuth } from '@/lib/auth/auth'
 import { add } from '@/lib/database/cloudbase'
 import { recordRecommendationUsage } from '@/lib/subscription/usage-tracker'
 
+// Vercel Serverless Function 超时配置 (秒)
+export const maxDuration = 60
+
 // 生成状态管理接口
 interface GenerationState {
   taskId: string
@@ -353,18 +356,27 @@ async function startAsyncFallback(
           role: 'system',
           content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Required files: src/App.tsx, src/index.css, package.json, README.md
+Required files: src/App.jsx, src/index.css, package.json, README.md
 
-CODE SIMPLICITY RULES:
+CODE RULES - VERY IMPORTANT:
+- Use pure JavaScript/JSX only, NO TypeScript
+- NO type annotations (no : string, : number, : React.FC, etc.)
+- NO interface or type definitions
+- NO generics like useState<string>(), just use useState()
 - Single component only (no src/components/, src/utils/, etc.)
 - Use basic React hooks: useState, useEffect
 - Keep component under 150 lines
 - Simple inline styles with Tailwind CSS classes
 - No complex patterns (no Context, Redux, custom hooks)
 - Focus on clarity over features
+- CRITICAL: All ternary expressions MUST be complete with both branches
+  - CORRECT: \${duration ? (currentTime / duration) * 100 : 0}%
+  - WRONG: \${duration ? (currentTime / duration) * 100 }% (missing : part)
+- CRITICAL: JSX table structure must be correct:
+  - <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
 
 Return JSON:
-{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
         },
         {
           role: 'user',
@@ -409,7 +421,7 @@ export default GeneratedApp;`
     // 创建项目结构
     const project = {
       files: {
-        'src/App.tsx': formattedCode,
+        'src/App.jsx': formattedCode,
         'src/index.css': `body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -807,9 +819,13 @@ export async function POST(request: NextRequest) {
                 role: 'system',
                 content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Required files: src/App.tsx, src/index.css, package.json, README.md
+Required files: src/App.jsx, src/index.css, package.json, README.md
 
-CODE SIMPLICITY RULES:
+CODE RULES - VERY IMPORTANT:
+- Use pure JavaScript/JSX only, NO TypeScript
+- NO type annotations (no : string, : number, : React.FC, etc.)
+- NO interface or type definitions
+- NO generics like useState<string>(), just use useState()
 - Single component only (no src/components/, src/utils/, etc.)
 - Use basic React hooks: useState, useEffect
 - Keep component under 150 lines
@@ -818,7 +834,7 @@ CODE SIMPLICITY RULES:
 - Focus on clarity over features
 
 Return JSON:
-{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
               },
               {
                 role: 'user',
@@ -974,7 +990,7 @@ export default App;`
             type: 'complete',
             project: {
               files: {
-                'src/App.tsx': finalCode,
+                'src/App.jsx': finalCode,
                 'src/index.css': `body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -1028,10 +1044,12 @@ code {
             parsedResponse = JSON.parse(jsonContent)
 
             // Format the code
-            if (parsedResponse.files && parsedResponse.files['src/App.tsx']) {
-              const originalCode = parsedResponse.files['src/App.tsx']
+            const appKey = parsedResponse.files['src/App.jsx'] ? 'src/App.jsx' :
+                          parsedResponse.files['src/App.tsx'] ? 'src/App.tsx' : null
+            if (parsedResponse.files && appKey) {
+              const originalCode = parsedResponse.files[appKey]
               const formattedCode = formatCodeString(originalCode)
-              parsedResponse.files['src/App.tsx'] = formattedCode
+              parsedResponse.files[appKey] = formattedCode
             }
 
           } catch (parseError) {
@@ -1086,7 +1104,7 @@ export default App;`
 
             parsedResponse = {
               files: {
-                'src/App.tsx': extractedCode,
+                'src/App.jsx': extractedCode,
                 'src/index.css': `body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;

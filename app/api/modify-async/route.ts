@@ -4,6 +4,9 @@ import { taskQueue } from '../generate-async/route'
 import { query } from '@/lib/database'
 import OpenAI from 'openai'
 
+// Vercel Serverless Function 超时配置 (秒)
+export const maxDuration = 60
+
 // 任务状态枚举
 enum TaskStatus {
   PENDING = 'pending',
@@ -107,7 +110,7 @@ async function modifyCodeAsync(
       messages: [
         {
           role: 'system',
-          content: `You are a code modification assistant. Modify the given React/TypeScript code according to the user's instruction. Return ONLY the modified code, no explanations, no markdown, no JSON structure.
+          content: `You are a code modification assistant. Modify the given React/JavaScript code according to the user's instruction. Return ONLY the modified code, no explanations, no markdown, no JSON structure.
 
 Requirements:
 1. Keep the same code structure and formatting style
@@ -115,7 +118,8 @@ Requirements:
 3. Ensure the code remains functional
 4. Use proper indentation (2 spaces)
 5. Return the complete modified code
-6. Take your time to make comprehensive modifications
+6. Use pure JavaScript/JSX only, NO TypeScript
+7. NO type annotations (no : string, : number, : React.FC, etc.)
 
 Example:
 User code: "function App() { return <div>Hello</div>; }"

@@ -3,6 +3,10 @@ import OpenAI from 'openai'
 import { requireAuth } from '@/lib/auth/auth'
 import { add, getDatabaseProvider } from '@/lib/database'
 
+// Vercel Serverless Function 超时配置 (秒)
+// 免费版最大 10 秒，Pro 版最大 60 秒
+export const maxDuration = 60
+
 function formatCodeString(code: string): string {
   // Quick check: if code already has good formatting, return as-is
   const lineCount = (code.match(/\n/g) || []).length
@@ -63,9 +67,9 @@ function validateGeneratedJson(jsonContent: string): { valid: boolean; errors: s
       errors.push('Missing or invalid "projectName" field')
     }
 
-    // 检查是否有 App.tsx
-    if (parsed.files && !parsed.files['src/App.tsx'] && !parsed.files['App.tsx']) {
-      errors.push('Missing App.tsx file')
+    // 检查是否有 App.tsx 或 App.jsx
+    if (parsed.files && !parsed.files['src/App.tsx'] && !parsed.files['App.tsx'] && !parsed.files['src/App.jsx'] && !parsed.files['App.jsx']) {
+      errors.push('Missing App.tsx/App.jsx file')
     }
 
     // 检查是否有 README.md
@@ -73,8 +77,8 @@ function validateGeneratedJson(jsonContent: string): { valid: boolean; errors: s
       errors.push('Missing README.md file')
     }
 
-    // 检查 App.tsx 代码质量
-    const appCode = parsed.files['src/App.tsx'] || parsed.files['App.tsx'] || ''
+    // 检查 App 代码质量
+    const appCode = parsed.files['src/App.tsx'] || parsed.files['App.tsx'] || parsed.files['src/App.jsx'] || parsed.files['App.jsx'] || ''
     if (appCode) {
       // 检查常见的语法错误
       if (/return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/.test(appCode)) {
@@ -149,15 +153,22 @@ async function generateCodeWithRetry(prompt: string, model: string = 'qwen-plus'
       // 如果是重试，添加错误提示
       let enhancedSystemPrompt = `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Required files: src/App.tsx, src/index.css, package.json, README.md
+Required files: src/App.jsx, src/index.css, package.json, README.md
 
-CODE SIMPLICITY RULES:
+CODE RULES - VERY IMPORTANT:
+- Use pure JavaScript/JSX only, NO TypeScript
+- NO type annotations (no : string, : number, : React.FC, etc.)
+- NO interface or type definitions
+- NO generics like useState<string>(), just use useState()
 - Single component only (no src/components/, src/utils/, etc.)
 - Use basic React hooks: useState, useEffect
 - Keep component under 150 lines
 - Simple inline styles with Tailwind CSS classes
 - No complex patterns (no Context, Redux, custom hooks)
 - Focus on clarity over features
+- CRITICAL: All ternary expressions MUST be complete: condition ? valueIfTrue : valueIfFalse
+- CRITICAL: All arrow functions MUST have complete syntax: (param) => expression or (param) => { return value }
+- CRITICAL: JSX table structure must be correct: <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
 
 README.md format:
 # Project Title
@@ -170,7 +181,7 @@ npm run dev
 \\\`\\\`\\\`
 
 Return JSON:
-{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}
 
 Example of CORRECT structure:
 function App() {
@@ -210,7 +221,7 @@ function App() {
             content: prompt.trim()
           }
         ],
-        max_tokens: Math.min(modelConfig.maxTokens, 8192),
+        max_tokens: modelConfig.maxTokens,
         temperature: 0.7,
       })
 
@@ -340,15 +351,15 @@ export async function POST(request: Request) {
 
           const files: Record<string, string> = {}
 
-          // Extract App.tsx
-          const appMatch = jsonContent.match(/"src\/App\.tsx"\s*:\s*"((?:[^"\\]|\\.)*)/s)
+          // Extract App.jsx or App.tsx
+          const appMatch = jsonContent.match(/"src\/App\.(?:jsx|tsx)"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s)
           if (appMatch) {
             let appCode = appMatch[1]
             appCode = appCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
-            files['src/App.tsx'] = appCode.trim()
-            console.log('✅ Extracted src/App.tsx')
+            files['src/App.jsx'] = appCode.trim()
+            console.log('✅ Extracted src/App.jsx')
           } else {
-            console.warn('⚠️ Failed to extract App.tsx with regex')
+            console.warn('⚠️ Failed to extract App.jsx with regex')
           }
 
           // Extract index.css
@@ -468,8 +479,10 @@ export async function POST(request: Request) {
       } // End of if (!parsedResponse)
 
       // Ensure code formatting is preserved
-      if (parsedResponse.files && parsedResponse.files['src/App.tsx']) {
-        const originalCode = parsedResponse.files['src/App.tsx']
+      const appKey = parsedResponse.files['src/App.jsx'] ? 'src/App.jsx' :
+                     parsedResponse.files['src/App.tsx'] ? 'src/App.tsx' : null
+      if (parsedResponse.files && appKey) {
+        const originalCode = parsedResponse.files[appKey]
         console.log('Normal parse - Original code preview (first 200 chars):', originalCode.substring(0, 200).replace(/\n/g, '\\n'))
         console.log('Normal parse - Original code contains newlines:', originalCode.includes('\n'))
         console.log('Normal parse - Original code length:', originalCode.length)
@@ -483,7 +496,7 @@ export async function POST(request: Request) {
         console.log('Normal parse - Formatted code length:', formattedCode.length)
         console.log(`🎨 Code formatting completed in ${(formatEndTime - formatStartTime).toFixed(2)}ms`)
 
-        parsedResponse.files['src/App.tsx'] = formattedCode
+        parsedResponse.files[appKey] = formattedCode
       }
 
     } catch (jsonError: any) {
@@ -588,7 +601,7 @@ export default App;`
 
       parsedResponse = {
         files: {
-          'src/App.tsx': extractedCode,
+          'src/App.jsx': extractedCode,
           'src/index.css': `body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -612,12 +625,13 @@ code {
     }
 
     // Validate the parsed response
-    if (!parsedResponse.files || !parsedResponse.files['src/App.tsx']) {
-      throw new Error('Invalid response structure: missing files or App.tsx')
+    const appFile = parsedResponse.files['src/App.jsx'] || parsedResponse.files['src/App.tsx']
+    if (!parsedResponse.files || !appFile) {
+      throw new Error('Invalid response structure: missing files or App.jsx')
     }
 
     // Check for incomplete code
-    const appCode = parsedResponse.files['src/App.tsx']
+    const appCode = appFile
     const isObviouslyIncomplete = /\.\.\.(?:\s*$|\s*\/\/)/.test(appCode) ||
                                  /more code\s*$/i.test(appCode) ||
                                  /rest of\s*$/i.test(appCode)
@@ -782,8 +796,9 @@ CREATE POLICY "Users can insert their own files" ON conversation_files
     }
 
     // Return successful response
-    console.log('Sending response with App.tsx preview:', parsedResponse.files?.['src/App.tsx']?.substring(0, 200).replace(/\n/g, '\\n'))
-    console.log('Response App.tsx contains newlines:', parsedResponse.files?.['src/App.tsx']?.includes('\n'))
+    const previewKey = parsedResponse.files?.['src/App.jsx'] ? 'src/App.jsx' : 'src/App.tsx'
+    console.log('Sending response with App preview:', parsedResponse.files?.[previewKey]?.substring(0, 200).replace(/\n/g, '\\n'))
+    console.log('Response App contains newlines:', parsedResponse.files?.[previewKey]?.includes('\n'))
 
     return NextResponse.json({
       success: true,

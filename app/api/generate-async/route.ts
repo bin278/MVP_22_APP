@@ -4,6 +4,9 @@ import { add, update, query } from '@/lib/database'
 import OpenAI from 'openai'
 import { recordRecommendationUsage } from '@/lib/subscription/usage-tracker'
 
+// Vercel Serverless Function 超时配置 (秒)
+export const maxDuration = 60
+
 // 导入SSE广播函数
 function broadcastTaskUpdate(taskId: string, data: any) {
   // 动态导入SSE模块
@@ -178,12 +181,34 @@ function createProjectFromAIResponse(aiContent: string): any {
     // 尝试从 AI 响应中提取 JSON
     let jsonContent = aiContent.trim()
 
-    // 检查是否包含 markdown 代码块
-    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/
-    const match = aiContent.match(codeBlockRegex)
-    if (match) {
-      jsonContent = match[1].trim()
-      console.log('📦 Extracted JSON from code block')
+    // 检查是否包含 markdown 代码块 - 优先匹配 json 代码块
+    const jsonBlockRegex = /```json\s*([\s\S]*?)```/
+    const jsonMatch = aiContent.match(jsonBlockRegex)
+    if (jsonMatch) {
+      jsonContent = jsonMatch[1].trim()
+      console.log('📦 Extracted JSON from json code block')
+    } else {
+      // 如果没有 json 代码块，尝试匹配任意代码块但验证内容是否像 JSON
+      const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g
+      let match
+      while ((match = codeBlockRegex.exec(aiContent)) !== null) {
+        const content = match[1].trim()
+        // 检查内容是否以 { 开头，表示可能是 JSON
+        if (content.startsWith('{')) {
+          jsonContent = content
+          console.log('📦 Extracted JSON from code block')
+          break
+        }
+      }
+    }
+
+    // 如果没有找到代码块中的 JSON，尝试直接从内容中查找 JSON
+    if (!jsonContent.startsWith('{')) {
+      const jsonStart = aiContent.indexOf('{')
+      if (jsonStart !== -1) {
+        jsonContent = aiContent.substring(jsonStart)
+        console.log('📦 Extracted JSON from raw content')
+      }
     }
 
     // 查找 JSON 边界
@@ -208,15 +233,89 @@ function createProjectFromAIResponse(aiContent: string): any {
       // 动态提取所有文件
       const files: Record<string, string> = {}
 
-      // 匹配所有文件路径模式
+      // 打印 JSON 内容的前 500 字符用于调试
+      console.log('📄 JSON content preview:', jsonContent.substring(0, 500))
+
+      // 先尝试直接匹配 App 文件（支持双引号和反引号）
+      const appPatterns = [
+        /"src\/App\.jsx"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s,
+        /"src\/App\.tsx"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s,
+        /"src\/App\.jsx"\s*:\s*`([\s\S]*?)`/s,  // 反引号格式
+        /"src\/App\.tsx"\s*:\s*`([\s\S]*?)`/s,  // 反引号格式
+        /"App\.jsx"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s,
+        /"App\.tsx"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s,
+        /"App\.jsx"\s*:\s*`([\s\S]*?)`/s,  // 反引号格式
+        /"App\.tsx"\s*:\s*`([\s\S]*?)`/s,  // 反引号格式
+        // 如果上面的匹配失败，尝试匹配到文件末尾（处理截断情况）
+        /"src\/App\.jsx"\s*:\s*["`]([\s\S]*)/s,
+        /"src\/App\.tsx"\s*:\s*["`]([\s\S]*)/s,
+      ]
+
+      for (const pattern of appPatterns) {
+        const match = jsonContent.match(pattern)
+        if (match && match[1]) {
+          let content = match[1]
+          // 转换 JSON 转义字符为实际字符
+          // 注意：必须先处理 \\\\ 再处理其他转义
+          content = content
+            .replace(/\\\\/g, '\x00BACKSLASH\x00')  // 临时替换
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '  ')
+            .replace(/\\"/g, '"')
+            .replace(/\x00BACKSLASH\x00/g, '\\')  // 恢复反斜杠
+          if (content.trim() && content.length > 50) {
+            files['src/App.jsx'] = content.trim()
+            console.log('✅ Extracted src/App.jsx via direct match, length:', content.length)
+            break
+          }
+        }
+      }
+
+      // 如果还是没有找到 App 文件，尝试更宽松的匹配
+      if (!files['src/App.jsx']) {
+        console.log('⚠️ App file not found with standard patterns, trying loose match...')
+        // 查找任何包含 "function App" 或 "const App" 的内容
+        const looseMatch = jsonContent.match(/"[^"]*App[^"]*"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s)
+        if (looseMatch && looseMatch[1]) {
+          let content = looseMatch[1]
+          content = content.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+          if (content.includes('function') || content.includes('const') || content.includes('import')) {
+            files['src/App.jsx'] = content.trim()
+            console.log('✅ Extracted App via loose match, length:', content.length)
+          }
+        }
+      }
+
+      // 提取 index.css（支持截断，多种路径格式，支持反引号）
+      const cssPatterns = [
+        /"src\/index\.css"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s,
+        /"src\/index\.css"\s*:\s*`([\s\S]*?)`/s,
+        /"index\.css"\s*:\s*"((?:[^"\\]|\\[\s\S])*?)"/s,
+        /"index\.css"\s*:\s*`([\s\S]*?)`/s,
+        /"src\/index\.css"\s*:\s*["`]([\s\S]*)/s,
+        /"index\.css"\s*:\s*["`]([\s\S]*)/s,
+      ]
+      for (const pattern of cssPatterns) {
+        const match = jsonContent.match(pattern)
+        if (match && match[1]) {
+          let content = match[1]
+          content = content.replace(/",\s*"[^"]*"\s*:\s*[\s\S]*$/, '')
+          content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+          if (content.trim()) {
+            files['src/index.css'] = content.trim()
+            console.log('✅ Extracted src/index.css, length:', content.length)
+            break
+          }
+        }
+      }
+
+      // 匹配其他文件路径模式
       const filePatterns = [
-        /\"(src\/App\.tsx)\"\s*:\s*\"/gs,
-        /\"(src\/index\.css)\"\s*:\s*\"/gs,
-        /\"(src\/components\/[^"]+\.tsx)\"\s*:\s*\"/gs,
-        /\"(src\/hooks\/[^"]+\.ts)\"\s*:\s*\"/gs,
-        /\"(src\/utils\/[^"]+\.ts)\"\s*:\s*\"/gs,
-        /\"(src\/types\/[^"]+\.ts)\"\s*:\s*\"/gs,
-        /\"(src\/context\/[^"]+\.tsx)\"\s*:\s*\"/gs,
+        /\"(src\/components\/[^"]+\.(?:tsx|jsx))\"\s*:\s*\"/gs,
+        /\"(src\/hooks\/[^"]+\.(?:ts|js))\"\s*:\s*\"/gs,
+        /\"(src\/utils\/[^"]+\.(?:ts|js))\"\s*:\s*\"/gs,
+        /\"(src\/types\/[^"]+\.(?:ts|js))\"\s*:\s*\"/gs,
+        /\"(src\/context\/[^"]+\.(?:tsx|jsx))\"\s*:\s*\"/gs,
         /\"(README\.md)\"\s*:\s*\"/gs,
       ]
 
@@ -345,7 +444,7 @@ The application will open at http://localhost:3000
 
 ## 📁 Project Structure
 
-- \`src/App.tsx\` - Main application component
+- \`src/App.jsx\` - Main application component
 - \`src/index.css\` - Global styles
 - \`package.json\` - Project dependencies
 
@@ -378,11 +477,11 @@ Edit \`src/App.tsx\` to modify the application logic and UI.
     const fileNames = Object.keys(parsed.files || {})
     console.log(`📁 Generated ${fileNames.length} files:`, fileNames.join(', '))
 
-    // 验证 App.tsx 的换行符是否正确
-    const appContent = parsed.files['src/App.tsx'] || ''
+    // 验证 App 文件的换行符是否正确
+    const appContent = parsed.files['src/App.jsx'] || parsed.files['src/App.tsx'] || ''
     const hasNewlines = appContent.includes('\n')
     const hasDoubleEscape = appContent.includes('\\n')
-    console.log(`📝 App.tsx validation:`, {
+    console.log(`📝 App validation:`, {
       length: appContent.length,
       hasNewlines,
       hasDoubleEscape,
@@ -402,28 +501,65 @@ Edit \`src/App.tsx\` to modify the application logic and UI.
     let appCode = aiContent
 
     // 移除 markdown 代码块标记
-    appCode = appCode.replace(/```(?:tsx?|javascript|json)?\s*[\s\S]*?```/g, '')
+    appCode = appCode.replace(/```(?:tsx?|javascript|json|jsx)?\s*([\s\S]*?)```/g, '$1')
 
-    // 如果包含 "files" 或 "projectName"，可能是 JSON 响应
-    if (appCode.includes('"files"') || appCode.includes('"projectName"')) {
-      // 尝试提取 App.tsx 的内容
-      const codeMatch = appCode.match(/function\s+App\s*\(|const\s+App\s*=\s*\(/)
-      if (codeMatch) {
-        const start = appCode.indexOf(codeMatch[0])
-        appCode = appCode.substring(start)
-        // 清理尾部内容
-        const exportMatch = appCode.match(/export\s+default\s+App/)
-        if (exportMatch) {
-          appCode = appCode.substring(0, appCode.indexOf(exportMatch[0]) + exportMatch[0].length)
+    // 检查是否包含有效的 React 代码
+    const hasValidCode = appCode.includes('import React') ||
+                        appCode.includes('function App') ||
+                        appCode.includes('const App') ||
+                        appCode.includes('export default')
+
+    // 如果不是有效代码，生成一个默认组件
+    if (!hasValidCode) {
+      console.warn('⚠️ AI response does not contain valid React code, using default component')
+      appCode = `import React, { useState } from 'react';
+
+function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="bg-white p-8 rounded-lg shadow-lg text-center">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">
+          代码生成失败
+        </h1>
+        <p className="text-gray-600 mb-4">
+          AI 未能生成有效的代码，请重试或简化您的需求。
+        </p>
+        <button
+          onClick={() => setCount(count + 1)}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          点击测试: {count}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default App;`
+    } else {
+      // 如果包含 "files" 或 "projectName"，可能是 JSON 响应
+      if (appCode.includes('"files"') || appCode.includes('"projectName"')) {
+        // 尝试提取 App 的内容
+        const codeMatch = appCode.match(/function\s+App\s*\(|const\s+App\s*=\s*\(/)
+        if (codeMatch) {
+          const start = appCode.indexOf(codeMatch[0])
+          appCode = appCode.substring(start)
+          // 清理尾部内容
+          const exportMatch = appCode.match(/export\s+default\s+App/)
+          if (exportMatch) {
+            appCode = appCode.substring(0, appCode.indexOf(exportMatch[0]) + exportMatch[0].length)
+          }
+          console.log('📦 Extracted App code from response')
         }
-        console.log('📦 Extracted App.tsx code from response')
       }
     }
 
     // 返回基本结构，包含 README.md
     return {
       files: {
-        'src/App.tsx': appCode.trim(),
+        'src/App.jsx': appCode.trim(),
         'src/index.css': `* {
   box-sizing: border-box;
   margin: 0;
@@ -447,7 +583,7 @@ npm run dev
 
 ## Usage
 
-The main application is in \`src/App.tsx\`.
+The main application is in \`src/App.jsx\`.
 
 ## Features
 
@@ -486,6 +622,10 @@ async function generateCodeAsync(
 ): Promise<any> {
   const client = getAIClient(model)
 
+  // 获取模型配置
+  const { AVAILABLE_MODELS } = require('@/lib/subscription-tiers')
+  const modelConfig = AVAILABLE_MODELS[model]
+
   onProgress(10)
 
   try {
@@ -495,61 +635,45 @@ async function generateCodeAsync(
       messages: [
         {
           role: 'system',
-          content: `You are an expert React developer. Generate a complete, production-ready React application as JSON.
+          content: `You are a React code generator. Output ONLY valid JSON.
 
-REQUIRED FILES:
-- src/App.tsx (main component)
-- src/index.css (styles with Tailwind CSS)
-- package.json (with all dependencies)
-- README.md (project documentation)
+CRITICAL: Response must be ONLY a JSON object. No explanations, no markdown, no text.
 
-OPTIONAL FILES (create as needed for complex projects):
-- src/components/*.tsx (reusable components)
-- src/hooks/*.ts (custom hooks)
-- src/utils/*.ts (utility functions)
-- src/types/*.ts (TypeScript types)
-- src/context/*.tsx (React Context)
+JSON FORMAT:
+{"files":{"src/App.jsx":"code...","src/components/Header.jsx":"code...","src/index.css":"styles...","package.json":"{}","README.md":"# Title"},"projectName":"my-app"}
 
-CODE QUALITY RULES:
-- Use TypeScript with proper types
-- Use React hooks: useState, useEffect, useCallback, useMemo, useContext
-- Use Tailwind CSS for styling
-- Write clean, maintainable, well-structured code
-- Add comments for complex logic
-- Handle loading and error states
-- Make components responsive
+SUPPORTED FILES:
+- src/App.jsx (required - main component)
+- src/components/*.jsx (optional - child components)
+- src/hooks/*.js (optional - custom hooks)
+- src/utils/*.js (optional - utility functions)
+- src/index.css (required - styles)
+- package.json (required)
+- README.md (required)
 
-COMPLEXITY GUIDELINES:
-- Simple requests: Single component in App.tsx
-- Medium requests: Multiple components in src/components/
-- Complex requests: Full project structure with hooks, utils, context
+CODE RULES:
+- Pure JavaScript/JSX, NO TypeScript
+- NO type annotations, NO interfaces
+- Use React hooks: useState, useEffect, useCallback, useMemo
+- Use Tailwind CSS classes for styling
+- Import child components: import Header from './components/Header'
+- All strings use double quotes, escape \\n and \\"
+- Generate COMPLETE code, NO placeholders like [...] or {...}
+- For complex UIs, split into multiple component files
+- CRITICAL: All ternary expressions MUST be complete with both branches
+  - CORRECT: \${duration ? (currentTime / duration) * 100 : 0}%
+  - WRONG: \${duration ? (currentTime / duration) * 100 }% (missing : part)
+- CRITICAL: JSX table structure must be correct:
+  - <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
 
-README.md should include:
-# Project Title
-Description of the project.
-
-## Features
-- Feature 1
-- Feature 2
-
-## Installation
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
-
-## Usage
-How to use the application.
-
-Return valid JSON:
-{"files":{"src/App.tsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
+RESPOND WITH JSON ONLY.`
         },
         {
           role: 'user',
           content: prompt.trim()
         }
       ],
-      max_tokens: Math.min(parseInt(process.env.DEEPSEEK_MAX_TOKENS!), 8192),
+      max_tokens: modelConfig?.maxTokens || 16384,
       temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
     })
 
