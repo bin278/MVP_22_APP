@@ -9,6 +9,7 @@ import { CloudBaseInitializer } from '@/components/cloudbase-initializer'
 import { BodyWithCleanup } from '@/components/body-cleanup'
 import { StatusBarPadding } from '@/components/status-bar-padding'
 import './globals.css'
+import { MpLinkInterceptor } from '@/components/mp-link-interceptor'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -52,6 +53,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <StatusBarPadding />
+          <MpLinkInterceptor />
           <CloudBaseInitializer />
           <AuthProvider>
             <LanguageProvider>

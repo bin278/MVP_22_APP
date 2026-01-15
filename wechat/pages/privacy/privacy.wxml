@@ -1,0 +1,54 @@
+<view class="container">
+  <view class="content">
+    <view class="header">
+      <text class="title">隐私政策</text>
+      <text class="update-time">更新日期：2024年1月</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">1. 信息收集</text>
+      <text class="section-text">我们会收集您在使用服务时提供的信息，包括但不限于：</text>
+      <text class="section-text">• 微信授权的基本信息（昵称、头像）</text>
+      <text class="section-text">• 设备信息和日志信息</text>
+      <text class="section-text">• 使用服务时产生的数据</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">2. 信息使用</text>
+      <text class="section-text">我们收集的信息将用于：</text>
+      <text class="section-text">• 提供、维护和改进我们的服务</text>
+      <text class="section-text">• 个性化用户体验</text>
+      <text class="section-text">• 与您沟通服务相关信息</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">3. 信息保护</text>
+      <text class="section-text">我们采取合理的安全措施保护您的个人信息，防止信息丢失、不当使用、未经授权访问或披露。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">4. 信息共享</text>
+      <text class="section-text">除以下情况外，我们不会与第三方共享您的个人信息：</text>
+      <text class="section-text">• 获得您的明确同意</text>
+      <text class="section-text">• 法律法规要求</text>
+      <text class="section-text">• 保护我们的合法权益</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">5. 您的权利</text>
+      <text class="section-text">您有权：</text>
+      <text class="section-text">• 访问和更新您的个人信息</text>
+      <text class="section-text">• 删除您的账户和数据</text>
+      <text class="section-text">• 撤回授权</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">6. 联系我们</text>
+      <text class="section-text">如对本隐私政策有任何疑问，请通过应用内反馈功能联系我们。</text>
+    </view>
+
+    <view class="footer">
+      <text class="footer-text">本隐私政策的解释权归本应用所有</text>
+    </view>
+  </view>
+</view>

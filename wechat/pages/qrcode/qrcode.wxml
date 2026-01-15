@@ -1,0 +1,27 @@
+<view class="container">
+  <view class="card">
+    <view class="icon-wrapper">
+      <image class="icon" src="/images/link-icon.png" mode="aspectFit" />
+    </view>
+
+    <view class="title">外部链接</view>
+    <view class="subtitle">该链接无法在小程序内打开</view>
+
+    <view class="url-box">
+      <text class="url" selectable="true">{{url}}</text>
+    </view>
+
+    <view class="tip" wx:if="{{copied}}">
+      <text class="tip-text success">链接已复制到剪贴板</text>
+    </view>
+    <view class="tip" wx:else>
+      <text class="tip-text">请复制链接后在浏览器中打开</text>
+    </view>
+
+    <button class="copy-btn" bindtap="copyUrl">
+      {{copied ? '已复制' : '复制链接'}}
+    </button>
+
+    <button class="back-btn" bindtap="goBack">返回</button>
+  </view>
+</view>

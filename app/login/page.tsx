@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth-context"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { LanguageToggle } from "@/components/language-toggle"
+import { isMiniProgram, parseWxMpLoginCallback, clearWxMpLoginParams, requestWxMpLogin } from "@/lib/wechat-mp"
 
 // 微信登录图标组件
 const WechatIcon = () => (
@@ -136,6 +137,7 @@ export default function LoginPage() {
   const [showResetForm, setShowResetForm] = useState(false)
   const [resetMessage, setResetMessage] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
+  const [isInMiniProgram, setIsInMiniProgram] = useState(false)
 
   const { signIn, signInWithWechat, signInWithGoogle, resetPassword } = useAuth()
   const router = useRouter()
@@ -146,6 +148,7 @@ export default function LoginPage() {
   // Load language preference from localStorage after mount
   useEffect(() => {
     setIsMounted(true)
+    setIsInMiniProgram(isMiniProgram())
     if (typeof window !== 'undefined') {
       try {
         const savedLanguage = localStorage.getItem('language') as "zh" | "en" | null
@@ -157,6 +160,38 @@ export default function LoginPage() {
       }
     }
   }, [])
+
+  // Handle miniprogram login callback
+  const handleMpLoginCallback = useCallback(async () => {
+    const callback = parseWxMpLoginCallback()
+    if (!callback || !callback.token || !callback.openid) return
+
+    try {
+      const res = await fetch("/api/auth/mp-callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: callback.token,
+          openid: callback.openid,
+          expiresIn: callback.expiresIn,
+          nickName: callback.nickName,
+          avatarUrl: callback.avatarUrl,
+        }),
+      })
+
+      if (res.ok) {
+        clearWxMpLoginParams()
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error("MP login callback error:", error)
+      clearWxMpLoginParams()
+    }
+  }, [])
+
+  useEffect(() => {
+    handleMpLoginCallback()
+  }, [handleMpLoginCallback])
 
   const handleLanguageChange = (newLanguage: "zh" | "en") => {
     setLanguage(newLanguage)
@@ -211,7 +246,13 @@ export default function LoginPage() {
     setError("")
 
     try {
-      // 使用二维码登录
+      // 如果在小程序环境，使用小程序原生登录
+      if (isInMiniProgram) {
+        await requestWxMpLogin()
+        return
+      }
+
+      // 否则使用二维码登录
       console.log('[WeChat Login] Using QR code login')
       const endpoint = '/api/auth/wechat/qrcode'
       const nextPath = '/'
