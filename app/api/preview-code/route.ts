@@ -1142,6 +1142,21 @@ export async function POST(request: NextRequest) {
         console.log('✅ Simple chart components loaded');
       })();
 
+      // 创建组件占位符代理 - 当组件未定义时显示占位符而不是崩溃
+      window.ComponentPlaceholder = function(props) {
+        return React.createElement('div', {
+          style: {
+            padding: '20px',
+            margin: '10px',
+            border: '2px dashed #ccc',
+            borderRadius: '8px',
+            backgroundColor: '#f9f9f9',
+            textAlign: 'center',
+            color: '#666'
+          }
+        }, '⚠️ Component not loaded: ' + (props.name || 'Unknown'));
+      };
+
       // Child components - 预编译的子组件
       ${componentScripts}
 
@@ -1158,11 +1173,24 @@ export async function POST(request: NextRequest) {
           rootEl.style.display = 'flex';
           rootEl.style.flexDirection = 'column';
           rootEl.style.minHeight = '100vh';
-          ReactDOM.createRoot(rootEl).render(React.createElement(App));
+
+          // 使用 Proxy 包装全局对象，自动为未定义的组件创建占位符
+          var originalApp = App;
+          try {
+            ReactDOM.createRoot(rootEl).render(React.createElement(originalApp));
+          } catch (componentError) {
+            // 如果是组件未定义错误，显示更友好的提示
+            if (componentError.message && componentError.message.includes('is not defined')) {
+              var missingComponent = componentError.message.match(/([A-Z][a-zA-Z]*) is not defined/);
+              var componentName = missingComponent ? missingComponent[1] : 'Unknown';
+              throw new Error('Component "' + componentName + '" is referenced but not loaded. The AI may not have generated this component file.');
+            }
+            throw componentError;
+          }
           console.log('✅ Rendered successfully');
         } catch (e) {
           console.error('Render error:', e);
-          loadingEl.innerHTML = '<div class="error"><h3>Render Error</h3><p>' + e.message + '</p></div>';
+          loadingEl.innerHTML = '<div class="error"><h3>⚠️ Render Error</h3><p>' + e.message + '</p><p style="font-size:12px;color:#888;margin-top:10px;">Tip: Try regenerating with a simpler prompt, or ask AI to put all code in a single App component.</p></div>';
         }
       })();
 
