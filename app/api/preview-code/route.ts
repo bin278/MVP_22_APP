@@ -579,12 +579,18 @@ export async function POST(request: NextRequest) {
 
     // 处理多文件组件
     let componentScripts = ''
-    const componentFiles = Object.entries(allFiles).filter(([path]) =>
-      (path.startsWith('src/components/') || path.startsWith('components/')) &&
-      (path.endsWith('.jsx') || path.endsWith('.tsx'))
-    )
+    // 支持多种组件路径格式
+    const componentFiles = Object.entries(allFiles).filter(([path]) => {
+      const isComponent = (
+        path.startsWith('src/components/') ||
+        path.startsWith('components/') ||
+        path.includes('/components/')
+      )
+      return isComponent && (path.endsWith('.jsx') || path.endsWith('.tsx'))
+    })
 
     console.log('📁 All files received:', Object.keys(allFiles))
+    console.log('📁 All files content lengths:', Object.entries(allFiles).map(([k, v]) => `${k}: ${String(v).length}`))
     console.log('📁 Component files found:', componentFiles.map(([p]) => p))
 
     if (componentFiles.length > 0) {
