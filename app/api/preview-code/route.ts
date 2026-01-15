@@ -662,11 +662,6 @@ export async function POST(request: NextRequest) {
     // 服务端 Babel 编译
     let compiledCode: string
     try {
-      // 调试：将 processedAppCode 写入临时文件
-      const fs = require('fs')
-      const tempPath = 'f:/project1/APP/11/temp_debug_code.jsx'
-      fs.writeFileSync(tempPath, processedAppCode, 'utf8')
-      console.log('🔍 Wrote processedAppCode to:', tempPath)
 
       // 修复中文引号为英文引号
       processedAppCode = processedAppCode

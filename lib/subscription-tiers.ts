@@ -43,7 +43,7 @@ export const AVAILABLE_MODELS = {
     descriptionZh: '通用AI助手',
     provider: 'deepseek',
     contextWindow: 32768,
-    maxTokens: 4096,
+    maxTokens: 16384,
     pricing: { input: 0.001, output: 0.002 }
   },
   'deepseek-coder': {
@@ -54,7 +54,7 @@ export const AVAILABLE_MODELS = {
     descriptionZh: '专为编程任务优化',
     provider: 'deepseek',
     contextWindow: 16384,
-    maxTokens: 4096,
+    maxTokens: 16384,
     pricing: { input: 0.001, output: 0.002 }
   },
   'glm-4.6': {
@@ -76,7 +76,7 @@ export const AVAILABLE_MODELS = {
     descriptionZh: '快速高效的AI模型',
     provider: 'dashscope',
     contextWindow: 8192,
-    maxTokens: 2000,
+    maxTokens: 8192,
     pricing: { input: 0.0008, output: 0.002 }
   },
   'qwen-plus': {
@@ -87,7 +87,7 @@ export const AVAILABLE_MODELS = {
     descriptionZh: '性能与质量平衡',
     provider: 'dashscope',
     contextWindow: 32768,
-    maxTokens: 4096,
+    maxTokens: 16384,
     pricing: { input: 0.004, output: 0.012 }
   },
   'qwen-max': {
@@ -109,7 +109,7 @@ export const AVAILABLE_MODELS = {
     descriptionZh: '专为编程任务优化',
     provider: 'dashscope',
     contextWindow: 16384,
-    maxTokens: 4096,
+    maxTokens: 8192,
     pricing: { input: 0.0008, output: 0.002 }
   }
 };

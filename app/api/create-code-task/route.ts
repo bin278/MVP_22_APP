@@ -169,6 +169,9 @@ Requirements:
 4. Use Tailwind CSS classes for styling
 5. Make it immediately runnable
 6. Export as default
+7. CRITICAL: All ternary expressions MUST be complete: condition ? valueIfTrue : valueIfFalse
+8. CRITICAL: All arrow functions MUST be complete with proper syntax
+9. CRITICAL: JSX table structure must be correct: <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
 
 Example output:
 import React from 'react';
