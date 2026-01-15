@@ -45,11 +45,26 @@ export async function POST(request: NextRequest) {
     const { code, files, device = 'desktop' } = await request.json()
 
     // 调试：打印接收到的代码的前 500 个字符
-    console.log('🔍 Received code (first 500 chars):', code?.substring(0, 500))
-    console.log('🔍 Code includes actual newlines:', code?.includes('\n'))
-    console.log('🔍 Code includes literal \\n:', code?.includes('\\n'))
+    console.log('🔍 Received code type:', typeof code)
+    console.log('🔍 Received code (first 500 chars):', typeof code === 'string' ? code?.substring(0, 500) : JSON.stringify(code)?.substring(0, 500))
+    console.log('🔍 Code includes actual newlines:', typeof code === 'string' ? code?.includes('\n') : 'N/A')
+    console.log('🔍 Code includes literal \\n:', typeof code === 'string' ? code?.includes('\\n') : 'N/A')
 
-    if (!code || typeof code !== 'string') {
+    // 确保 code 是字符串
+    let codeStr = code
+    if (typeof code !== 'string') {
+      if (code && typeof code === 'object') {
+        // 如果是对象，尝试获取其内容
+        codeStr = code.content || code.code || JSON.stringify(code)
+      } else {
+        return NextResponse.json(
+          { error: 'Code must be a string' },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (!codeStr || typeof codeStr !== 'string') {
       return NextResponse.json(
         { error: 'Code is required' },
         { status: 400 }
@@ -57,9 +72,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check code complexity to prevent crashes
-    const codeLength = code.length
-    const lineCount = code.split('\n').length
-    const complexityScore = calculateComplexity(code)
+    const codeLength = codeStr.length
+    const lineCount = codeStr.split('\n').length
+    const complexityScore = calculateComplexity(codeStr)
 
     console.log('🔍 Code complexity analysis:', {
       length: codeLength,
@@ -100,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     // Get all files for multi-file support
     const allFiles = files || {}
-    let appCode = code.trim()
+    let appCode = codeStr.trim()
 
     // 修复：将字面 \n 转换为实际换行符
     if (appCode.includes('\\n') && !appCode.includes('\n')) {

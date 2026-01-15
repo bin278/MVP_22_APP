@@ -205,7 +205,7 @@ function GeneratePageContent() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedProject, setGeneratedProject] = useState<GeneratedProject | null>(null)
   const [copied, setCopied] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<string>("src/App.tsx")
+  const [selectedFile, setSelectedFile] = useState<string>("src/App.jsx")
   const [previewUrl, setPreviewUrl] = useState<string>("")
   const [showTips, setShowTips] = useState(false)
 
@@ -302,12 +302,12 @@ function GeneratePageContent() {
     return parts.length > 0 ? parts : content
   }
 
-  // 文件排序辅助函数：App.tsx 始终排在第一位
+  // 文件排序辅助函数：App.tsx/App.jsx 始终排在第一位
   const sortFilePaths = (files: Record<string, string>): string[] => {
     return Object.keys(files).sort((a, b) => {
-      // App.tsx 相关文件始终排在第一位
-      const aIsApp = a.includes('App.tsx')
-      const bIsApp = b.includes('App.tsx')
+      // App.tsx/App.jsx 相关文件始终排在第一位
+      const aIsApp = a.includes('App.tsx') || a.includes('App.jsx')
+      const bIsApp = b.includes('App.tsx') || b.includes('App.jsx')
 
       if (aIsApp && !bIsApp) return -1
       if (!aIsApp && bIsApp) return 1
@@ -487,7 +487,7 @@ function GeneratePageContent() {
           if (!prev) return status.result
           const updatedFiles = {
             ...prev.files,
-            [selectedFile]: status.result.files[selectedFile] || status.result.files['src/App.tsx'] || ''
+            [selectedFile]: status.result.files[selectedFile] || status.result.files['src/App.jsx'] || status.result.files['src/App.tsx'] || ''
           }
           return {
             ...prev,
@@ -535,7 +535,11 @@ function GeneratePageContent() {
         // 生成任务：设置新项目
         console.log('🚀 处理代码生成结果')
       setGeneratedProject(status.result)
-      setSelectedFile('src/App.tsx')
+      // 自动选择 App.jsx 或 App.tsx
+      const appFile = Object.keys(status.result.files || {}).find(f =>
+        f.includes('App.jsx') || f.includes('App.tsx')
+      ) || 'src/App.jsx'
+      setSelectedFile(appFile)
       setIsGenerating(false)
         setGenerationMode('async')
       setCurrentTaskId(null)
@@ -779,9 +783,9 @@ function GeneratePageContent() {
             projectName: data.conversation.title || "Loaded Project",
             files,
           })
-          // 使用排序函数，确保第一个文件是 App.tsx
+          // 使用排序函数，确保第一个文件是 App.tsx/App.jsx
           const sortedFiles = sortFilePaths(files)
-          setSelectedFile(sortedFiles[0] || "src/App.tsx")
+          setSelectedFile(sortedFiles[0] || "src/App.jsx")
         } else {
           setGeneratedProject(null)
         }
@@ -1017,8 +1021,8 @@ function GeneratePageContent() {
   }, [isGenerating, generatedProject, previewUrl])
 
   const handleGenerate = async (overridePrompt?: string) => {
-    const actualPrompt = overridePrompt || prompt
-    if (!actualPrompt.trim()) return
+    const actualPrompt = typeof overridePrompt === 'string' ? overridePrompt : prompt
+    if (!actualPrompt?.trim()) return
 
     // 先检查 localStorage 缓存的次数
     const cachedUsage = getUsageCache()
@@ -1041,12 +1045,7 @@ function GeneratePageContent() {
       return
     }
 
-    // Validate prompt length
-    const trimmedPrompt = actualPrompt.trim()
-    if (trimmedPrompt.length > 1000) {
-      alert('Prompt is too long. Please keep it under 1000 characters for faster generation.')
-      return
-    }
+    const trimmedPrompt = actualPrompt?.trim() || ''
 
     // Create abort controller for cancellation
     const controller = new AbortController()
@@ -1502,24 +1501,28 @@ function GeneratePageContent() {
       return
     }
 
-    // Only allow previewing .tsx files
-    if (!selectedFile.endsWith('.tsx')) {
-      // Try to find src/App.tsx
-      const appFile = Object.keys(generatedProject.files).find(f => f.endsWith('App.tsx') || f === 'src/App.tsx')
+    // Only allow previewing .tsx or .jsx files
+    if (!selectedFile.endsWith('.tsx') && !selectedFile.endsWith('.jsx')) {
+      // Try to find src/App.tsx or src/App.jsx
+      const appFile = Object.keys(generatedProject.files).find(f =>
+        f.endsWith('App.tsx') || f === 'src/App.tsx' || f.endsWith('App.jsx') || f === 'src/App.jsx'
+      )
       if (appFile) {
-        console.log('⚠️ Non-TSX file selected for preview, switching to:', appFile)
+        console.log('⚠️ Non-TSX/JSX file selected for preview, switching to:', appFile)
         setSelectedFile(appFile)
-        // Don't return, let the preview continue with the App.tsx file
+        // Don't return, let the preview continue with the App file
       } else {
-        setPreviewError('Preview is only available for .tsx files')
-        console.log('❌ No .tsx file found for preview')
+        setPreviewError('Preview is only available for .tsx/.jsx files')
+        console.log('❌ No .tsx/.jsx file found for preview')
         return
       }
     }
 
-    // Use the App.tsx file or the currently selected .tsx file
-    const previewFile = selectedFile.endsWith('.tsx') ? selectedFile :
-      Object.keys(generatedProject.files).find(f => f.endsWith('App.tsx') || f === 'src/App.tsx') || selectedFile
+    // Use the App file or the currently selected .tsx/.jsx file
+    const previewFile = (selectedFile.endsWith('.tsx') || selectedFile.endsWith('.jsx')) ? selectedFile :
+      Object.keys(generatedProject.files).find(f =>
+        f.endsWith('App.tsx') || f === 'src/App.tsx' || f.endsWith('App.jsx') || f === 'src/App.jsx'
+      ) || selectedFile
 
     const currentCode = generatedProject.files[previewFile] || ''
     if (!currentCode || currentCode.trim().length === 0) {
@@ -2029,7 +2032,7 @@ function GeneratePageContent() {
 
                   {/* 生成按钮 */}
                   <Button
-                    onClick={handleGenerate}
+                    onClick={() => handleGenerate()}
                     disabled={isGenerating || isModifying || !(generatedProject ? modifyInstruction.trim() : prompt.trim()) || codeUsage === null}
                     size="lg"
                     className="w-full bg-accent hover:bg-accent/90"
@@ -2260,7 +2263,7 @@ function GeneratePageContent() {
                     />
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">
-                        {generatedProject ? `${modifyInstruction.length}/500` : `${prompt.length}/1000`}
+                        {generatedProject ? `${modifyInstruction.length}` : `${prompt.length}`}
                       </div>
                       {generatedProject ? (
                         <>
@@ -2493,7 +2496,7 @@ function GeneratePageContent() {
                             console.log('🔘 Preview button clicked')
                             handlePreview()
                           }}
-                          disabled={isPreviewLoading || !generatedProject || !generatedProject.files[selectedFile] || !selectedFile.endsWith('.tsx')}
+                          disabled={isPreviewLoading || !generatedProject || !generatedProject.files[selectedFile] || (!selectedFile.endsWith('.tsx') && !selectedFile.endsWith('.jsx'))}
                           className="gap-1.5 sm:gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600 disabled:opacity-50 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
                         >
                           {isPreviewLoading ? (
