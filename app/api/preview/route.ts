@@ -30,8 +30,23 @@ function validateGeneratedCode(code: string): { valid: boolean; errors: string[]
     errors.push('Invalid "javascript" prefix detected in code')
   }
 
-  // 检查5: 检查常见的未定义变量（left, right, top, bottom, store, useSelector, useDispatch, HTML5Backend 等）
-  const commonUndefinedVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b', '\\bstore\\b', '\\buseSelector\\b', '\\buseDispatch\\b', '\\bHTML5Backend\\b']
+  // 检查5: 检查常见的未定义变量
+  const commonUndefinedVars = [
+    // 位置变量
+    '\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b',
+    // Redux
+    '\\bstore\\b', '\\buseSelector\\b', '\\buseDispatch\\b', '\\bProvider\\b',
+    // React DnD
+    '\\bHTML5Backend\\b', '\\bDndProvider\\b', '\\buseDrag\\b', '\\buseDrop\\b',
+    // React Router
+    '\\buseNavigate\\b', '\\buseParams\\b', '\\buseLocation\\b', '\\bBrowserRouter\\b', '\\bRoutes\\b', '\\bRoute\\b',
+    // 其他常见库
+    '\\baxios\\b', '\\bmoment\\b', '\\blodash\\b', '\\b_\\b',
+    // 图表库
+    '\\bChart\\b', '\\bEcharts\\b', '\\bHighcharts\\b',
+    // UI 库组件
+    '\\bDialog\\b', '\\bModal\\b', '\\bToast\\b', '\\bDrawer\\b'
+  ]
   for (const varPattern of commonUndefinedVars) {
     const regex = new RegExp(varPattern, 'g')
     const matches = code.match(regex)
