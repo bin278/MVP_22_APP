@@ -20,11 +20,22 @@ declare global {
 export function isMiniProgram(): boolean {
   if (typeof window === "undefined") return false;
   const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes("miniprogram")) return true;
-  if (window.__wxjs_environment === "miniprogram") return true;
+  console.log('[wechat-mp] User-Agent:', ua);
+  if (ua.includes("miniprogram")) {
+    console.log('[wechat-mp] Detected miniprogram from UA');
+    return true;
+  }
+  if (window.__wxjs_environment === "miniprogram") {
+    console.log('[wechat-mp] Detected miniprogram from __wxjs_environment');
+    return true;
+  }
   // 检查 URL 参数
   const params = new URLSearchParams(window.location.search);
-  if (params.get("_wxjs_environment") === "miniprogram") return true;
+  if (params.get("_wxjs_environment") === "miniprogram") {
+    console.log('[wechat-mp] Detected miniprogram from URL param');
+    return true;
+  }
+  console.log('[wechat-mp] Not in miniprogram environment');
   return false;
 }
 
