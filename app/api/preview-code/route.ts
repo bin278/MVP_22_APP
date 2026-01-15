@@ -735,6 +735,21 @@ export async function POST(request: NextRequest) {
 
     console.log('Final compiled code:', escapedCode.substring(0, 300) + '...')
 
+    // 提取代码中引用的组件名称，为未定义的组件生成占位符
+    const referencedComponents = new Set<string>()
+    const componentPattern = /React\.createElement\(([A-Z][a-zA-Z0-9_]*)/g
+    let compMatch
+    while ((compMatch = componentPattern.exec(escapedCode)) !== null) {
+      referencedComponents.add(compMatch[1])
+    }
+    const definedComponents = new Set(componentFiles.map(([p]) => p.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''))
+    let placeholderScripts = ''
+    for (const name of referencedComponents) {
+      if (!definedComponents.has(name) && !['App', 'React', 'Fragment'].includes(name)) {
+        placeholderScripts += `if(typeof window.${name}==='undefined'){window.${name}=function(){return React.createElement('div',{style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}},'⚠️ Component "${name}" not loaded');};console.log('⚠️ Created placeholder: ${name}');}\n`
+      }
+    }
+
     // Create a complete HTML preview with the actual generated code
     const previewHtml = `
 <!DOCTYPE html>
@@ -1162,6 +1177,9 @@ export async function POST(request: NextRequest) {
           }
         }, '⚠️ Component not loaded: ' + (props.name || 'Unknown'));
       };
+
+      // 自动生成的组件占位符
+      ${placeholderScripts}
 
       // Child components - 预编译的子组件
       ${componentScripts}
