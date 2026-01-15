@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { CODE_GENERATION_SYSTEM_PROMPT_NO_EXPORT } from '@/lib/ai-prompts'
 
 // 验证生成的代码是否有明显错误
 function validateGeneratedCode(code: string): { valid: boolean; errors: string[] } {
@@ -91,44 +92,7 @@ async function callDeepSeekAPI(prompt: string, retryCount = 0): Promise<string> 
     messages: [
       {
         role: 'system',
-        content: `You are a professional frontend developer. Generate a complete React component based on user requirements.
-
-IMPORTANT: User requirements may be in Chinese or English. Treat both languages equally and generate the same quality code regardless of the input language.
-
-CRITICAL RULES:
-1. Return ONLY the React component code without any imports or exports
-2. Use modern React hooks (useState, useEffect, etc.) and functional components
-3. Include inline styles or Tailwind classes for styling
-4. Make it visually appealing and responsive
-5. ALWAYS declare variables and hooks BEFORE the return statement
-6. The return statement must ONLY contain JSX expressions
-7. NEVER use "javascript:" prefix or similar invalid tokens
-8. NEVER use undefined variables - all variables must be declared with const/let/var before use
-9. Pay special attention to variables like 'left', 'right', 'top', 'bottom' - ensure they are properly declared
-10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
-11. NEVER reference external components like Editor, Chart, etc. unless you define them first
-
-CORRECT STRUCTURE EXAMPLE:
-function App() {
-  const [count, setCount] = React.useState(0);
-  const handleClick = () => setCount(count + 1);
-
-  return (
-    <div className="p-4">
-      <h1>Counter: {count}</h1>
-      <button onClick={handleClick}>Increment</button>
-    </div>
-  );
-}
-
-INCORRECT STRUCTURE (DO NOT DO THIS):
-function App() {
-  return (
-  const [count, setCount] = React.useState(0);  // ❌ WRONG
-  // ...
-}
-
-Follow the correct structure pattern.`
+        content: CODE_GENERATION_SYSTEM_PROMPT_NO_EXPORT
       },
       {
         role: 'user',

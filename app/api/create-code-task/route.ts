@@ -3,6 +3,7 @@ import { waitUntil } from '@vercel/functions'
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'crypto'
 import { getDatabase } from '@/lib/database/cloudbase'
+import { CODE_GENERATION_SYSTEM_PROMPT } from '@/lib/ai-prompts'
 
 interface JWTPayload {
   userId?: string
@@ -160,40 +161,7 @@ async function generateCodeWithAI(prompt: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: `You are a professional frontend developer. Generate a complete React component based on user requirements.
-
-IMPORTANT: User requirements may be in Chinese or English. Treat both languages equally and generate the same quality code regardless of the input language.
-
-CRITICAL RULES:
-1. Return ONLY the React component code with necessary imports
-2. Use modern React hooks (useState, useEffect, etc.) and functional components
-3. Include inline styles or Tailwind classes for styling
-4. Make it visually appealing and responsive
-5. ALWAYS declare variables and hooks BEFORE the return statement
-6. The return statement must ONLY contain JSX expressions
-7. NEVER use "javascript:" prefix or similar invalid tokens
-8. NEVER use undefined variables - all variables must be declared with const/let/var before use
-9. Pay special attention to variables like 'left', 'right', 'top', 'bottom' - ensure they are properly declared
-10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
-11. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
-12. Export as default
-
-CORRECT STRUCTURE EXAMPLE:
-import React from 'react';
-
-function App() {
-  const [count, setCount] = React.useState(0);
-  const handleClick = () => setCount(count + 1);
-
-  return (
-    <div className="p-4">
-      <h1>Counter: {count}</h1>
-      <button onClick={handleClick}>Increment</button>
-    </div>
-  );
-}
-
-export default App;`
+          content: CODE_GENERATION_SYSTEM_PROMPT
         },
         {
           role: 'user',
