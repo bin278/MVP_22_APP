@@ -29,6 +29,21 @@ function validateGeneratedCode(code: string): { valid: boolean; errors: string[]
     errors.push('Invalid "javascript" prefix detected in code')
   }
 
+  // 检查5: 检查常见的未定义变量（left, right, top, bottom 等）
+  const commonUndefinedVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b']
+  for (const varPattern of commonUndefinedVars) {
+    const regex = new RegExp(varPattern, 'g')
+    const matches = code.match(regex)
+    if (matches && matches.length > 0) {
+      // 检查是否在声明或赋值语句中
+      const declarePattern = new RegExp(`(const|let|var)\\s+${varPattern.slice(2, -2)}\\s*=`, 'g')
+      const declarations = code.match(declarePattern)
+      if (!declarations || declarations.length < matches.length) {
+        errors.push(`Potentially undefined variable: ${varPattern.slice(2, -2)}`)
+      }
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors
@@ -75,6 +90,8 @@ CRITICAL RULES:
 5. ALWAYS declare variables and hooks BEFORE the return statement
 6. The return statement must ONLY contain JSX expressions
 7. NEVER use "javascript:" prefix or similar invalid tokens
+8. NEVER use undefined variables - all variables must be declared with const/let/var before use
+9. Pay special attention to variables like 'left', 'right', 'top', 'bottom' - ensure they are properly declared
 
 CORRECT STRUCTURE EXAMPLE:
 function App() {
