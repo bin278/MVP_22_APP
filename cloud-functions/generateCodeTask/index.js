@@ -131,6 +131,8 @@ CRITICAL RULES:
 7. NEVER use "javascript:" prefix or similar invalid tokens
 8. NEVER use undefined variables - all variables must be declared with const/let/var before use
 9. Pay special attention to variables like 'left', 'right', 'top', 'bottom' - ensure they are properly declared
+10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
+11. NEVER reference external components like Editor, Chart, etc. unless you define them first
 
 CORRECT STRUCTURE EXAMPLE:
 function App() {

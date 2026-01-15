@@ -44,6 +44,17 @@ function validateGeneratedCode(code: string): { valid: boolean; errors: string[]
     }
   }
 
+  // 检查6: 检查未定义的组件（大写开头的标签）
+  const jsxComponents = code.match(/<([A-Z][a-zA-Z0-9]*)/g) || []
+  const componentNames = [...new Set(jsxComponents.map(tag => tag.slice(1)))]
+  for (const compName of componentNames) {
+    // 检查组件是否被定义（function/const/class 声明）
+    const definePattern = new RegExp(`(function\\s+${compName}\\b|const\\s+${compName}\\s*=|class\\s+${compName}\\b)`)
+    if (!definePattern.test(code)) {
+      errors.push(`Undefined component: ${compName}`)
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors
@@ -92,6 +103,8 @@ CRITICAL RULES:
 7. NEVER use "javascript:" prefix or similar invalid tokens
 8. NEVER use undefined variables - all variables must be declared with const/let/var before use
 9. Pay special attention to variables like 'left', 'right', 'top', 'bottom' - ensure they are properly declared
+10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
+11. NEVER reference external components like Editor, Chart, etc. unless you define them first
 
 CORRECT STRUCTURE EXAMPLE:
 function App() {
