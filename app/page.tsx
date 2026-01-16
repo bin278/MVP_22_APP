@@ -54,10 +54,11 @@ export default function HomePage() {
             tokenMeta: {
               accessTokenExpiresIn: parseInt(callback.expiresIn || '604800'),
               refreshTokenExpiresIn: parseInt(callback.expiresIn || '604800')
-            }
+            },
+            savedAt: Date.now()
           }
 
-          localStorage.setItem('auth_state', JSON.stringify(authState))
+          localStorage.setItem('app-auth-state', JSON.stringify(authState))
 
           // 触发 auth-state-changed 事件
           window.dispatchEvent(new Event('auth-state-changed'))
