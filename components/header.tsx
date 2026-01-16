@@ -62,10 +62,10 @@ export function Header({ language, setLanguage }: HeaderProps) {
             <a href="#examples" className="text-sm text-white hover:text-white/80 transition-colors">
               {t.examples}
             </a>
-            <Link href="/payment" className="text-sm text-white hover:text-white/80 transition-colors">
-              {t.pricing}
-            </Link>
           </nav>
+          <Link href="/payment" className="text-sm text-white hover:text-white/80 transition-colors">
+            {t.pricing}
+          </Link>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
           <Button
