@@ -45,7 +45,9 @@ function validateGeneratedCode(code: string): { valid: boolean; errors: string[]
     // 图表库
     '\\bChart\\b', '\\bEcharts\\b', '\\bHighcharts\\b',
     // UI 库组件
-    '\\bDialog\\b', '\\bModal\\b', '\\bToast\\b', '\\bDrawer\\b'
+    '\\bDialog\\b', '\\bModal\\b', '\\bToast\\b', '\\bDrawer\\b',
+    // 表单组件
+    '\\bMultiStepForm\\b', '\\bFormWizard\\b', '\\bStepper\\b'
   ]
   for (const varPattern of commonUndefinedVars) {
     const regex = new RegExp(varPattern, 'g')
