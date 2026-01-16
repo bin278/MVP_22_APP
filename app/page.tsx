@@ -42,10 +42,31 @@ export default function HomePage() {
       const data = await res.json()
       console.log('[HomePage] mp-callback API response data:', data)
 
-      if (res.ok) {
-        console.log('[HomePage] Login successful, clearing params and reloading...')
+      if (res.ok && data.user) {
+        console.log('[HomePage] Login successful, saving auth state...')
+
+        // 保存认证状态到 localStorage，让 AuthProvider 能识别
+        const authState = {
+          accessToken: callback.token,
+          refreshToken: callback.token,
+          user: data.user,
+          tokenMeta: {
+            accessTokenExpiresIn: parseInt(callback.expiresIn || '604800'),
+            refreshTokenExpiresIn: parseInt(callback.expiresIn || '604800')
+          }
+        }
+
+        localStorage.setItem('auth_state', JSON.stringify(authState))
+
+        // 触发 auth-state-changed 事件
+        window.dispatchEvent(new Event('auth-state-changed'))
+
         clearWxMpLoginParams()
-        window.location.reload()
+
+        // 延迟刷新，让 AuthProvider 有时间更新状态
+        setTimeout(() => {
+          window.location.reload()
+        }, 100)
       } else {
         console.error('[HomePage] mp-callback API failed:', data)
       }

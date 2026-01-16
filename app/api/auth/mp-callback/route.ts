@@ -40,7 +40,30 @@ export async function POST(req: Request) {
 
     const maxAge = expiresIn ? parseInt(String(expiresIn), 10) : 60 * 60 * 24 * 7;
 
-    const res = NextResponse.json({ success: true, openid });
+    // 查询用户信息返回给前端
+    let userData = null;
+    try {
+      const db = getCloudBaseDatabase();
+      const usersCollection = db.collection(CloudBaseCollections.USERS);
+      const userResult = await usersCollection.where({ wechatOpenId: openid }).get();
+
+      if (userResult.data && userResult.data.length > 0) {
+        const user = userResult.data[0];
+        userData = {
+          id: user._id,
+          uid: user._id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+          subscription_plan: user.subscription_plan,
+          subscriptionTier: user.subscription_plan
+        };
+      }
+    } catch (error) {
+      console.error("[mp-callback] Failed to fetch user data:", error);
+    }
+
+    const res = NextResponse.json({ success: true, openid, user: userData });
 
     // 设置 cookie（在 WebView 上下文中设置，H5 可以读取）
     res.cookies.set("auth-token", token, {
