@@ -1,3 +1,0 @@
-<view class="container">
-  <web-view src="{{webUrl}}" bindmessage="handleMessage" binderror="handleError"></web-view>
-</view>

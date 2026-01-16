@@ -64,7 +64,8 @@
       "Bash(cloudbase --version:*)",
       "Bash(pnpm remove:*)",
       "Bash(Remove-Item -Recurse -Force .next)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(tree:*)"
     ]
   }
 }
