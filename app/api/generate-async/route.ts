@@ -626,6 +626,30 @@ The main application is in \`src/App.jsx\`.
 function validateGeneratedCode(files: Record<string, string>): { valid: boolean; errors: string[] } {
   const errors: string[] = []
 
+  // 收集所有文件中定义的 hooks 和组件
+  const definedHooks = new Set<string>()
+  const definedComponents = new Set<string>()
+
+  for (const [filePath, code] of Object.entries(files)) {
+    if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx') && !filePath.endsWith('.js') && !filePath.endsWith('.ts')) continue
+
+    // 收集定义的 hooks
+    const hookDefPattern = /(?:function\s+(use[A-Z][a-zA-Z0-9]*)|const\s+(use[A-Z][a-zA-Z0-9]*)\s*=)/g
+    let match
+    while ((match = hookDefPattern.exec(code)) !== null) {
+      const hookName = match[1] || match[2]
+      if (hookName) definedHooks.add(hookName)
+    }
+
+    // 收集定义的组件
+    const compDefPattern = /(?:function\s+([A-Z][a-zA-Z0-9]*)|const\s+([A-Z][a-zA-Z0-9]*)\s*=)/g
+    while ((match = compDefPattern.exec(code)) !== null) {
+      const compName = match[1] || match[2]
+      if (compName && !compName.startsWith('use')) definedComponents.add(compName)
+    }
+  }
+
+  // 检查每个文件中使用的 hooks 和变量
   for (const [filePath, code] of Object.entries(files)) {
     if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx') && !filePath.endsWith('.js') && !filePath.endsWith('.ts')) continue
 
@@ -635,11 +659,8 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
     const builtinHooks = ['useState', 'useEffect', 'useContext', 'useReducer', 'useCallback', 'useMemo', 'useRef', 'useImperativeHandle', 'useLayoutEffect', 'useDebugValue', 'useId', 'useTransition', 'useDeferredValue', 'useSyncExternalStore', 'useInsertionEffect']
 
     for (const hookName of hookNames) {
-      if (!builtinHooks.includes(hookName)) {
-        const definePattern = new RegExp(`(function\\s+${hookName}\\b|const\\s+${hookName}\\s*=)`)
-        if (!definePattern.test(code)) {
-          errors.push(`${filePath}: Undefined custom hook: ${hookName}`)
-        }
+      if (!builtinHooks.includes(hookName) && !definedHooks.has(hookName)) {
+        errors.push(`${filePath}: Undefined custom hook: ${hookName}`)
       }
     }
 
@@ -748,7 +769,11 @@ RESPOND WITH JSON ONLY.`
     const project = createProjectFromAIResponse(generatedContent)
 
     // 验证生成的代码
+    console.log('🔍 [Validation] Starting code validation...')
+    console.log('🔍 [Validation] Files to validate:', Object.keys(project.files))
     const validation = validateGeneratedCode(project.files)
+    console.log('🔍 [Validation] Result:', { valid: validation.valid, errors: validation.errors })
+
     if (!validation.valid && retryCount < maxRetries) {
       console.warn(`⚠️ Generated code has errors, retrying (${retryCount + 1}/${maxRetries}):`, validation.errors)
       return generateCodeAsync(prompt, model, onProgress, retryCount + 1)
@@ -756,6 +781,8 @@ RESPOND WITH JSON ONLY.`
 
     if (!validation.valid) {
       console.error('❌ Generated code still has errors after retries:', validation.errors)
+    } else {
+      console.log('✅ [Validation] Code validation passed!')
     }
 
     onProgress(100)
