@@ -109,7 +109,7 @@ export const AVAILABLE_MODELS = {
     descriptionZh: '专为编程任务优化',
     provider: 'dashscope',
     contextWindow: 16384,
-    maxTokens: 16384,
+    maxTokens: 8192,
     pricing: { input: 0.0008, output: 0.002 }
   }
 };
