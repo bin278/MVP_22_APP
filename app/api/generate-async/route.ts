@@ -735,7 +735,8 @@ CODE RULES:
 - Use React hooks: useState, useEffect, useCallback, useMemo
 - Use Tailwind CSS classes for styling
 - Import child components: import Header from './components/Header'
-- All strings use double quotes, escape \\n and \\"
+- CRITICAL: Code must use ACTUAL newlines, NOT literal \\n strings
+- CRITICAL: All code must be valid JavaScript that can be compiled by Babel
 - Generate COMPLETE code, NO placeholders like [...] or {...}
 - For complex UIs, split into multiple component files
 - CRITICAL: All ternary expressions MUST be complete with both branches
