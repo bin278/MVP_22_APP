@@ -3,6 +3,66 @@ import * as babel from '@babel/core'
 import presetReact from '@babel/preset-react'
 import presetTypescript from '@babel/preset-typescript'
 
+// 验证生成的代码是否有明显错误
+function validateGeneratedCode(code: string, allFiles: Record<string, string>): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  // 获取所有已定义的组件名
+  const definedComponents = new Set<string>()
+  definedComponents.add('App')
+  for (const filePath of Object.keys(allFiles)) {
+    const name = filePath.split('/').pop()?.replace(/\.(jsx|tsx|js|ts)$/, '') || ''
+    if (name) definedComponents.add(name)
+  }
+
+  // 检查未定义的组件（大写开头的标签）
+  const jsxComponents = code.match(/<([A-Z][a-zA-Z0-9]*)/g) || []
+  const componentNames = [...new Set(jsxComponents.map(tag => tag.slice(1)))]
+  const builtinComponents = ['React', 'Fragment', 'Suspense', 'StrictMode', 'Provider']
+
+  for (const compName of componentNames) {
+    if (!definedComponents.has(compName) && !builtinComponents.includes(compName)) {
+      // 检查组件是否在代码中被定义
+      const definePattern = new RegExp(`(function\\s+${compName}\\b|const\\s+${compName}\\s*=|class\\s+${compName}\\b)`)
+      if (!definePattern.test(code)) {
+        warnings.push(`Component "${compName}" may not be defined`)
+      }
+    }
+  }
+
+  // 检查未定义的自定义 hooks（use 开头的函数调用）
+  const customHooks = code.match(/\b(use[A-Z][a-zA-Z0-9]*)\s*\(/g) || []
+  const hookNames = [...new Set(customHooks.map(hook => hook.replace(/\s*\($/, '')))]
+  const builtinHooks = ['useState', 'useEffect', 'useContext', 'useReducer', 'useCallback', 'useMemo', 'useRef', 'useImperativeHandle', 'useLayoutEffect', 'useDebugValue', 'useId', 'useTransition', 'useDeferredValue', 'useSyncExternalStore', 'useInsertionEffect']
+
+  for (const hookName of hookNames) {
+    if (!builtinHooks.includes(hookName)) {
+      // 检查 hook 是否在代码中被定义
+      const definePattern = new RegExp(`(function\\s+${hookName}\\b|const\\s+${hookName}\\s*=)`)
+      if (!definePattern.test(code)) {
+        errors.push(`Undefined custom hook: ${hookName}`)
+      }
+    }
+  }
+
+  // 检查常见未定义变量（left, right, top, bottom）
+  const commonUndefinedVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b']
+  for (const varPattern of commonUndefinedVars) {
+    const regex = new RegExp(varPattern, 'g')
+    const matches = code.match(regex)
+    if (matches && matches.length > 0) {
+      const declarePattern = new RegExp(`(const|let|var)\\s+${varPattern.slice(2, -2)}\\s*=`, 'g')
+      const declarations = code.match(declarePattern)
+      if (!declarations || declarations.length < matches.length) {
+        errors.push(`Potentially undefined variable: ${varPattern.slice(2, -2)}`)
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors, warnings }
+}
+
 // Calculate code complexity to prevent preview crashes
 // Optimized algorithm to better reflect actual complexity
 function calculateComplexity(code: string): number {
@@ -118,6 +178,12 @@ export async function POST(request: NextRequest) {
     // Get all files for multi-file support
     const allFiles = files || {}
     let appCode = codeStr.trim()
+
+    // 验证代码
+    const validation = validateGeneratedCode(appCode, allFiles)
+    if (validation.warnings.length > 0) {
+      console.log('⚠️ Code validation warnings:', validation.warnings)
+    }
 
     // 修复：将字面 \n 转换为实际换行符
     if (appCode.includes('\\n') && !appCode.includes('\n')) {
@@ -579,14 +645,25 @@ export async function POST(request: NextRequest) {
 
     // 处理多文件组件
     let componentScripts = ''
-    // 支持多种组件路径格式
+    // 排除的非组件文件和目录
+    const excludedFiles = ['src/App.jsx', 'src/App.tsx', 'src/index.css', 'src/index.ts', 'src/index.tsx', 'src/main.tsx', 'src/main.ts']
+    const excludedDirs = ['src/services/', 'src/types/', 'src/utils/', 'src/lib/', 'src/api/', 'src/config/']
+
+    // 支持多种组件路径格式（包括 hooks）
     const componentFiles = Object.entries(allFiles).filter(([path]) => {
-      const isComponent = (
-        path.startsWith('src/components/') ||
-        path.startsWith('components/') ||
-        path.includes('/components/')
-      )
-      return isComponent && (path.endsWith('.jsx') || path.endsWith('.tsx'))
+      // 排除特定目录
+      if (excludedDirs.some(dir => path.startsWith(dir))) {
+        return false
+      }
+      // 原有逻辑：src/components/ 目录
+      if (path.startsWith('src/components/') || path.startsWith('components/') || path.includes('/components/')) {
+        return path.endsWith('.jsx') || path.endsWith('.tsx')
+      }
+      // 新增：src/ 目录下的组件和 hooks 文件（排除入口文件）
+      if (path.startsWith('src/') && !excludedFiles.includes(path)) {
+        return path.endsWith('.jsx') || path.endsWith('.tsx')
+      }
+      return false
     })
 
     console.log('📁 All files received:', Object.keys(allFiles))
@@ -651,14 +728,28 @@ export async function POST(request: NextRequest) {
 
             componentScripts += `
       // Component: ${componentName}
-      ${escapedComponentCode}
-      window.${componentName} = ${componentName};
-      console.log('✅ Loaded component: ${componentName}');
+      try {
+        ${escapedComponentCode}
+        window.${componentName} = ${componentName};
+        console.log('✅ Loaded component: ${componentName}');
+      } catch(e) {
+        console.error('❌ Failed to load component ${componentName}:', e);
+        window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}}, '⚠️ Component "${componentName}" failed to load'); };
+      }
 `
             console.log(`✅ Compiled component: ${componentName}`)
+          } else {
+            // 编译结果为空，创建占位符
+            componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}}, '⚠️ Component "${componentName}" not loaded'); };\n`
+            console.warn(`⚠️ Empty compilation result for component: ${componentName}`)
           }
         } catch (err: any) {
           console.warn(`⚠️ Failed to compile component ${filePath}:`, err.message)
+          // 编译失败时创建占位符
+          const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
+          if (componentName) {
+            componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
+          }
         }
       }
     }
@@ -669,12 +760,13 @@ export async function POST(request: NextRequest) {
       const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
       if (componentName) {
         // 支持多种导入路径格式
-        // import Header from './components/Header'
-        // import Header from '../components/Header'
-        // import Header from '@/components/Header'
         const importPatterns = [
+          // src/components/ 目录
           new RegExp(`import\\s+${componentName}\\s+from\\s+['"][./]*components/${componentName}['"];?`, 'g'),
           new RegExp(`import\\s+${componentName}\\s+from\\s+['"]@/components/${componentName}['"];?`, 'g'),
+          // src/ 目录下的组件（如 ./Dashboard, ./Header）
+          new RegExp(`import\\s+${componentName}\\s+from\\s+['"]\\./${componentName}['"];?`, 'g'),
+          new RegExp(`import\\s+${componentName}\\s+from\\s+['"]@/${componentName}['"];?`, 'g'),
         ]
         for (const pattern of importPatterns) {
           processedAppCode = processedAppCode.replace(pattern, `const ${componentName} = window.${componentName};`)
@@ -736,17 +828,27 @@ export async function POST(request: NextRequest) {
     console.log('Final compiled code:', escapedCode.substring(0, 300) + '...')
 
     // 提取代码中引用的组件名称，为未定义的组件生成占位符
+    // 检测所有代码中引用的组件（包括 App 和子组件）
+    const allCode = escapedCode + '\n' + componentScripts
     const referencedComponents = new Set<string>()
-    const componentPattern = /React\.createElement\(([A-Z][a-zA-Z0-9_]*)/g
+    const componentPattern = /<([A-Z][a-zA-Z0-9_]*)/g
     let compMatch
-    while ((compMatch = componentPattern.exec(escapedCode)) !== null) {
+    while ((compMatch = componentPattern.exec(allCode)) !== null) {
+      referencedComponents.add(compMatch[1])
+    }
+    // 也检查 React.createElement 调用
+    const createElementPattern = /React\.createElement\(([A-Z][a-zA-Z0-9_]*)/g
+    while ((compMatch = createElementPattern.exec(allCode)) !== null) {
       referencedComponents.add(compMatch[1])
     }
     const definedComponents = new Set(componentFiles.map(([p]) => p.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''))
+    // 添加 App 到已定义组件
+    definedComponents.add('App')
     let placeholderScripts = ''
+    const builtinComponents = ['App', 'React', 'Fragment', 'Suspense', 'StrictMode']
     for (const name of referencedComponents) {
-      if (!definedComponents.has(name) && !['App', 'React', 'Fragment'].includes(name)) {
-        placeholderScripts += `if(typeof window.${name}==='undefined'){window.${name}=function(){return React.createElement('div',{style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}},'⚠️ Component "${name}" not loaded');};console.log('⚠️ Created placeholder: ${name}');}\n`
+      if (!definedComponents.has(name) && !builtinComponents.includes(name)) {
+        placeholderScripts += `if(typeof window.${name}==='undefined'){window.${name}=function(props){return React.createElement('div',{style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}},'⚠️ Component "${name}" not loaded');};console.log('⚠️ Created placeholder: ${name}');}\n`
       }
     }
 

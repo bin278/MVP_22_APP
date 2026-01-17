@@ -837,35 +837,82 @@ function GeneratePageContent() {
     console.log('📝 Checking for prefillPrompt:', prefillPrompt)
     if (prefillPrompt) {
       autoGenerateTriggered.current = true
-      console.log('✅ Found prefillPrompt, setting prompt and checking usage cache')
+      console.log('✅ Found prefillPrompt, setting prompt and checking usage')
       localStorage.removeItem('prefillPrompt') // Clear it after use
 
       // 设置 prompt
       setPrompt(prefillPrompt)
 
-      // 检查缓存的生成次数
-      const cachedUsage = getUsageCache()
-      console.log('📊 Cached usage:', cachedUsage)
+      // 自动生成逻辑
+      const autoGenerate = async () => {
+        // 1. 先检查缓存
+        const cachedUsage = getUsageCache()
+        console.log('📊 Cached usage:', cachedUsage)
 
-      // 如果缓存显示次数用完，显示提示
-      if (cachedUsage !== null && cachedUsage <= 0) {
-        setUsageExhausted(true)
-        return
+        // 如果缓存显示次数用完，显示提示
+        if (cachedUsage !== null && cachedUsage <= 0) {
+          console.log('❌ Cached usage exhausted')
+          setUsageExhausted(true)
+          return
+        }
+
+        // 2. 如果有缓存且有次数，直接生成
+        if (cachedUsage !== null && cachedUsage > 0) {
+          console.log('✅ Cached usage available, triggering auto-generation')
+          setTimeout(() => {
+            handleGenerate(prefillPrompt).catch(error => {
+              console.error('❌ Auto-generation failed:', error)
+              setIsGenerating(false)
+            })
+          }, 300)
+          return
+        }
+
+        // 3. 如果没有缓存，从API获取实时次数
+        console.log('🔍 No cache found, checking usage from API')
+        if (authSession?.accessToken) {
+          try {
+            const response = await fetch('/api/subscription/check-usage', {
+              headers: {
+                'Authorization': `Bearer ${authSession.accessToken}`,
+              },
+            })
+
+            if (response.ok) {
+              const data = await response.json()
+              console.log('📊 API usage check result:', data)
+
+              if (data.success && data.allowed) {
+                // 有次数，自动生成
+                console.log('✅ Usage allowed, triggering auto-generation')
+                setTimeout(() => {
+                  handleGenerate(prefillPrompt).catch(error => {
+                    console.error('❌ Auto-generation failed:', error)
+                    setIsGenerating(false)
+                  })
+                }, 300)
+              } else {
+                // 次数用完，显示提示
+                console.log('❌ Usage exhausted from API check')
+                setUsageExhausted(true)
+              }
+            } else {
+              console.log('⚠️ API check failed, user can manually generate')
+              // API调用失败，不自动生成，让用户手动点击
+            }
+          } catch (error) {
+            console.error('❌ Failed to check usage from API:', error)
+            // 出错时不自动生成，让用户手动点击
+          }
+        } else {
+          console.log('⚠️ No auth token, user can manually generate')
+          // 没有认证token，不自动生成
+        }
       }
 
-      // 如果有缓存且有次数，直接生成
-      if (cachedUsage !== null && cachedUsage > 0) {
-        setTimeout(() => {
-          console.log('✅ Triggering auto-generation with prompt:', prefillPrompt)
-          handleGenerate(prefillPrompt).catch(error => {
-            console.error('❌ Auto-generation failed:', error)
-            setIsGenerating(false)
-          })
-        }, 300)
-      }
-      // 如果没有缓存，让 handleGenerate 内部的 codeUsage 检查来处理
+      autoGenerate()
     }
-  }, [])
+  }, [authSession])
 
   // Session is now handled by auth context
 
@@ -1651,38 +1698,10 @@ function GeneratePageContent() {
       const errorMessage = error.message || 'Failed to create preview. Please try again or download the ZIP file to run locally.'
       setPreviewError(errorMessage)
 
-      // Add comprehensive error message to conversation
-      let previewErrorContent2 = language === 'en'
-        ? `❌ Preview error: ${errorMessage}\n\n`
-        : `❌ 预览错误：${errorMessage}\n\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `**What happened:**\nThe preview system uses in-browser compilation, which has limitations for very complex code.\n\n`
-        : `**发生了什么：**\n预览系统使用浏览器内编译，对于非常复杂的代码有限制。\n\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `**Solutions:**\n`
-        : `**解决方案：**\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `1. 📊 **View Static Preview** - See the component structure and information without running code\n`
-        : `1. 📊 **查看静态预览** - 查看组件结构和信息，无需运行代码\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `2. 💾 Download the ZIP file - Contains all files needed to run locally\n`
-        : `2. 💾 下载 ZIP 文件 - 包含本地运行所需的所有文件\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `3. 📋 Copy individual files - Use the code tabs to copy specific files\n`
-        : `3. 📋 复制单个文件 - 使用代码选项卡复制特定文件\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `4. 🔄 Try a simpler prompt - Generate a smaller, focused component\n`
-        : `4. 🔄 尝试更简单的提示 - 生成更小、更专注的组件\n`
-
-      previewErrorContent2 += language === 'en'
-        ? `5. ⚙️ Run locally - Use Node.js to run the full project\n`
-        : `5. ⚙️ 本地运行 - 使用 Node.js 运行完整项目`
+      // Add simple error message to conversation
+      const previewErrorContent2 = language === 'en'
+        ? `Preview failed. Please download ZIP to run locally.`
+        : `预览失败，请下载 ZIP 文件本地运行。`
 
       const errorMsg: Message = {
         id: Date.now().toString(),
@@ -1691,11 +1710,6 @@ function GeneratePageContent() {
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMsg])
-
-      // 保存错误消息到数据库
-      if (currentConversationId) {
-        await saveMessage('assistant', previewErrorContent2)
-      }
     } finally {
       setIsPreviewLoading(false)
     }

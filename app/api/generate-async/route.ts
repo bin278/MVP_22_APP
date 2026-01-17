@@ -124,8 +124,8 @@ function getAIClient(model: string) {
   let apiKey: string | undefined
   let baseURL: string | undefined
 
-  // 设置超时时间为 50 秒，留 5 秒给其他操作
-  const timeout = 50000
+  // 设置超时时间为 120 秒，支持复杂项目生成
+  const timeout = 120000
 
   switch (modelConfig.provider) {
     case 'dashscope':
@@ -622,12 +622,53 @@ The main application is in \`src/App.jsx\`.
   }
 }
 
+// 验证生成的代码
+function validateGeneratedCode(files: Record<string, string>): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  for (const [filePath, code] of Object.entries(files)) {
+    if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx') && !filePath.endsWith('.js') && !filePath.endsWith('.ts')) continue
+
+    // 检查未定义的自定义 hooks
+    const customHooks = code.match(/\b(use[A-Z][a-zA-Z0-9]*)\s*\(/g) || []
+    const hookNames = [...new Set(customHooks.map(hook => hook.replace(/\s*\($/, '')))]
+    const builtinHooks = ['useState', 'useEffect', 'useContext', 'useReducer', 'useCallback', 'useMemo', 'useRef', 'useImperativeHandle', 'useLayoutEffect', 'useDebugValue', 'useId', 'useTransition', 'useDeferredValue', 'useSyncExternalStore', 'useInsertionEffect']
+
+    for (const hookName of hookNames) {
+      if (!builtinHooks.includes(hookName)) {
+        const definePattern = new RegExp(`(function\\s+${hookName}\\b|const\\s+${hookName}\\s*=)`)
+        if (!definePattern.test(code)) {
+          errors.push(`${filePath}: Undefined custom hook: ${hookName}`)
+        }
+      }
+    }
+
+    // 检查常见未定义变量
+    const commonVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b']
+    for (const varPattern of commonVars) {
+      const regex = new RegExp(varPattern, 'g')
+      const matches = code.match(regex)
+      if (matches && matches.length > 0) {
+        const declarePattern = new RegExp(`(const|let|var)\\s+${varPattern.slice(2, -2)}\\s*=`, 'g')
+        const declarations = code.match(declarePattern)
+        if (!declarations || declarations.length < matches.length) {
+          errors.push(`${filePath}: Undefined variable: ${varPattern.slice(2, -2)}`)
+        }
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 // 异步代码生成
 async function generateCodeAsync(
   prompt: string,
   model: string,
-  onProgress: (progress: number) => void
+  onProgress: (progress: number) => void,
+  retryCount: number = 0
 ): Promise<any> {
+  const maxRetries = 2
   const client = getAIClient(model)
 
   // 获取模型配置
@@ -669,10 +710,16 @@ CODE RULES:
 - Generate COMPLETE code, NO placeholders like [...] or {...}
 - For complex UIs, split into multiple component files
 - CRITICAL: All ternary expressions MUST be complete with both branches
-  - CORRECT: \${duration ? (currentTime / duration) * 100 : 0}%
-  - WRONG: \${duration ? (currentTime / duration) * 100 }% (missing : part)
-- CRITICAL: JSX table structure must be correct:
-  - <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
+- CRITICAL: JSX table structure must be correct
+
+IMPORTANT - PREVENT UNDEFINED ERRORS:
+- NEVER use undefined variables - all variables must be declared with const/let/var before use
+- NEVER reference external components unless you define them in a separate file
+- ONLY use standard HTML elements (div, button, input, etc.) or components you define
+- NEVER use custom hooks (useWebSocket, useFetch, etc.) unless you define them in a separate file
+- ONLY use React built-in hooks: useState, useEffect, useContext, useReducer, useCallback, useMemo, useRef, etc.
+- All child components MUST be placed in src/components/ directory
+- If you import a component or custom hook, you MUST generate that file
 
 RESPOND WITH JSON ONLY.`
         },
@@ -699,6 +746,17 @@ RESPOND WITH JSON ONLY.`
     console.log('✅ AI response length:', generatedContent.length)
 
     const project = createProjectFromAIResponse(generatedContent)
+
+    // 验证生成的代码
+    const validation = validateGeneratedCode(project.files)
+    if (!validation.valid && retryCount < maxRetries) {
+      console.warn(`⚠️ Generated code has errors, retrying (${retryCount + 1}/${maxRetries}):`, validation.errors)
+      return generateCodeAsync(prompt, model, onProgress, retryCount + 1)
+    }
+
+    if (!validation.valid) {
+      console.error('❌ Generated code still has errors after retries:', validation.errors)
+    }
 
     onProgress(100)
 
