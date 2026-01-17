@@ -626,6 +626,14 @@ The main application is in \`src/App.jsx\`.
 function validateGeneratedCode(files: Record<string, string>): { valid: boolean; errors: string[] } {
   const errors: string[] = []
 
+  // 检查必需的文件
+  const hasAppFile = Object.keys(files).some(path =>
+    path === 'src/App.jsx' || path === 'src/App.tsx' || path === 'App.jsx' || path === 'App.tsx'
+  )
+  if (!hasAppFile) {
+    errors.push('Missing required file: src/App.jsx or src/App.tsx')
+  }
+
   // 收集所有文件中定义的 hooks 和组件
   const definedHooks = new Set<string>()
   const definedComponents = new Set<string>()
