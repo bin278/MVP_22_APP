@@ -1956,10 +1956,10 @@ function GeneratePageContent() {
             </div>
           </div>
 
-          {/* 移动端: 单列布局, 桌面端: 三列布局 */}
-          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3 lg:gap-6">
+          {/* 移动端: 单列布局, 桌面端: 两列对称布局 */}
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:gap-6">
             {/* 移动端专用输入区域 - 只在小屏幕显示 */}
-            <div className="lg:hidden col-span-1 lg:col-span-3">
+            <div className="lg:hidden col-span-1">
               <div className="rounded-xl border border-border bg-card p-4 shadow-lg">
                 {/* 快速输入区 */}
                 <div className="space-y-3">
@@ -2333,8 +2333,8 @@ function GeneratePageContent() {
 
             </div>
 
-            {/* Output Section - 移动端全宽,桌面端占2列 */}
-            <div className="space-y-4 col-span-1 lg:col-span-2">
+            {/* Output Section - 移动端全宽,桌面端占1列 */}
+            <div className="space-y-4 col-span-1">
               {(isGenerating || isModifying) ? (
                 <>
                   {/* AI Code Generation Display */}
