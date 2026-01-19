@@ -169,3 +169,27 @@ export async function exchangeCodeForToken(
     return { success: false, error: error instanceof Error ? error.message : "网络错误" };
   }
 }
+
+/** 请求微信小程序原生支付 */
+export async function requestWxMpPayment(params: {
+  planType: string;
+  billingCycle: string;
+  amount: number;
+  token: string;
+}): Promise<boolean> {
+  const mp = await waitForWxSDK();
+  if (!mp || typeof mp.postMessage !== "function") {
+    console.warn("[wechat-mp] Not in WeChat MiniProgram environment");
+    return false;
+  }
+
+  mp.postMessage({
+    data: {
+      type: "REQUEST_WX_PAYMENT",
+      ...params,
+    },
+  });
+
+  // 小程序需要用户触发才能跳转，这里返回 true 表示消息已发送
+  return true;
+}

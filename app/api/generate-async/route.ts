@@ -713,7 +713,22 @@ async function generateCodeAsync(
       messages: [
         {
           role: 'system',
-          content: `You are a React code generator. Output ONLY valid JSON.
+          content: model === 'qwen-coder-turbo'
+            ? `CRITICAL: You MUST output a complete JSON object with ALL files fully implemented.
+
+Required JSON format (start with { and end with }):
+{"files":{"src/App.jsx":"COMPLETE CODE HERE","src/index.css":"COMPLETE CSS HERE","package.json":"COMPLETE JSON HERE","README.md":"COMPLETE README HERE"},"projectName":"app-name"}
+
+RULES:
+1. Output ONLY JSON, NO markdown, NO explanations
+2. ALL files must have COMPLETE code, NO placeholders, NO "..." or "[...]"
+3. Use \\n for newlines in code strings
+4. Every function must be fully implemented
+5. Include: src/App.jsx, src/index.css, package.json, README.md
+
+Example of COMPLETE code:
+{"files":{"src/App.jsx":"import React, { useState } from 'react';\\n\\nfunction App() {\\n  const [count, setCount] = useState(0);\\n  return (\\n    <div>\\n      <h1>Count: {count}</h1>\\n      <button onClick={() => setCount(count + 1)}>Add</button>\\n    </div>\\n  );\\n}\\n\\nexport default App;"},"projectName":"my-app"}`
+            : `You are a React code generator. Output ONLY valid JSON.
 
 CRITICAL: Response must be ONLY a JSON object. No explanations, no markdown, no text.
 

@@ -26,13 +26,14 @@ const cloudbaseAdapter = new CloudBaseUserAdapter();
 // 请求验证 Schema
 const createPaymentSchema = z.object({
   method: z.enum(["wechat", "alipay"]),
-  mode: z.enum(["qrcode", "page", "h5"]).default("qrcode"), // 支付模式：二维码/电脑网站支付/H5移动支付
+  mode: z.enum(["qrcode", "page", "h5", "miniprogram"]).default("qrcode"), // 支付模式：二维码/电脑网站支付/H5移动支付/小程序支付
   amount: z.number().positive("金额必须为正数"),
   currency: z.string().default("CNY"),
   description: z.string().optional(),
   planType: z.enum(["pro", "enterprise"]).default("pro"),
   billingCycle: z.enum(["monthly", "yearly"]).default("monthly"),
   returnUrl: z.string().optional(), // 支付完成后回跳地址
+  openid: z.string().optional(), // 小程序支付需要
   h5Info: z.object({
     type: z.string().optional(),
     app_name: z.string().optional(),
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { method, mode, amount, currency, description, planType, billingCycle, returnUrl, h5Info } = validationResult.data;
+    const { method, mode, amount, currency, description, planType, billingCycle, returnUrl, openid, h5Info } = validationResult.data;
     const userId = user.id;
 
     // 测试模式：所有支付方式使用 0.01 元
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
       planType,
       mode: actualMode,
       returnUrl: paymentReturnUrl,
+      openid,
       h5Info,
     });
 
@@ -193,9 +195,10 @@ export async function POST(request: NextRequest) {
     console.log("✅ [CN Payment] 订单创建成功:", {
       paymentId: paymentResult.id,
       orderId: orderResult.orderId,
-      mode,
+      mode: actualMode,
       qrCodeUrl: orderResult.qrCodeUrl,
       paymentUrl: orderResult.paymentUrl,
+      paymentParams: orderResult.paymentParams,
     });
 
     return NextResponse.json({
@@ -204,6 +207,7 @@ export async function POST(request: NextRequest) {
       mode: actualMode,
       qrCodeUrl: orderResult.qrCodeUrl,
       paymentUrl: orderResult.paymentUrl,
+      paymentParams: orderResult.paymentParams,
       method,
       amount: finalAmount,
       currency,

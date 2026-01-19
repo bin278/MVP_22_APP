@@ -16,6 +16,9 @@ import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { CNPaymentDialog } from "@/components/payment/cn-payment-dialog"
 import { fetchWithAuth } from "@/lib/auth/fetch-with-auth"
+import { isMiniProgram, requestWxMpPayment } from "@/lib/wechat-mp"
+import { getStoredAuthState } from "@/lib/auth/auth-state-manager"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 // 支付方式类型
 type PaymentMethodCN = "wechat" | "alipay"
@@ -223,6 +226,30 @@ export default function PricingPage() {
       } else {
         // 中国版支付API
         const apiEndpoint = "/api/payment/cn/create"
+
+        // 检测是否在小程序环境中
+        const inMiniProgram = isMiniProgram()
+
+        // 小程序环境中使用原生支付
+        if (inMiniProgram && selectedPayment === "wechat") {
+          const authState = getStoredAuthState()
+          if (authState?.accessToken) {
+            const sent = await requestWxMpPayment({
+              planType: tier,
+              billingCycle,
+              amount,
+              token: authState.accessToken,
+            })
+            if (sent) {
+              toast({
+                title: "正在跳转支付",
+                description: "请在小程序中完成支付",
+              })
+              setProcessingPlan(null)
+              return
+            }
+          }
+        }
 
         // 支付宝使用电脑网站支付，微信使用二维码支付
         const paymentMode = selectedPayment === "alipay" ? "page" : "qrcode"
@@ -578,22 +605,25 @@ export default function PricingPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <Link href="/">
-                <Button variant="ghost" size="sm" className="hover:bg-white/60 backdrop-blur-sm transition-all">
+                <Button variant="ghost" size="sm" className="hover:bg-accent/10 backdrop-blur-sm transition-all">
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   {t.pricing.back}
                 </Button>
               </Link>
 
-              {/* Language Switcher */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setLanguage(language === "zh" ? "en" : "zh")}
-                className="hover:bg-white/80 backdrop-blur-sm transition-all border-gray-300"
-              >
-                <Languages className="h-4 w-4 mr-2" />
-                {language === "zh" ? "EN" : "中文"}
-              </Button>
+              {/* Theme and Language Switchers */}
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLanguage(language === "zh" ? "en" : "zh")}
+                  className="hover:bg-accent/10 backdrop-blur-sm transition-all"
+                >
+                  <Languages className="h-4 w-4 mr-2" />
+                  {language === "zh" ? "EN" : "中文"}
+                </Button>
+              </div>
             </div>
 
             {/* Hero Section */}
@@ -660,7 +690,7 @@ export default function PricingPage() {
             {/* Payment Method Selector */}
             {isAuthenticated && (
               <div className="max-w-md mx-auto mb-12">
-                <Card className="border-0 shadow-xl shadow-gray-200/50 bg-white/80 backdrop-blur-sm">
+                <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
                   <CardHeader className="text-center pb-4">
                     <CardTitle className="text-lg font-semibold">
                       {language === "zh" ? "选择支付方式" : "Select Payment Method"}

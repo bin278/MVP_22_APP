@@ -102,12 +102,12 @@ export function Footer({ language }: FooterProps) {
             <h3 className="mb-4 text-sm font-semibold">{t.legal}</h3>
             <ul className="space-y-3 text-sm">
               <li>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <a href="/privacy#privacy" className="text-muted-foreground hover:text-foreground transition-colors">
                   {t.privacy}
                 </a>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <a href="/privacy#terms" className="text-muted-foreground hover:text-foreground transition-colors">
                   {t.terms}
                 </a>
               </li>

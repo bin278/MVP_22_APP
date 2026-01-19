@@ -299,9 +299,9 @@ export function ConversationSidebar({
   return (
     <>
       <Sidebar>
-        <SidebarHeader className="p-4 border-b border-gray-700">
+        <SidebarHeader className="p-4 border-b">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold text-white">{t.title}</h2>
+            <h2 className="text-lg font-semibold">{t.title}</h2>
           </div>
           <Button
             onClick={handleCreateConversation}
@@ -324,11 +324,11 @@ export function ConversationSidebar({
         </SidebarHeader>
         <SidebarContent>
           {loading ? (
-            <div className="p-4 text-center text-sm text-gray-300">
+            <div className="p-4 text-center text-sm text-muted-foreground">
               {t.loading}
             </div>
           ) : authError ? (
-            <div className="p-4 text-center text-sm text-red-400">
+            <div className="p-4 text-center text-sm text-destructive">
               <div className="mb-2">⚠️ {authError}</div>
               <Button
                 onClick={() => {
@@ -346,7 +346,7 @@ export function ConversationSidebar({
               </Button>
             </div>
           ) : conversations.length === 0 ? (
-            <div className="p-4 text-center text-sm text-gray-300">
+            <div className="p-4 text-center text-sm text-muted-foreground">
               <MessageSquare className="mx-auto h-8 w-8 mb-2 opacity-50" />
               <p>{t.noConversations}</p>
               <p className="text-xs mt-1">{t.createFirst}</p>
@@ -359,7 +359,7 @@ export function ConversationSidebar({
                     <React.Fragment key={conversation.id}>
                       <SidebarMenuItem className="mb-2">
                         {editingId === conversation.id ? (
-                          <div className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-all hover:bg-gray-800 hover:text-white focus-visible:ring-2 active:bg-gray-700 active:text-white disabled:pointer-events-none disabled:opacity-50 overflow-visible bg-black">
+                          <div className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-all hover:bg-sidebar-accent focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 overflow-visible bg-sidebar">
                             <MessageSquare className="h-4 w-4" />
                             <div className="flex-1 min-w-0">
                               <div className="space-y-1 relative z-10">
@@ -420,22 +420,18 @@ export function ConversationSidebar({
                               onSelectConversation(conversation.id)
                             }}
                             isActive={currentConversationId === conversation.id}
-                            className={`group relative bg-black hover:bg-gray-800 ${
+                            className={`group relative ${
                               currentConversationId === conversation.id
-                                ? '!bg-gray-700 !border-l-4 !border-blue-500'
+                                ? 'bg-sidebar-accent border-l-4 border-primary'
                                 : ''
                             }`}
                           >
                             <MessageSquare className="h-4 w-4" />
                             <div className="flex-1 min-w-0">
-                              <div className={`truncate text-sm font-medium ${
-                                currentConversationId === conversation.id ? '!text-white' : 'text-white'
-                              }`}>
+                              <div className="truncate text-sm font-medium">
                                 {conversation.title}
                               </div>
-                              <div className={`text-xs ${
-                                currentConversationId === conversation.id ? '!text-gray-200' : 'text-gray-300'
-                              }`}>
+                              <div className="text-xs text-muted-foreground">
                                 {formatDate(conversation.updated_at)}
                               </div>
                             </div>
@@ -464,7 +460,7 @@ export function ConversationSidebar({
                         )}
                       </SidebarMenuItem>
                       {index < conversations.length - 1 && (
-                        <Separator className="my-1 bg-gray-600" />
+                        <Separator className="my-1" />
                       )}
                     </React.Fragment>
                   ))}
@@ -473,7 +469,7 @@ export function ConversationSidebar({
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter className="p-4 border-t border-gray-700 text-xs text-gray-300 text-center">
+        <SidebarFooter className="p-4 border-t text-xs text-muted-foreground text-center">
           {conversations.length} {language === "en" ? "conversations" : "个对话"}
         </SidebarFooter>
       </Sidebar>

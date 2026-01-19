@@ -13,8 +13,9 @@ interface CreateOrderOptions {
   description: string;
   billingCycle: BillingCycle;
   planType: PlanType;
-  mode: "qrcode" | "page" | "h5";
+  mode: "qrcode" | "page" | "h5" | "miniprogram";
   returnUrl?: string;
+  openid?: string; // 小程序支付需要
   h5Info?: {
     type: string;
     app_name: string;
@@ -26,6 +27,13 @@ interface CreateOrderResult {
   orderId: string;
   qrCodeUrl?: string;
   paymentUrl?: string;
+  paymentParams?: { // 小程序支付参数
+    timeStamp: string;
+    nonceStr: string;
+    package: string;
+    signType: string;
+    paySign: string;
+  };
 }
 
 interface QueryOrderResult {
@@ -151,8 +159,13 @@ class WeChatPayAdapter implements PaymentAdapter {
     const orderId = `CN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const { getBaseUrl } = await import("@/lib/utils/get-base-url");
 
+    // 小程序支付使用小程序的 appid
+    const appId = options.mode === 'miniprogram'
+      ? (process.env.WX_MINI_APPID || this.appId)
+      : this.appId;
+
     const requestBody: any = {
-      appid: this.appId,
+      appid: appId,
       mchid: this.mchId,
       description: options.description,
       out_trade_no: orderId,
@@ -168,6 +181,11 @@ class WeChatPayAdapter implements PaymentAdapter {
       }),
     };
 
+    // 小程序支付需要 payer 信息
+    if (options.mode === 'miniprogram' && options.openid) {
+      requestBody.payer = { openid: options.openid };
+    }
+
     // H5支付需要添加场景信息
     if (options.mode === 'h5') {
       requestBody.scene_info = {
@@ -182,11 +200,41 @@ class WeChatPayAdapter implements PaymentAdapter {
     console.log(`[WeChat Pay] 创建订单 (${options.mode}模式):`, { orderId, amount: amount * 100, userId });
 
     // 根据模式选择API端点
-    const apiEndpoint = options.mode === 'h5'
-      ? '/v3/pay/transactions/h5'
-      : '/v3/pay/transactions/native';
+    let apiEndpoint: string;
+    if (options.mode === 'miniprogram') {
+      apiEndpoint = '/v3/pay/transactions/jsapi';
+    } else if (options.mode === 'h5') {
+      apiEndpoint = '/v3/pay/transactions/h5';
+    } else {
+      apiEndpoint = '/v3/pay/transactions/native';
+    }
 
     const result = await this.makeRequest('POST', apiEndpoint, requestBody);
+
+    // 小程序支付返回 prepay_id，需要生成支付参数
+    if (options.mode === 'miniprogram') {
+      const timeStamp = Math.floor(Date.now() / 1000).toString();
+      const nonceStr = require('crypto').randomBytes(16).toString('hex');
+      const packageStr = `prepay_id=${result.prepay_id}`;
+
+      // 生成支付签名
+      const signMessage = `${appId}\n${timeStamp}\n${nonceStr}\n${packageStr}\n`;
+      const crypto = require('crypto');
+      const sign = crypto.createSign("RSA-SHA256");
+      sign.update(signMessage, 'utf8');
+      const paySign = sign.sign(this.privateKey, "base64");
+
+      return {
+        orderId,
+        paymentParams: {
+          timeStamp,
+          nonceStr,
+          package: packageStr,
+          signType: 'RSA',
+          paySign,
+        },
+      };
+    }
 
     // H5模式返回跳转URL,Native模式返回二维码URL
     if (options.mode === 'h5') {

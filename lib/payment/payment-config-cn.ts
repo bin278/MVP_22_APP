@@ -15,7 +15,7 @@
 
 export type BillingCycle = "monthly" | "yearly";
 export type PaymentMethodCN = "wechat" | "alipay";
-export type PaymentModeCN = "qrcode" | "page" | "h5"; // 二维码支付 / 电脑网站支付 / H5移动支付
+export type PaymentModeCN = "qrcode" | "page" | "h5" | "miniprogram"; // 二维码支付 / 电脑网站支付 / H5移动支付 / 小程序支付
 export type PlanType = "free" | "pro" | "enterprise";
 
 // 加油包类型

@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ConversationSidebar } from "@/components/conversation-sidebar"
 import { ModelSelector } from "@/components/model-selector"
 import { SUBSCRIPTION_TIERS, getDefaultModel, AVAILABLE_MODELS, canUseModel, type SubscriptionTier } from "@/lib/subscription-tiers"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 interface Message {
   id: string
@@ -207,7 +208,6 @@ function GeneratePageContent() {
   const [copied, setCopied] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string>("src/App.jsx")
   const [previewUrl, setPreviewUrl] = useState<string>("")
-  const [showTips, setShowTips] = useState(false)
 
   const [messages, setMessages] = useState<Message[]>([])
   const [previewPrompt, setPreviewPrompt] = useState<string>("")
@@ -1937,25 +1937,7 @@ function GeneratePageContent() {
                 )}
               </div>
           <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
-            <Button variant="outline" size="sm" onClick={() => setShowTips(!showTips)} className="relative h-8 w-8 sm:w-auto sm:px-3 hidden sm:flex">
-              <Keyboard className="w-4 h-4" />
-              {showTips && (
-                <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[200px] z-50">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-sm">Keyboard Shortcuts</h4>
-                    <button onClick={() => setShowTips(false)} className="text-gray-400 hover:text-gray-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-2 text-xs text-gray-600">
-                    <div><kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+Enter</kbd> Generate</div>
-                    <div><kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+Shift+P</kbd> Toggle Preview</div>
-                    <div><kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+C</kbd> Copy Code</div>
-                    <div><kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Esc</kbd> Close Preview</div>
-                  </div>
-                </div>
-              )}
-            </Button>
+            <ThemeToggle />
             <Button variant="outline" size="sm" onClick={() => handleLanguageChange(language === "en" ? "zh" : "en")} className="h-8 px-2 sm:px-3 text-xs sm:text-sm">
               {language === "en" ? "中文" : "English"}
             </Button>
@@ -1968,7 +1950,7 @@ function GeneratePageContent() {
           {/* 移动端隐藏标题,直接进入界面 */}
           <div className="hidden md:block mb-4 sm:mb-6 md:mb-8 text-center">
             <p className="text-base sm:text-lg text-muted-foreground mb-4 sm:mb-6 px-2">{t.subtitle}</p>
-            <div className="mt-3 sm:mt-4 inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-accent/20 bg-accent/5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-accent">
+            <div className="mt-3 sm:mt-4 inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border bg-muted px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-foreground">
               <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>{t.note}</span>
             </div>
@@ -2511,7 +2493,7 @@ function GeneratePageContent() {
                             handlePreview()
                           }}
                           disabled={isPreviewLoading || !generatedProject || !generatedProject.files[selectedFile] || (!selectedFile.endsWith('.tsx') && !selectedFile.endsWith('.jsx'))}
-                          className="gap-1.5 sm:gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600 disabled:opacity-50 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
+                          className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
                         >
                           {isPreviewLoading ? (
                             <>
@@ -2553,7 +2535,7 @@ function GeneratePageContent() {
                           <span className="hidden sm:inline">{language === "en" ? "Refresh" : "刷新"}</span>
                         </Button>
                       )}
-                      <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3">
+                      <Button variant="default" size="sm" onClick={handleCopy} className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3">
                         {copied ? (
                           <>
                             <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -2567,21 +2549,23 @@ function GeneratePageContent() {
                         )}
                       </Button>
                       <Button
+                        variant="default"
                         size="sm"
                         onClick={handleDownload}
-                        className="gap-1.5 sm:gap-2 bg-accent hover:bg-accent/90 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
+                        className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
                       >
                         <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         Download ZIP
                       </Button>
                       {githubConnected ? (
                         <Button
+                          variant="default"
                           size="sm"
                           onClick={() => setShowPushDialog(true)}
-                          className="gap-2 bg-[#24292e] hover:bg-[#2f363d] text-white"
+                          className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 px-2 sm:h-auto sm:px-3"
                           disabled={!generatedProject}
                         >
-                          <Github className="h-4 w-4" />
+                          <Github className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                           {t.pushToGithub}
                         </Button>
                       ) : (
