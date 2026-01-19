@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth/auth'
 import { add, update, query } from '@/lib/database'
 import OpenAI from 'openai'
 import { recordRecommendationUsage } from '@/lib/subscription/usage-tracker'
+import { CODE_GENERATION_SYSTEM_PROMPT } from '@/lib/ai-prompts'
 
 // Vercel Serverless Function 超时配置 (秒)
 export const maxDuration = 60
@@ -759,10 +760,10 @@ CODE RULES:
 
 IMPORTANT - PREVENT UNDEFINED ERRORS:
 - NEVER use undefined variables - all variables must be declared with const/let/var before use
+- CRITICAL: Variables like 'left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data' are commonly used in charts/graphics. You MUST declare them before use
+- CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, etc. unless you define them in the same file first. Only use React's built-in hooks (useState, useEffect, useCallback, useMemo, useRef)
 - NEVER reference external components unless you define them in a separate file
 - ONLY use standard HTML elements (div, button, input, etc.) or components you define
-- NEVER use custom hooks (useWebSocket, useFetch, etc.) unless you define them in a separate file
-- ONLY use React built-in hooks: useState, useEffect, useContext, useReducer, useCallback, useMemo, useRef, etc.
 - All child components MUST be placed in src/components/ directory
 - If you import a component or custom hook, you MUST generate that file
 
