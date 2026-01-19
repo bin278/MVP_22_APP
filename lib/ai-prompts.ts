@@ -16,12 +16,13 @@ CRITICAL RULES:
 6. The return statement must ONLY contain JSX expressions
 7. NEVER use "javascript:" prefix or similar invalid tokens
 8. NEVER use undefined variables - all variables must be declared with const/let/var before use
-9. CRITICAL: Variables like 'left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y' are commonly used in charts/graphics. You MUST declare them before use. Example:
+9. CRITICAL: Variables like 'left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data' are commonly used in charts/graphics. You MUST declare them before use. Example:
    const left = 50; const right = width - 50; // ✓ CORRECT
    NOT: <rect x={left} y={right} /> without declaring left and right first // ✗ WRONG
-10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
-11. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
-12. Export as default
+10. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, etc. unless you define them in the same file first. Only use React's built-in hooks (useState, useEffect, useCallback, useMemo, useRef).
+11. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
+12. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
+13. Export as default
 
 CORRECT STRUCTURE EXAMPLE:
 import React from 'react';
@@ -62,11 +63,12 @@ CRITICAL RULES:
 6. The return statement must ONLY contain JSX expressions
 7. NEVER use "javascript:" prefix or similar invalid tokens
 8. NEVER use undefined variables - all variables must be declared with const/let/var before use
-9. CRITICAL: Variables like 'left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y' are commonly used in charts/graphics. You MUST declare them before use. Example:
+9. CRITICAL: Variables like 'left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data' are commonly used in charts/graphics. You MUST declare them before use. Example:
    const left = 50; const right = width - 50; // ✓ CORRECT
    NOT: <rect x={left} y={right} /> without declaring left and right first // ✗ WRONG
-10. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
-11. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
+10. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, etc. unless you define them in the same file first. Only use React's built-in hooks (useState, useEffect, useCallback, useMemo, useRef).
+11. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
+12. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 
 CORRECT STRUCTURE EXAMPLE:
 function App() {
