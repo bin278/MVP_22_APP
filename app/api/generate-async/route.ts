@@ -662,6 +662,21 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
   for (const [filePath, code] of Object.entries(files)) {
     if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx') && !filePath.endsWith('.js') && !filePath.endsWith('.ts')) continue
 
+    // 检查常见的未定义变量（图表代码中常见）
+    const commonVars = ['left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data']
+    for (const varName of commonVars) {
+      // 检查变量是否被使用但未声明
+      const usageRegex = new RegExp(`\\b${varName}\\b(?!\\s*[=:])`, 'g')
+      const declarationRegex = new RegExp(`(?:const|let|var)\\s+${varName}\\b`, 'g')
+
+      const usages = code.match(usageRegex) || []
+      const declarations = code.match(declarationRegex) || []
+
+      if (usages.length > 0 && declarations.length === 0) {
+        errors.push(`${filePath}: Variable '${varName}' is used but not declared`)
+      }
+    }
+
     // 检查未定义的自定义 hooks
     const customHooks = code.match(/\b(use[A-Z][a-zA-Z0-9]*)\s*\(/g) || []
     const hookNames = [...new Set(customHooks.map(hook => hook.replace(/\s*\($/, '')))]
