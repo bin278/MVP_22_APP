@@ -125,8 +125,8 @@ function getAIClient(model: string) {
   let apiKey: string | undefined
   let baseURL: string | undefined
 
-  // 设置超时时间为 120 秒，支持复杂项目生成
-  const timeout = 120000
+  // 设置超时时间为 180 秒（3分钟），支持复杂项目生成
+  const timeout = 180000
 
   switch (modelConfig.provider) {
     case 'dashscope':
@@ -697,78 +697,44 @@ async function generateCodeAsync(
   prompt: string,
   model: string,
   onProgress: (progress: number) => void,
-  retryCount: number = 0
+  retryCount: number = 0,
+  previousErrors: string[] = []
 ): Promise<any> {
   const maxRetries = 2
   const client = getAIClient(model)
 
-  // 获取模型配置
+  // 获取模型配置和统一提示词
   const { AVAILABLE_MODELS } = require('@/lib/subscription-tiers')
+  const { CODE_GENERATION_SYSTEM_PROMPT } = require('@/lib/ai-prompts')
   const modelConfig = AVAILABLE_MODELS[model]
 
   onProgress(10)
 
   try {
     console.log('🤖 开始调用 AI API, model:', model)
+
+    // 构建系统提示词
+    let systemPrompt = CODE_GENERATION_SYSTEM_PROMPT + `
+
+Return JSON format:
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
+
+    // 如果是重试，添加之前的错误信息
+    if (retryCount > 0 && previousErrors.length > 0) {
+      systemPrompt += `
+
+⚠️ PREVIOUS GENERATION HAD ERRORS. You MUST fix these issues:
+${previousErrors.map((err, i) => `${i + 1}. ${err}`).join('\n')}
+
+CRITICAL: Fix ALL the above errors in this generation.`
+    }
+
     const completion = await client.chat.completions.create({
       model: model,
       messages: [
         {
           role: 'system',
-          content: model === 'qwen-coder-turbo'
-            ? `CRITICAL: You MUST output a complete JSON object with ALL files fully implemented.
-
-Required JSON format (start with { and end with }):
-{"files":{"src/App.jsx":"COMPLETE CODE HERE","src/index.css":"COMPLETE CSS HERE","package.json":"COMPLETE JSON HERE","README.md":"COMPLETE README HERE"},"projectName":"app-name"}
-
-RULES:
-1. Output ONLY JSON, NO markdown, NO explanations
-2. ALL files must have COMPLETE code, NO placeholders, NO "..." or "[...]"
-3. Use \\n for newlines in code strings
-4. Every function must be fully implemented
-5. Include: src/App.jsx, src/index.css, package.json, README.md
-
-Example of COMPLETE code:
-{"files":{"src/App.jsx":"import React, { useState } from 'react';\\n\\nfunction App() {\\n  const [count, setCount] = useState(0);\\n  return (\\n    <div>\\n      <h1>Count: {count}</h1>\\n      <button onClick={() => setCount(count + 1)}>Add</button>\\n    </div>\\n  );\\n}\\n\\nexport default App;"},"projectName":"my-app"}`
-            : `You are a React code generator. Output ONLY valid JSON.
-
-CRITICAL: Response must be ONLY a JSON object. No explanations, no markdown, no text.
-
-JSON FORMAT:
-{"files":{"src/App.jsx":"code...","src/components/Header.jsx":"code...","src/index.css":"styles...","package.json":"{}","README.md":"# Title"},"projectName":"my-app"}
-
-SUPPORTED FILES:
-- src/App.jsx (required - main component)
-- src/components/*.jsx (optional - child components)
-- src/hooks/*.js (optional - custom hooks)
-- src/utils/*.js (optional - utility functions)
-- src/index.css (required - styles)
-- package.json (required)
-- README.md (required)
-
-CODE RULES:
-- Pure JavaScript/JSX, NO TypeScript
-- NO type annotations, NO interfaces
-- Use React hooks: useState, useEffect, useCallback, useMemo
-- Use Tailwind CSS classes for styling
-- Import child components: import Header from './components/Header'
-- CRITICAL: Code must use ACTUAL newlines, NOT literal \\n strings
-- CRITICAL: All code must be valid JavaScript that can be compiled by Babel
-- Generate COMPLETE code, NO placeholders like [...] or {...}
-- For complex UIs, split into multiple component files
-- CRITICAL: All ternary expressions MUST be complete with both branches
-- CRITICAL: JSX table structure must be correct
-
-IMPORTANT - PREVENT UNDEFINED ERRORS:
-- NEVER use undefined variables - all variables must be declared with const/let/var before use
-- CRITICAL: Variables like 'left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data' are commonly used in charts/graphics. You MUST declare them before use
-- CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, etc. unless you define them in the same file first. Only use React's built-in hooks (useState, useEffect, useCallback, useMemo, useRef)
-- NEVER reference external components unless you define them in a separate file
-- ONLY use standard HTML elements (div, button, input, etc.) or components you define
-- All child components MUST be placed in src/components/ directory
-- If you import a component or custom hook, you MUST generate that file
-
-RESPOND WITH JSON ONLY.`
+          content: systemPrompt
         },
         {
           role: 'user',
@@ -802,7 +768,7 @@ RESPOND WITH JSON ONLY.`
 
     if (!validation.valid && retryCount < maxRetries) {
       console.warn(`⚠️ Generated code has errors, retrying (${retryCount + 1}/${maxRetries}):`, validation.errors)
-      return generateCodeAsync(prompt, model, onProgress, retryCount + 1)
+      return generateCodeAsync(prompt, model, onProgress, retryCount + 1, validation.errors)
     }
 
     if (!validation.valid) {

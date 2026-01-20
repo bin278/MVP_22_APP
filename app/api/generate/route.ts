@@ -7,6 +7,54 @@ import { add, getDatabaseProvider } from '@/lib/database'
 // 免费版最大 10 秒，Pro 版最大 60 秒
 export const maxDuration = 60
 
+function validateGeneratedCode(code: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  // 检查1: return 语句后不能跟声明
+  if (/return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/.test(code)) {
+    errors.push('Invalid return statement followed by declarations')
+  }
+
+  // 检查2: 常见未定义变量
+  const commonVars = ['right', 'left', 'top', 'bottom', 'width', 'height']
+  for (const varName of commonVars) {
+    const regex = new RegExp(`\\b${varName}\\b`, 'g')
+    const matches = code.match(regex)
+    if (matches && matches.length > 0) {
+      const declarePattern = new RegExp(`(const|let|var)\\s+${varName}\\s*=`, 'g')
+      const declarations = code.match(declarePattern)
+      if (!declarations || declarations.length < matches.length) {
+        errors.push(`Potentially undefined variable: ${varName}`)
+      }
+    }
+  }
+
+  // 检查3: 未定义的组件
+  const jsxComponents = code.match(/<([A-Z][a-zA-Z0-9]*)/g) || []
+  const componentNames = [...new Set(jsxComponents.map(tag => tag.slice(1)))]
+  for (const compName of componentNames) {
+    const definePattern = new RegExp(`(function\\s+${compName}\\b|const\\s+${compName}\\s*=|class\\s+${compName}\\b)`)
+    if (!definePattern.test(code)) {
+      errors.push(`Undefined component: ${compName}`)
+    }
+  }
+
+  // 检查4: 自定义 hooks
+  const customHooks = ['useChartData', 'useWebSocket', 'useData', 'useFetch', 'useApi']
+  for (const hook of customHooks) {
+    if (code.includes(hook)) {
+      errors.push(`Custom hook not allowed: ${hook}`)
+    }
+  }
+
+  // 检查5: 不完整的三元表达式
+  if (/\?\s*[^:]+\s*[,})\]]/.test(code)) {
+    errors.push('Incomplete ternary expression missing : value')
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 function formatCodeString(code: string): string {
   // Quick check: if code already has good formatting, return as-is
   const lineCount = (code.match(/\n/g) || []).length
@@ -80,9 +128,10 @@ function validateGeneratedJson(jsonContent: string): { valid: boolean; errors: s
     // 检查 App 代码质量
     const appCode = parsed.files['src/App.tsx'] || parsed.files['App.tsx'] || parsed.files['src/App.jsx'] || parsed.files['App.jsx'] || ''
     if (appCode) {
-      // 检查常见的语法错误
-      if (/return\s*\(\s*\n\s*(const|let|var|function)\s+\w+/.test(appCode)) {
-        errors.push('App.tsx has invalid return statement followed by declarations')
+      // 使用代码验证函数
+      const codeValidation = validateGeneratedCode(appCode)
+      if (!codeValidation.valid) {
+        errors.push(...codeValidation.errors.map(e => `App code: ${e}`))
       }
 
       // 检查是否有基本的 React 结构
@@ -107,8 +156,9 @@ function validateGeneratedJson(jsonContent: string): { valid: boolean; errors: s
 }
 
 async function generateCodeWithRetry(prompt: string, model: string = 'qwen-plus', maxRetries: number = 2) {
-  // 导入模型配置
+  // 导入模型配置和提示词
   const { AVAILABLE_MODELS } = await import('@/lib/subscription-tiers')
+  const { CODE_GENERATION_SYSTEM_PROMPT } = await import('@/lib/ai-prompts')
   const modelConfig = AVAILABLE_MODELS[model]
 
   if (!modelConfig) {
@@ -150,61 +200,19 @@ async function generateCodeWithRetry(prompt: string, model: string = 'qwen-plus'
     try {
       console.log(`Attempt ${attempt}/${maxRetries} to generate code`)
 
+      // 使用统一的系统提示词
+      let systemPrompt = CODE_GENERATION_SYSTEM_PROMPT + `
+
+Return JSON format:
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
+
       // 如果是重试，添加错误提示
-      let enhancedSystemPrompt = `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
-
-Required files: src/App.jsx, src/index.css, package.json, README.md
-
-CODE RULES - VERY IMPORTANT:
-- Use pure JavaScript/JSX only, NO TypeScript
-- NO type annotations (no : string, : number, : React.FC, etc.)
-- NO interface or type definitions
-- NO generics like useState<string>(), just use useState()
-- Single component only (no src/components/, src/utils/, etc.)
-- Use basic React hooks: useState, useEffect
-- Keep component under 150 lines
-- Simple inline styles with Tailwind CSS classes
-- No complex patterns (no Context, Redux, custom hooks)
-- Focus on clarity over features
-- CRITICAL: All ternary expressions MUST be complete: condition ? valueIfTrue : valueIfFalse
-- CRITICAL: All arrow functions MUST have complete syntax: (param) => expression or (param) => { return value }
-- CRITICAL: JSX table structure must be correct: <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
-
-README.md format:
-# Project Title
-Simple description.
-
-## Installation
-\\\`\\\`\\\`bash
-npm install
-npm run dev
-\\\`\\\`\\\`
-
-Return JSON:
-{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}
-
-Example of CORRECT structure:
-function App() {
-  const [data, setData] = React.useState(null);
-  const handleClick = () => { };
-  return (
-    <div>{data}</div>
-  );
-}
-
-Example of INCORRECT structure (DO NOT DO THIS):
-function App() {
-  return (
-  const [data, setData] = React.useState(null);
-  // ...
-}`
-
       if (attempt > 1) {
-        enhancedSystemPrompt += `
+        systemPrompt += `
 
 ⚠️ PREVIOUS RESPONSE ERROR. Fix:
 1. Valid JSON with "files" and "projectName"
-2. App.tsx: proper function, hooks before return
+2. App.jsx: proper function, hooks before return
 3. Include export default App
 4. README.md is required`
       }
@@ -214,7 +222,7 @@ function App() {
         messages: [
           {
             role: 'system',
-            content: enhancedSystemPrompt
+            content: systemPrompt
           },
           {
             role: 'user',

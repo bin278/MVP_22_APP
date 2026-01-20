@@ -20,14 +20,14 @@ export const SUBSCRIPTION_TIERS = {
     nameZh: '专业版',
     limits: {},
     maxRequests: 500,
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-coder-turbo']
+    models: ['qwen-turbo', 'qwen-plus']
   },
   enterprise: {
     name: 'Enterprise',
     nameZh: '企业版',
     limits: {},
     maxRequests: -1, // 无限
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-coder-turbo']
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max']
   }
 };
 
@@ -100,17 +100,6 @@ export const AVAILABLE_MODELS = {
     contextWindow: 32768,
     maxTokens: 8192,
     pricing: { input: 0.02, output: 0.06 }
-  },
-  'qwen-coder-turbo': {
-    id: 'qwen-coder-turbo',
-    name: 'Qwen Coder Turbo',
-    nameZh: '通义千问代码版',
-    description: 'Specialized for coding tasks',
-    descriptionZh: '专为编程任务优化',
-    provider: 'dashscope',
-    contextWindow: 16384,
-    maxTokens: 8192,
-    pricing: { input: 0.0008, output: 0.002 }
   }
 };
 
