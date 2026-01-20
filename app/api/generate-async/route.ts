@@ -662,6 +662,11 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
   for (const [filePath, code] of Object.entries(files)) {
     if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx') && !filePath.endsWith('.js') && !filePath.endsWith('.ts')) continue
 
+    // 检查 React 导入（如果使用了 React.xxx）
+    if (/\bReact\.\w+/.test(code) && !/import\s+React/.test(code)) {
+      errors.push(`${filePath}: Uses React but missing 'import React' statement`)
+    }
+
     // 检查常见的未定义变量（图表代码中常见）
     const commonVars = ['left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data']
     for (const varName of commonVars) {
