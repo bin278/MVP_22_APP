@@ -687,20 +687,6 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
         errors.push(`${filePath}: Undefined custom hook: ${hookName}`)
       }
     }
-
-    // 检查常见未定义变量
-    const commonVars = ['\\bright\\b', '\\bleft\\b', '\\btop\\b', '\\bbottom\\b']
-    for (const varPattern of commonVars) {
-      const regex = new RegExp(varPattern, 'g')
-      const matches = code.match(regex)
-      if (matches && matches.length > 0) {
-        const declarePattern = new RegExp(`(const|let|var)\\s+${varPattern.slice(2, -2)}\\s*=`, 'g')
-        const declarations = code.match(declarePattern)
-        if (!declarations || declarations.length < matches.length) {
-          errors.push(`${filePath}: Undefined variable: ${varPattern.slice(2, -2)}`)
-        }
-      }
-    }
   }
 
   return { valid: errors.length === 0, errors }
