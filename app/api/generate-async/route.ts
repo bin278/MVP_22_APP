@@ -698,7 +698,8 @@ async function generateCodeAsync(
   model: string,
   onProgress: (progress: number) => void,
   retryCount: number = 0,
-  previousErrors: string[] = []
+  previousErrors: string[] = [],
+  previousCode?: any
 ): Promise<any> {
   const maxRetries = 2
   const client = getAIClient(model)
@@ -719,14 +720,33 @@ async function generateCodeAsync(
 Return JSON format:
 {"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
 
-    // 如果是重试，添加之前的错误信息
-    if (retryCount > 0 && previousErrors.length > 0) {
-      systemPrompt += `
+    let userPrompt = prompt.trim()
 
-⚠️ PREVIOUS GENERATION HAD ERRORS. You MUST fix these issues:
+    // 如果是重试且有之前的代码，使用修复模式
+    if (retryCount > 0 && previousErrors.length > 0 && previousCode) {
+      systemPrompt = `You are a code fixing assistant. Fix the errors in the provided code.
+
+ERRORS TO FIX:
 ${previousErrors.map((err, i) => `${i + 1}. ${err}`).join('\n')}
 
-CRITICAL: Fix ALL the above errors in this generation.`
+INSTRUCTIONS:
+- Fix ONLY the errors listed above
+- Keep all other code unchanged
+- Return the complete fixed JSON with all files
+- Use the same JSON format as the original code
+
+Return JSON format:
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
+
+      userPrompt = `Fix these errors in the code:
+
+ERRORS:
+${previousErrors.join('\n')}
+
+ORIGINAL CODE:
+${JSON.stringify(previousCode, null, 2)}
+
+Return the COMPLETE fixed code in JSON format.`
     }
 
     const completion = await client.chat.completions.create({
@@ -738,7 +758,7 @@ CRITICAL: Fix ALL the above errors in this generation.`
         },
         {
           role: 'user',
-          content: prompt.trim()
+          content: userPrompt
         }
       ],
       max_tokens: modelConfig?.maxTokens || 16384,
@@ -768,7 +788,7 @@ CRITICAL: Fix ALL the above errors in this generation.`
 
     if (!validation.valid && retryCount < maxRetries) {
       console.warn(`⚠️ Generated code has errors, retrying (${retryCount + 1}/${maxRetries}):`, validation.errors)
-      return generateCodeAsync(prompt, model, onProgress, retryCount + 1, validation.errors)
+      return generateCodeAsync(prompt, model, onProgress, retryCount + 1, validation.errors, project)
     }
 
     if (!validation.valid) {
