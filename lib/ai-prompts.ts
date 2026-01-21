@@ -28,7 +28,30 @@ CRITICAL RULES:
 12. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
 13. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 14. CRITICAL: Object property assignments MUST include value: { [key]: value } NOT { [key] }
-15. Export as default
+15. CRITICAL: setState callback functions MUST use arrow syntax: setState(prev => ({ ...prev, key: value }))
+   WRONG: setFilters(prevFilters ({ ...prev, [name]: value }))
+   CORRECT: setFilters(prevFilters => ({ ...prev, [name]: value }))
+16. CRITICAL: Object properties MUST have both key and value
+   WRONG: { id: 1, category === 'all' ? 'work' , }
+   CORRECT: { id: 1, category: category === 'all' ? 'work' : category }
+17. CRITICAL: Array method callbacks MUST use arrow syntax
+   WRONG: .map(item: item.id)
+   CORRECT: .map(item => item.id)
+18. CRITICAL: JSX attributes MUST have equals sign
+   WRONG: <div className"container">
+   CORRECT: <div className="container">
+19. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+   - NEVER use TypeScript type annotations like : string, : number, : Type
+   - NEVER use interface or type definitions
+   - NEVER use return type annotations like (): Type => or (params): Type =>
+   - NEVER use generic types like useState<Type> or Array<Type>
+   WRONG: const name: string = 'test'
+   CORRECT: const name = 'test'
+   WRONG: function getData(): Promise<Data> { }
+   CORRECT: function getData() { }
+   WRONG: const [data, setData] = useState<Data[]>([])
+   CORRECT: const [data, setData] = useState([])
+17. Export as default
 
 CORRECT STRUCTURE EXAMPLE:
 import React from 'react';
@@ -81,6 +104,29 @@ CRITICAL RULES:
 12. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
 13. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 14. CRITICAL: Object property assignments MUST include value: { [key]: value } NOT { [key] }
+15. CRITICAL: setState callback functions MUST use arrow syntax: setState(prev => ({ ...prev, key: value }))
+   WRONG: setFilters(prevFilters ({ ...prev, [name]: value }))
+   CORRECT: setFilters(prevFilters => ({ ...prev, [name]: value }))
+16. CRITICAL: Object properties MUST have both key and value
+   WRONG: { id: 1, category === 'all' ? 'work' , }
+   CORRECT: { id: 1, category: category === 'all' ? 'work' : category }
+17. CRITICAL: Array method callbacks MUST use arrow syntax
+   WRONG: .map(item: item.id)
+   CORRECT: .map(item => item.id)
+18. CRITICAL: JSX attributes MUST have equals sign
+   WRONG: <div className"container">
+   CORRECT: <div className="container">
+19. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+   - NEVER use TypeScript type annotations like : string, : number, : Type
+   - NEVER use interface or type definitions
+   - NEVER use return type annotations like (): Type => or (params): Type =>
+   - NEVER use generic types like useState<Type> or Array<Type>
+   WRONG: const name: string = 'test'
+   CORRECT: const name = 'test'
+   WRONG: function getData(): Promise<Data> { }
+   CORRECT: function getData() { }
+   WRONG: const [data, setData] = useState<Data[]>([])
+   CORRECT: const [data, setData] = useState([])
 
 CORRECT STRUCTURE EXAMPLE:
 function App() {

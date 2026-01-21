@@ -674,12 +674,14 @@ export async function POST(request: NextRequest) {
       console.log(`🔧 Processing ${componentFiles.length} component files`)
 
       for (const [filePath, fileCode] of componentFiles) {
+        let componentCode = '' // 移到外层作用域
+        let componentName = '' // 移到外层作用域
         try {
           // 获取组件名
-          const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
+          componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
           if (!componentName) continue
 
-          let componentCode = String(fileCode).trim()
+          componentCode = String(fileCode).trim()
 
           console.log(`📄 Component ${componentName} raw code length:`, componentCode.length)
           console.log(`📄 Component ${componentName} raw code preview:`, componentCode.substring(0, 200))
@@ -708,8 +710,12 @@ export async function POST(request: NextRequest) {
             .replace(/\bReact\.(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer)\b/g, 'window.React.$1')
             .replace(/\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer)\b(?!\s*:)/g, 'window.React.$1')
 
-          // 移除 export default
-          componentCode = componentCode.replace(/export\s+default\s+(\w+)\s*;?\s*$/, '')
+          // 移除所有 export 语句
+          componentCode = componentCode
+            .replace(/export\s+default\s+/g, '')  // export default function/class
+            .replace(/export\s+\{[^}]+\}\s*;?/g, '')  // export { ... }
+            .replace(/export\s+\*/g, '')  // export *
+            .replace(/^export\s+/gm, '')  // 行首的 export
 
           // 编译组件
           const result = babel.transformSync(componentCode, {
@@ -721,7 +727,17 @@ export async function POST(request: NextRequest) {
           })
 
           if (result?.code) {
-            const escapedComponentCode = result.code
+            let compiledCode = result.code
+
+            // 移除编译后代码中残留的 export 语句
+            compiledCode = compiledCode
+              .replace(/exports\.__esModule\s*=\s*true;?/g, '')
+              .replace(/exports\.default\s*=\s*/g, 'var ' + componentName + ' = ')
+              .replace(/Object\.defineProperty\(exports[^;]+;/g, '')
+              .replace(/exports\.\w+\s*=\s*/g, '')
+              .trim()
+
+            const escapedComponentCode = compiledCode
               .replace(/<\/script>/gi, '<\\/script>')
               .replace(/<!--/g, '<\\!--')
               .replace(/-->/g, '--\\>')
@@ -745,10 +761,61 @@ export async function POST(request: NextRequest) {
           }
         } catch (err: any) {
           console.warn(`⚠️ Failed to compile component ${filePath}:`, err.message)
-          // 编译失败时创建占位符
-          const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || ''
-          if (componentName) {
-            componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
+
+          // 尝试自动修复（最多3次）
+          const { autoFixCode } = require('@/lib/code-auto-fix')
+          let fixedCode = componentCode
+          let retryCount = 0
+          const maxRetries = 3
+
+          while (retryCount < maxRetries) {
+            const errorMsg = `${filePath}: ${err.message}`
+            const autoFix = autoFixCode({ [filePath]: fixedCode }, [errorMsg])
+
+            if (autoFix.fixedErrors.length > 0) {
+              console.log(`🔧 自动修复了 ${autoFix.fixedErrors.length} 个错误，重新编译`)
+              const newFixedCode = autoFix.fixedFiles[filePath]
+
+              // 检测循环修复：如果代码没有变化，停止重试
+              if (newFixedCode === fixedCode) {
+                console.warn(`⚠️ 自动修复未改变代码，停止重试`)
+                componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
+                break
+              }
+
+              fixedCode = newFixedCode
+
+              try {
+                const result = babel.transformSync(fixedCode, {
+                  presets: [
+                    [presetReact, { runtime: 'classic' }],
+                    [presetTypescript, { isTSX: true, allExtensions: true }]
+                  ],
+                  filename: `${componentName}.tsx`,
+                })
+
+                if (result?.code) {
+                  const escapedComponentCode = result.code
+                    .replace(/<\/script>/gi, '<\\/script>')
+                    .replace(/<!--/g, '<\\!--')
+                    .replace(/-->/g, '--\\>')
+                  componentScripts += `\nwindow.${componentName} = ${escapedComponentCode.replace(/export\s+default\s+/, '')};\n`
+                  console.log(`✅ 修复后编译成功: ${componentName}`)
+                  break
+                }
+              } catch (retryErr: any) {
+                console.warn(`⚠️ 修复后仍然编译失败: ${retryErr.message}`)
+                err = retryErr
+                retryCount++
+                if (retryCount >= maxRetries) {
+                  componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
+                }
+              }
+            } else {
+              // 没有修复，退出循环
+              componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
+              break
+            }
           }
         }
       }
@@ -776,45 +843,76 @@ export async function POST(request: NextRequest) {
 
     // 服务端 Babel 编译
     let compiledCode: string
-    try {
+    let processedCode = processedAppCode
+    let compileSuccess = false
+    const maxRetries = 3
 
-      // 修复中文引号为英文引号
-      processedAppCode = processedAppCode
-        .replace(/"/g, '"')
-        .replace(/"/g, '"')
-        .replace(/'/g, "'")
-        .replace(/'/g, "'")
+    for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
+      try {
+        // 修复中文引号为英文引号
+        processedCode = processedCode
+          .replace(/"/g, '"')
+          .replace(/"/g, '"')
+          .replace(/'/g, "'")
+          .replace(/'/g, "'")
 
-      const result = babel.transformSync(processedAppCode, {
-        presets: [
-          [presetReact, { runtime: 'classic' }]
-        ],
-        filename: 'app.jsx',
-        sourceType: 'module',
-      })
-      compiledCode = result?.code || ''
-      // 移除 Babel 编译后残留的 import 语句
-      compiledCode = compiledCode.replace(/^import\s+.*?;?\s*$/gm, '')
-      console.log('✅ Server-side Babel compilation successful')
-    } catch (babelError: any) {
-      console.error('❌ Babel compilation error:', babelError.message)
-      // 打印错误位置附近的代码
-      const errorMatch = babelError.message.match(/\((\d+):(\d+)\)/)
-      if (errorMatch) {
-        const errorLine = parseInt(errorMatch[1])
-        const lines = processedAppCode.split('\n')
-        console.error('🔍 Code around error (lines', errorLine - 5, 'to', errorLine + 5, '):')
-        for (let i = Math.max(0, errorLine - 6); i < Math.min(lines.length, errorLine + 5); i++) {
-          console.error(`${i + 1}: ${lines[i]}`)
+        const result = babel.transformSync(processedCode, {
+          presets: [
+            [presetReact, { runtime: 'classic' }]
+          ],
+          filename: 'app.jsx',
+          sourceType: 'module',
+        })
+        compiledCode = result?.code || ''
+        // 移除 Babel 编译后残留的 import 语句
+        compiledCode = compiledCode.replace(/^import\s+.*?;?\s*$/gm, '')
+        console.log('✅ Server-side Babel compilation successful')
+        compileSuccess = true
+        break
+      } catch (babelError: any) {
+        console.error('❌ Babel compilation error:', babelError.message)
+
+        // 尝试自动修复
+        if (retryCount < maxRetries - 1) {
+          const { autoFixCode } = require('@/lib/code-auto-fix')
+          const errorMsg = `app.jsx: ${babelError.message}`
+          const autoFix = autoFixCode({ 'app.jsx': processedCode }, [errorMsg])
+
+          if (autoFix.fixedErrors.length > 0) {
+            console.log(`🔧 自动修复了 ${autoFix.fixedErrors.length} 个错误，重新编译`)
+            processedCode = autoFix.fixedFiles['app.jsx']
+            continue
+          }
         }
-        // 打印错误行的字符编码
-        const errorLineContent = lines[errorLine - 1]
-        if (errorLineContent) {
-          console.error('🔍 Error line char codes:', [...errorLineContent].map((c, i) => `${i}:${c.charCodeAt(0)}`).join(' '))
+
+        // 打印错误位置附近的代码
+        const errorMatch = babelError.message.match(/\((\d+):(\d+)\)/)
+        if (errorMatch) {
+          const errorLine = parseInt(errorMatch[1])
+          const lines = processedCode.split('\n')
+          console.error('🔍 Code around error (lines', errorLine - 5, 'to', errorLine + 5, '):')
+          for (let i = Math.max(0, errorLine - 6); i < Math.min(lines.length, errorLine + 5); i++) {
+            console.error(`${i + 1}: ${lines[i]}`)
+          }
+          // 打印错误行的字符编码
+          const errorLineContent = lines[errorLine - 1]
+          if (errorLineContent) {
+            console.error('🔍 Error line char codes:', [...errorLineContent].map((c, i) => `${i}:${c.charCodeAt(0)}`).join(' '))
+          }
+        }
+
+        if (retryCount === maxRetries - 1) {
+          return NextResponse.json(
+            { error: 'Code compilation failed', details: babelError.message },
+            { status: 400 }
+          )
         }
       }
+    }
+
+    if (!compileSuccess) {
       return NextResponse.json(
-        { error: 'Code compilation failed', details: babelError.message },
+        { error: 'Code compilation failed after retries' },
         { status: 400 }
       )
     }
