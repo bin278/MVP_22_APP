@@ -234,6 +234,66 @@ setFilters(prevFilters ({ ...prev, [name]: value }))
 setFilters(prevFilters => ({ ...prev, [name]: value }))
 ```
 
+#### 9. setState 回调中对象属性缺少值
+
+```javascript
+// 错误
+setFilters(prevFilters => ({ ...prevFilters, [name] }))
+
+// 修复为
+setFilters(prevFilters => ({ ...prevFilters, [name]: name }))
+```
+
+#### 10. Promise 回调缺少箭头函数
+
+```javascript
+// 错误
+fetch(url).then(response: {
+  return response.json();
+})
+
+// 修复为
+fetch(url).then(response => {
+  return response.json();
+})
+```
+
+#### 11. JSX 属性缺少等号
+
+```javascript
+// 错误
+<div className"container">
+
+// 修复为
+<div className="container">
+```
+
+#### 12. return 在函数外
+
+```javascript
+// 错误
+import React from 'react';
+
+const margin = { top: 5, right: 10 };
+
+return (
+  <div>Content</div>
+);
+
+// 修复为
+import React from 'react';
+
+function Component() {
+  const margin = { top: 5, right: 10 };
+
+  return (
+    <div>Content</div>
+  );
+}
+
+export default Component;
+```
+
 ## AI Prompt 优化
 
 **位置**: [lib/ai-prompts.ts](lib/ai-prompts.ts)
@@ -245,9 +305,21 @@ setFilters(prevFilters => ({ ...prev, [name]: value }))
 在 AI prompts 中添加了以下规则来预防常见错误：
 
 ```typescript
-15. CRITICAL: setState callback functions MUST use arrow syntax: setState(prev => ({ ...prev, key: value }))
+15. CRITICAL: setState callback functions MUST use arrow syntax
    WRONG: setFilters(prevFilters ({ ...prev, [name]: value }))
    CORRECT: setFilters(prevFilters => ({ ...prev, [name]: value }))
+
+16. CRITICAL: Object properties MUST have both key and value
+   WRONG: { id: 1, category === 'all' ? 'work' , }
+   CORRECT: { id: 1, category: category === 'all' ? 'work' : category }
+
+17. CRITICAL: Array method callbacks MUST use arrow syntax
+   WRONG: .map(item: item.id)
+   CORRECT: .map(item => item.id)
+
+18. CRITICAL: JSX attributes MUST have equals sign
+   WRONG: <div className"container">
+   CORRECT: <div className="container">
 ```
 
 ### 优化策略
