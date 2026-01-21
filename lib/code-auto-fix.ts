@@ -185,9 +185,13 @@ export function autoFixCode(
           }
 
           // 修复 setState 回调中对象属性缺少值 (如: ({ ...prevFilters, [name] }))
+          // 这个规则必须在其他规则之前执行，避免冲突
           const setStateObjectMissingValue = /=>\s*\(\{\s*\.\.\.(\w+),\s*\[([^\]]+)\]\s*\}\)/g
           if (setStateObjectMissingValue.test(code)) {
-            code = code.replace(/=>\s*\(\{\s*\.\.\.(\w+),\s*\[([^\]]+)\]\s*\}\)/g, '=> ({ ...$1, [$2]: $2 })')
+            code = code.replace(setStateObjectMissingValue, (match, varName, key) => {
+              // 使用 key 作为值
+              return `=> ({ ...${varName}, [${key}]: ${key} })`
+            })
             wasFixed = true
           }
 
@@ -238,8 +242,9 @@ export function autoFixCode(
           if (code !== beforeVarType) wasFixed = true
 
           // 移除 map/filter 等回调中的类型注解 .map(d: d.value)
+          // 注意：不要匹配已经有箭头函数的情况
           const beforeMap = code
-          code = code.replace(/\.(map|filter|reduce|forEach|find|some|every)\((\w+):\s+/g, '.$1($2 => ')
+          code = code.replace(/\.(map|filter|reduce|forEach|find|some|every)\((\w+):\s+(?!=>)/g, '.$1($2 => ')
           if (code !== beforeMap) wasFixed = true
 
           // 修复 filter 回调中缺少 => 的情况 .filter(point: {
@@ -438,8 +443,16 @@ export function autoFixCode(
           const componentName = filePath.split('/').pop()?.replace(/\.(jsx|tsx)$/, '') || 'Component'
 
           // 检查是否已经有函数定义
-          if (!/function\s+\w+/.test(code) && !/const\s+\w+\s*=/.test(code)) {
-            code = `function ${componentName}() {\n${code}\n}`
+          if (!/function\s+\w+/.test(code) && !/const\s+\w+\s*=\s*\([^)]*\)\s*=>/.test(code)) {
+            // 移除开头的 import 语句
+            const importMatch = code.match(/^((?:import\s+.*?;\s*\n)*)([\s\S]*)$/)
+            if (importMatch) {
+              const imports = importMatch[1]
+              const body = importMatch[2].trim()
+              code = `${imports}\nfunction ${componentName}() {\n  ${body.replace(/\n/g, '\n  ')}\n}\n\nexport default ${componentName};`
+            } else {
+              code = `function ${componentName}() {\n  ${code.replace(/\n/g, '\n  ')}\n}\n\nexport default ${componentName};`
+            }
             fixedFiles[filePath] = code
             fixedErrors.push(error)
             fixed = true
