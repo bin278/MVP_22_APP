@@ -79,10 +79,33 @@ export function autoFixCode(
             wasFixed = true
           }
 
+          // 修复 map 回调缺少 : field 的情况 (如: ? { ...field, ...updates }\n      ))
+          const mapTernaryMissingElse = /(\?\s*\{\s*\.\.\.\w+,\s*\.\.\.\w+\s*\}\s*\n\s*)\)/g
+          if (mapTernaryMissingElse.test(code)) {
+            code = code.replace(mapTernaryMissingElse, '$1: field\n      )')
+            wasFixed = true
+          }
+
+          // 修复 setState 使用 : 而不是 => 的情况 (如: setFormFields(prevFields: [...])
+          const setStateColonInsteadOfArrow = /\bset\w+\((\w+):\s*/g
+          if (setStateColonInsteadOfArrow.test(code)) {
+            code = code.replace(setStateColonInsteadOfArrow, (match, varName) => {
+              return match.replace(`${varName}:`, `${varName} =>`)
+            })
+            wasFixed = true
+          }
+
           // 修复 Promise 回调中缺少 => 的情况 (如: .then(response: {)
           const promiseCallbackMissingArrow = /\.(then|catch|finally)\((\w+):\s*\{/g
           if (promiseCallbackMissingArrow.test(code)) {
             code = code.replace(promiseCallbackMissingArrow, '.$1($2 => {')
+            wasFixed = true
+          }
+
+          // 修复缺少 if 条件的 else 语句 (如: } else { 前面没有 if)
+          const elseWithoutIf = /(\n\s+)(setError\([^)]+\);)(\n\s+)(\}\s+else\s+\{)/g
+          if (elseWithoutIf.test(code)) {
+            code = code.replace(elseWithoutIf, '$1if (field.required && !value) {$1  $2$3$4')
             wasFixed = true
           }
 
@@ -167,13 +190,6 @@ export function autoFixCode(
             wasFixed = true
           }
 
-          // 修复 setState 中对象属性缺少值 (如: { ...prev, [name] }))
-          const setStateMissingValue = /(\.\.\.\w+),\s*\[([^\]]+)\]\s*\}\)\);/g
-          if (setStateMissingValue.test(code)) {
-            code = code.replace(/(\.\.\.\w+),\s*\[([^\]]+)\]\s*\}\)\);/g, '$1, [$2]: $2 }));')
-            wasFixed = true
-          }
-
           // 修复 setState 回调函数缺少箭头 (如: setFilters(prevFilters ({ ...prev }))
           // 只修复明确缺少箭头的情况，避免误修复正常代码
           const setStateCallbackMissingArrow = /\bset\w+\((\w+)\s+\(\{/g
@@ -185,12 +201,12 @@ export function autoFixCode(
           }
 
           // 修复 setState 回调中对象属性缺少值 (如: ({ ...prevFilters, [name] }))
-          // 这个规则必须在其他规则之前执行，避免冲突
-          const setStateObjectMissingValue = /=>\s*\(\{\s*\.\.\.(\w+),\s*\[([^\]]+)\]\s*\}\)/g
+          // 只修复确实缺少值的情况，保持变量名不变
+          const setStateObjectMissingValue = /\(\{\s*\.\.\.(\w+),\s*\[([^\]]+)\]\s*\}\)\);/g
           if (setStateObjectMissingValue.test(code)) {
             code = code.replace(setStateObjectMissingValue, (match, varName, key) => {
-              // 使用 key 作为值
-              return `=> ({ ...${varName}, [${key}]: ${key} })`
+              // 使用 key 作为值，保持原变量名
+              return `({ ...${varName}, [${key}]: ${key} }));`
             })
             wasFixed = true
           }
@@ -302,6 +318,13 @@ export function autoFixCode(
           // 修复 ResponsiveContainer/LineChart 标签顺序（只在明确错误时修复）
           if (error.includes('Expected corresponding JSX closing tag for <ResponsiveContainer>')) {
             code = code.replace(/<\/LineChart>\s*\n\s*<\/ResponsiveContainer>/g, '</ResponsiveContainer>\n      </LineChart>')
+          }
+
+          // 修复 JSX 标签不匹配 - 查找缺少开始标签的情况
+          // 检查是否有 </ul> 但缺少对应的 <ul>
+          if (error.includes('Expected corresponding JSX closing tag for <nav>') && code.includes('</ul>')) {
+            // 在 <nav> 后查找第一个 <li>，在它之前添加 <ul>
+            code = code.replace(/(<nav[^>]*>[\s\S]*?)(\s*<li[^>]*>)/g, '$1\n        <ul className="flex space-x-2">$2')
           }
 
           // 修复 JSX 标签不匹配 - 查找 <div> 和 </ul> 的不匹配

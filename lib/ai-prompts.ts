@@ -40,7 +40,16 @@ CRITICAL RULES:
 18. CRITICAL: JSX attributes MUST have equals sign
    WRONG: <div className"container">
    CORRECT: <div className="container">
-19. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+19. CRITICAL: Ternary expressions in map/filter MUST have both branches
+   WRONG: field.id === id ? { ...field, ...updates }\n      )
+   CORRECT: field.id === id ? { ...field, ...updates } : field\n      )
+20. CRITICAL: setState with arrays MUST use arrow syntax
+   WRONG: setFormFields(prevFields: [...prevFields, field])
+   CORRECT: setFormFields(prevFields => [...prevFields, field])
+21. CRITICAL: if statements MUST have condition before else
+   WRONG: } else {
+   CORRECT: if (condition) { } else {
+22. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
@@ -116,7 +125,16 @@ CRITICAL RULES:
 18. CRITICAL: JSX attributes MUST have equals sign
    WRONG: <div className"container">
    CORRECT: <div className="container">
-19. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+19. CRITICAL: Ternary expressions in map/filter MUST have both branches
+   WRONG: field.id === id ? { ...field, ...updates }\n      )
+   CORRECT: field.id === id ? { ...field, ...updates } : field\n      )
+20. CRITICAL: setState with arrays MUST use arrow syntax
+   WRONG: setFormFields(prevFields: [...prevFields, field])
+   CORRECT: setFormFields(prevFields => [...prevFields, field])
+21. CRITICAL: if statements MUST have condition before else
+   WRONG: } else {
+   CORRECT: if (condition) { } else {
+22. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
