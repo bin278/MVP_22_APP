@@ -64,7 +64,12 @@ CRITICAL RULES:
    CORRECT: const items = [1,2,3]; const result = items.map(x => x * 2)
    WRONG: <div>{data.map(item => <span>{value}</span>)}</div>  // value not declared
    CORRECT: <div>{data.map(item => <span>{item.value}</span>)}</div>
-24. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+24. CRITICAL: JSX closing tags MUST match their opening tags
+   WRONG: <div><nav>...</nav></div>  // but you close with </nav></div>
+   CORRECT: <div><nav>...</nav></div>
+   WRONG: <header><nav>...</div></header>  // </div> should be </nav>
+   CORRECT: <header><nav>...</nav></header>
+25. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
@@ -164,7 +169,12 @@ CRITICAL RULES:
    CORRECT: const items = [1,2,3]; const result = items.map(x => x * 2)
    WRONG: <div>{data.map(item => <span>{value}</span>)}</div>  // value not declared
    CORRECT: <div>{data.map(item => <span>{item.value}</span>)}</div>
-24. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+24. CRITICAL: JSX closing tags MUST match their opening tags
+   WRONG: <div><nav>...</nav></div>  // but you close with </nav></div>
+   CORRECT: <div><nav>...</nav></div>
+   WRONG: <header><nav>...</div></header>  // </div> should be </nav>
+   CORRECT: <header><nav>...</nav></header>
+25. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
