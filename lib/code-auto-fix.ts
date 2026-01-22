@@ -297,7 +297,7 @@ export function autoFixCode(
     }
 
     // 修复 JSX 标签不匹配
-    if (error.includes('Expected corresponding JSX closing tag') || error.includes('Adjacent JSX elements')) {
+    if (error.includes('Expected corresponding JSX closing tag')) {
       const filePathMatch = error.match(/^([^:]+):/)
       if (filePathMatch) {
         const errorPath = filePathMatch[1]
@@ -360,19 +360,29 @@ export function autoFixCode(
     if (error.includes('Expected corresponding JSX closing tag')) {
       const filePathMatch = error.match(/^([^:]+):/)
       const tagMatch = error.match(/closing tag for <(\w+)>/)
-      if (filePathMatch && tagMatch) {
+      const lineMatch = error.match(/:(\d+):/)
+      if (filePathMatch && tagMatch && lineMatch) {
         const errorPath = filePathMatch[1]
         const filePath = findFileKey(errorPath)
         const expectedTag = tagMatch[1]
+        const errorLine = parseInt(lineMatch[1])
         if (filePath && fixedFiles[filePath]) {
           let code = fixedFiles[filePath]
-          // 查找错误的闭合标签并替换
-          code = code.replace(/<\/(\w+)>(\s*<\/div>)/g, (match, tag, rest) => {
-            if (tag !== expectedTag) {
-              return `</${expectedTag}>${rest}`
+          const lines = code.split('\n')
+
+          // 找到错误行的标签并替换
+          if (errorLine > 0 && errorLine <= lines.length) {
+            const errorLineContent = lines[errorLine - 1]
+            const wrongTagMatch = errorLineContent.match(/<\/(\w+)>/)
+            if (wrongTagMatch) {
+              const wrongTag = wrongTagMatch[1]
+              if (wrongTag !== expectedTag) {
+                lines[errorLine - 1] = errorLineContent.replace(`</${wrongTag}>`, `</${expectedTag}>`)
+                code = lines.join('\n')
+              }
             }
-            return match
-          })
+          }
+
           if (code !== fixedFiles[filePath]) {
             fixedFiles[filePath] = code
             fixedErrors.push(error)
@@ -427,18 +437,25 @@ export function autoFixCode(
     // 修复相邻 JSX 元素（添加 Fragment 包裹）
     if (error.includes('Adjacent JSX elements')) {
       const filePathMatch = error.match(/^([^:]+):/)
-      if (filePathMatch) {
+      const lineMatch = error.match(/:(\d+):/)
+      if (filePathMatch && lineMatch) {
         const errorPath = filePathMatch[1]
+        const errorLine = parseInt(lineMatch[1])
         const filePath = findFileKey(errorPath)
         if (filePath && fixedFiles[filePath]) {
           let code = fixedFiles[filePath]
+          const lines = code.split('\n')
+
+          console.log(`🔍 Code around error (lines ${Math.max(0, errorLine - 5)} to ${Math.min(lines.length, errorLine + 5)} ):`)
+          for (let i = Math.max(0, errorLine - 5); i < Math.min(lines.length, errorLine + 5); i++) {
+            console.log(`${i}:${lines[i]}`)
+          }
+          console.log(`🔍 Error line char codes: ${lines[errorLine - 1]?.split('').map((c, i) => `${i}:${c.charCodeAt(0)}`).join(' ')}`)
 
           // 修复 return 语句中缺少内容的情况
           code = code.replace(/return\s*\(\s*\n\s*\);/g, 'return null;')
 
-          code = code.replace(/return\s*\(\s*\n(\s*)(<[A-Z][\s\S]*?)\n\s*\)/g, (_match, indent, jsx) => {
-            return `return (\n${indent}<>\n${indent}  ${jsx.replace(/\n/g, '\n  ')}\n${indent}</>\n${indent})`
-          })
+          // 不再自动修复 Adjacent JSX elements，交给 AI 重试
           if (code !== fixedFiles[filePath]) {
             fixedFiles[filePath] = code
             fixedErrors.push(error)

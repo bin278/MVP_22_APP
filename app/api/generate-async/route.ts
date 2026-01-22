@@ -707,9 +707,9 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
       }
     }
 
-    // 2. 检查 JSX 标签匹配（检查具体标签名）
-    const jsxOpenMatches = [...code.matchAll(/<([A-Z][a-zA-Z0-9]*)[^>]*?(?:>|\/?>)/g)]
-    const jsxCloseMatches = [...code.matchAll(/<\/([A-Z][a-zA-Z0-9]*)>/g)]
+    // 2. 检查 JSX 标签匹配（检查所有标签，包括HTML标签）
+    const jsxOpenMatches = [...code.matchAll(/<([a-zA-Z][a-zA-Z0-9]*)[^>]*?(?:>|\/?>)/g)]
+    const jsxCloseMatches = [...code.matchAll(/<\/([a-zA-Z][a-zA-Z0-9]*)>/g)]
 
     const openTags: string[] = []
     for (const match of jsxOpenMatches) {

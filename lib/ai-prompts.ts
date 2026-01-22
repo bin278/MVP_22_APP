@@ -54,6 +54,11 @@ CRITICAL RULES:
    CORRECT: return ( <> <div>First</div> <div>Second</div> </> )
    WRONG: {condition && <div>A</div> <div>B</div>}
    CORRECT: {condition && <> <div>A</div> <div>B</div> </>}
+   CRITICAL: return statement MUST have exactly ONE root JSX element
+   WRONG: return ( <div>...</div> </div> )  // extra closing tag
+   CORRECT: return ( <div>...</div> )
+   WRONG: return ( <div>A</div> <div>B</div> )  // two root elements
+   CORRECT: return ( <> <div>A</div> <div>B</div> </> )
 23. CRITICAL: ALL variables MUST be declared before use - NEVER reference undefined variables
    WRONG: const result = item.map(x => x * 2)  // item not declared
    CORRECT: const items = [1,2,3]; const result = items.map(x => x * 2)
@@ -149,6 +154,11 @@ CRITICAL RULES:
    CORRECT: return ( <> <div>First</div> <div>Second</div> </> )
    WRONG: {condition && <div>A</div> <div>B</div>}
    CORRECT: {condition && <> <div>A</div> <div>B</div> </>}
+   CRITICAL: return statement MUST have exactly ONE root JSX element
+   WRONG: return ( <div>...</div> </div> )  // extra closing tag
+   CORRECT: return ( <div>...</div> )
+   WRONG: return ( <div>A</div> <div>B</div> )  // two root elements
+   CORRECT: return ( <> <div>A</div> <div>B</div> </> )
 23. CRITICAL: ALL variables MUST be declared before use - NEVER reference undefined variables
    WRONG: const result = item.map(x => x * 2)  // item not declared
    CORRECT: const items = [1,2,3]; const result = items.map(x => x * 2)
