@@ -34,7 +34,13 @@ CRITICAL RULES:
 16. CRITICAL: Object properties MUST have both key and value
    WRONG: { id: 1, category === 'all' ? 'work' , }
    CORRECT: { id: 1, category: category === 'all' ? 'work' : category }
-17. CRITICAL: Array method callbacks MUST use arrow syntax
+   WRONG: { padding: '1rem', backgroundColor === 'dark' ? '#000' : '#fff' }
+   CORRECT: { padding: '1rem', backgroundColor: theme === 'dark' ? '#000' : '#fff' }
+   CRITICAL: Object properties use colon (:) NOT comparison operators (===, !==)
+17. CRITICAL: JSX attributes MUST be complete with attribute name and value
+   WRONG: <button onClick={() => setTab('home')} tab === 'home' ? 'active' : ''>
+   CORRECT: <button onClick={() => setTab('home')} className={tab === 'home' ? 'active' : ''}>
+18. CRITICAL: Array method callbacks MUST use arrow syntax
    WRONG: .map(item: item.id)
    CORRECT: .map(item => item.id)
 18. CRITICAL: JSX attributes MUST have equals sign
@@ -139,7 +145,13 @@ CRITICAL RULES:
 16. CRITICAL: Object properties MUST have both key and value
    WRONG: { id: 1, category === 'all' ? 'work' , }
    CORRECT: { id: 1, category: category === 'all' ? 'work' : category }
-17. CRITICAL: Array method callbacks MUST use arrow syntax
+   WRONG: { padding: '1rem', backgroundColor === 'dark' ? '#000' : '#fff' }
+   CORRECT: { padding: '1rem', backgroundColor: theme === 'dark' ? '#000' : '#fff' }
+   CRITICAL: Object properties use colon (:) NOT comparison operators (===, !==)
+17. CRITICAL: JSX attributes MUST be complete with attribute name and value
+   WRONG: <button onClick={() => setTab('home')} tab === 'home' ? 'active' : ''>
+   CORRECT: <button onClick={() => setTab('home')} className={tab === 'home' ? 'active' : ''}>
+18. CRITICAL: Array method callbacks MUST use arrow syntax
    WRONG: .map(item: item.id)
    CORRECT: .map(item => item.id)
 18. CRITICAL: JSX attributes MUST have equals sign
