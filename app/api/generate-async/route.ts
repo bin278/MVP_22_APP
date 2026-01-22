@@ -807,6 +807,19 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
     }
 
     // 检查未定义的自定义 hooks
+    const customHookUsage = code.match(/\buse[A-Z]\w+/g)
+    if (customHookUsage) {
+      const allowedHooks = ['useState', 'useEffect', 'useCallback', 'useMemo', 'useRef', 'useContext', 'useReducer']
+      const forbiddenHooks = customHookUsage.filter(hook => !allowedHooks.includes(hook))
+      if (forbiddenHooks.length > 0) {
+        errors.push(`${filePath}: Uses forbidden custom hooks: ${forbiddenHooks.join(', ')}. Only use React built-in hooks: ${allowedHooks.join(', ')}`)
+      }
+    }
+
+    // 检查是否生成了自定义 hook 文件
+    if (filePath.includes('/hooks/') || filePath.includes('\\hooks\\')) {
+      errors.push(`${filePath}: Custom hook files are forbidden. Implement functionality directly with useState and useEffect in components`)
+    }
     const customHooks = code.match(/\b(use[A-Z][a-zA-Z0-9]*)\s*\(/g) || []
     const hookNames = [...new Set(customHooks.map(hook => hook.replace(/\s*\($/, '')))]
     const builtinHooks = ['useState', 'useEffect', 'useContext', 'useReducer', 'useCallback', 'useMemo', 'useRef', 'useImperativeHandle', 'useLayoutEffect', 'useDebugValue', 'useId', 'useTransition', 'useDeferredValue', 'useSyncExternalStore', 'useInsertionEffect']
