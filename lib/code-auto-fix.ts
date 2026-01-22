@@ -56,9 +56,12 @@ export function autoFixCode(
           }
 
           // 修复对象属性中使用 => 而不是 : 的情况
-          const arrowInsteadOfColon = /([a-zA-Z]+)\s*=>\s*([^,}]+)/g
+          // 只匹配对象字面量中的属性，避免误匹配箭头函数
+          const arrowInsteadOfColon = /\{[^}]*\b([a-zA-Z_]\w*)\s*=>\s*([^,}]+)/g
           if (arrowInsteadOfColon.test(code)) {
-            code = code.replace(arrowInsteadOfColon, '$1: $2')
+            code = code.replace(arrowInsteadOfColon, (match) => {
+              return match.replace(/(\b[a-zA-Z_]\w*)\s*=>\s*/, '$1: ')
+            })
             wasFixed = true
           }
 
@@ -312,7 +315,6 @@ export function autoFixCode(
 
           // 修复多余的闭合标签（先处理，避免后续修复产生冲突）
           code = code.replace(/<\/div>\s*\n\s*<\/div>/g, '</div>')
-          code = code.replace(/<\/ul>\s*\n\s*<\/div>/g, '</div>')
           code = code.replace(/<\/>\s*\n\s*<\/>/g, '</>')
 
           // 修复 ResponsiveContainer/LineChart 标签顺序（只在明确错误时修复）
@@ -322,16 +324,18 @@ export function autoFixCode(
 
           // 修复 JSX 标签不匹配 - 查找缺少开始标签的情况
           // 检查是否有 </ul> 但缺少对应的 <ul>
-          if (error.includes('Expected corresponding JSX closing tag for <nav>') && code.includes('</ul>')) {
-            // 在 <nav> 后查找第一个 <li>，在它之前添加 <ul>
-            code = code.replace(/(<nav[^>]*>[\s\S]*?)(\s*<li[^>]*>)/g, '$1\n        <ul className="flex space-x-2">$2')
-          }
-
-          // 修复 JSX 标签不匹配 - 查找 <div> 和 </ul> 的不匹配
-          const divUlMismatch = /<div[^>]*>[\s\S]*?<ul[^>]*>[\s\S]*?<\/ul>\s*<\/div>/g
-          if (!divUlMismatch.test(code)) {
-            // 如果有 </ul> 但没有对应的 <ul>，可能是标签错误
-            code = code.replace(/(<div[^>]*>[\s\S]*?)<\/ul>(\s*<\/div>)/g, '$1</div>$2')
+          if (error.includes('Expected corresponding JSX closing tag') && code.includes('</ul>')) {
+            const tagMatch = error.match(/closing tag for <(\w+)>/)
+            if (tagMatch) {
+              const parentTag = tagMatch[1]
+              // 在父标签后查找第一个 <li>，在它之前添加 <ul>
+              const pattern = new RegExp(`(<${parentTag}[^>]*>[\\s\\S]*?)(\\s*<li[^>]*>)`, 'g')
+              const before = code
+              code = code.replace(pattern, '$1\n        <ul>$2')
+              if (code !== before) {
+                console.log(`🔧 在 <${parentTag}> 后添加了缺失的 <ul> 标签`)
+              }
+            }
           }
 
           if (code !== fixedFiles[filePath]) {

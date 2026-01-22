@@ -423,14 +423,9 @@ export async function POST(request: NextRequest) {
       .replace(/import\s*\(\s*['"\`].*?['"\`]\s*\);?\s*\n/g, '')
       .replace(/const\s+\w+\s*=\s*require\s*\(['"\`].*?['"\`]\);?\s*\n/g, '')
       // Replace hooks with window.React.namespace to ensure they work in Babel-compiled scope
-      .replace(/\buseState\b/g, 'window.React.useState')
-      .replace(/\buseEffect\b/g, 'window.React.useEffect')
-      .replace(/\buseCallback\b/g, 'window.React.useCallback')
-      .replace(/\buseMemo\b/g, 'window.React.useMemo')
-      .replace(/\buseRef\b/g, 'window.React.useRef')
-      .replace(/\buseContext\b/g, 'window.React.useContext')
-      .replace(/\buseReducer\b/g, 'window.React.useReducer')
-      .replace(/\buseLayoutEffect\b/g, 'window.React.useLayoutEffect')
+      // 先替换 React.hookName，再替换独立的 hookName，避免重复替换
+      .replace(/\bReact\.(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)\b/g, 'window.React.$1')
+      .replace(/\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)\b(?!\.)/g, 'window.React.$1')
       .trim()
 
     // Remove generic type parameters from hooks (e.g., useState<Todo[]> -> useState)
@@ -704,11 +699,6 @@ export async function POST(request: NextRequest) {
           // 移除 TypeScript 泛型（但不要删除 JSX 标签）
           // 只删除常见的 TypeScript 泛型类型，避免误删 JSX 标签
           componentCode = componentCode.replace(/<(string|number|boolean|any|unknown|never|void|null|undefined|object|Array|Promise|Record|Partial|Required|Pick|Omit)>/gi, '')
-
-          // 替换 React hooks
-          componentCode = componentCode
-            .replace(/\bReact\.(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer)\b/g, 'window.React.$1')
-            .replace(/\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer)\b(?!\s*:)/g, 'window.React.$1')
 
           // 移除所有 export 语句
           componentCode = componentCode
