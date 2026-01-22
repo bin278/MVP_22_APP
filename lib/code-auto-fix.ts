@@ -45,24 +45,44 @@ function fixJSXTagsWithAST(code: string, filePath: string, errorMessage: string)
             }
           } else if (actualTag === 'ul' || actualTag === 'ol') {
             // 查找第一个 <li> 标签之前
+            // 需要跳过跨多行的不完整标签
             while (insertLine > 0) {
               const prevLine = lines[insertLine - 1]
               const prevTrimmed = prevLine.trim()
 
-              // 跳过不完整的标签（有 < 但没有对应的 >）
-              const openBrackets = (prevTrimmed.match(/</g) || []).length
-              const closeBrackets = (prevTrimmed.match(/>/g) || []).length
-              if (openBrackets > closeBrackets) {
-                insertLine--
-                continue
-              }
-
-              // 找到 <li 标签或 <nav 标签
+              // 如果找到 <li 或 <nav，停止
               if (prevTrimmed.includes('<li') || prevTrimmed.includes('<nav')) {
                 break
               }
 
-              insertLine--
+              // 检查是否在不完整的标签内部
+              // 向后查找，累计 < 和 > 的数量
+              let openCount = 0
+              let closeCount = 0
+              for (let i = insertLine - 1; i >= 0; i--) {
+                const line = lines[i]
+                openCount += (line.match(/</g) || []).length
+                closeCount += (line.match(/>/g) || []).length
+
+                // 如果找到平衡点，说明不在不完整标签内
+                if (openCount === closeCount && openCount > 0) {
+                  break
+                }
+
+                // 如果找到 <li 或 <nav，停止
+                if (line.includes('<li') || line.includes('<nav')) {
+                  insertLine = i + 1
+                  break
+                }
+              }
+
+              // 如果当前位置的 < 和 > 不平衡，继续向前
+              if (openCount !== closeCount) {
+                insertLine--
+                continue
+              }
+
+              break
             }
           } else if (actualTag === 'form') {
             // 查找表单内容开始位置
