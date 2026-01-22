@@ -849,6 +849,8 @@ export async function POST(request: NextRequest) {
               .replace(/exports\.default\s*=\s*/g, 'var ' + componentName + ' = ')
               .replace(/Object\.defineProperty\(exports[^;]+;/g, '')
               .replace(/exports\.\w+\s*=\s*/g, '')
+              .replace(/export\s+default\s+/g, '')
+              .replace(/export\s+/g, '')
               .trim()
 
             const escapedComponentCode = compiledCode
