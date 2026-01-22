@@ -24,9 +24,12 @@ CRITICAL RULES:
    CORRECT: const height = 400; <div style={{height}}> // ✓ Declared first
    WRONG: margin={{top, right, left, bottom}} // ✗ Variables not declared
    CORRECT: const top=5, right=5, left=5, bottom=5; margin={{top, right, left, bottom}} // ✓
-11. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, useCodeExecution, useAuth, etc.
-   Only use React's built-in hooks: useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
-   If you need data, use useState and fetch it directly in useEffect.
+11. CRITICAL: NEVER EVER use custom hooks. ONLY use these React built-in hooks:
+   - useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
+   FORBIDDEN: useChartData, useWebSocket, useData, useCodeExecution, useAuth, useTheme, useRouter, useForm, useQuery, useMutation, or ANY other custom hook
+   If you need functionality, implement it directly with useState and useEffect.
+   WRONG: const theme = useTheme()
+   CORRECT: const [theme, setTheme] = useState('light')
    WRONG: const data = useChartData()
    CORRECT: const [data, setData] = useState([]); useEffect(() => { fetch(...).then(setData) }, [])
    WRONG: const { execute } = useCodeExecution()
@@ -141,9 +144,12 @@ CRITICAL RULES:
    CORRECT: const height = 400; <div style={{height}}> // ✓ Declared first
    WRONG: margin={{top, right, left, bottom}} // ✗ Variables not declared
    CORRECT: const top=5, right=5, left=5, bottom=5; margin={{top, right, left, bottom}} // ✓
-11. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, useCodeExecution, useAuth, etc.
-   Only use React's built-in hooks: useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
-   If you need data, use useState and fetch it directly in useEffect.
+11. CRITICAL: NEVER EVER use custom hooks. ONLY use these React built-in hooks:
+   - useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
+   FORBIDDEN: useChartData, useWebSocket, useData, useCodeExecution, useAuth, useTheme, useRouter, useForm, useQuery, useMutation, or ANY other custom hook
+   If you need functionality, implement it directly with useState and useEffect.
+   WRONG: const theme = useTheme()
+   CORRECT: const [theme, setTheme] = useState('light')
    WRONG: const data = useChartData()
    CORRECT: const [data, setData] = useState([]); useEffect(() => { fetch(...).then(setData) }, [])
    WRONG: const { execute } = useCodeExecution()
