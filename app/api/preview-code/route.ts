@@ -425,7 +425,8 @@ export async function POST(request: NextRequest) {
       // Replace hooks with window.React.namespace to ensure they work in Babel-compiled scope
       // 先替换 React.hookName，再替换独立的 hookName，避免重复替换
       .replace(/\bReact\.(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)\b/g, 'window.React.$1')
-      .replace(/\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)\b(?!\.)/g, 'window.React.$1')
+      // 使用负向后顾确保不会匹配已经替换过的 window.React.hookName
+      .replace(/(?<!window\.React\.)\b(useState|useEffect|useCallback|useMemo|useRef|useContext|useReducer|useLayoutEffect)\b/g, 'window.React.$1')
       .trim()
 
     // Remove generic type parameters from hooks (e.g., useState<Todo[]> -> useState)
