@@ -989,7 +989,9 @@ window.${componentName} = function() {
                     .replace(/<\/script>/gi, '<\\/script>')
                     .replace(/<!--/g, '<\\!--')
                     .replace(/-->/g, '--\\>')
-                  componentScripts += `\nwindow.${componentName} = ${escapedComponentCode.replace(/export\s+default\s+/, '')};\n`
+                    .replace(/export\s+default\s+/g, '')
+                    .replace(/export\s+/g, '')
+                  componentScripts += `\nwindow.${componentName} = ${escapedComponentCode};\n`
                   console.log(`✅ 修复后编译成功: ${componentName}`)
                   break
                 }
