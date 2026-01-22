@@ -34,57 +34,55 @@ function fixJSXTagsWithAST(code: string, filePath: string, errorMessage: string)
           // 查找插入位置
           let insertLine = errorLine - 1
 
-              // 特殊处理不同类型的标签
-              if (actualTag === 'tbody' || actualTag === 'thead' || actualTag === 'tfoot') {
-                while (insertLine > 0 && !lines[insertLine - 1].includes('<table')) {
-                  insertLine--
-                }
-              } else if (actualTag === 'tr') {
-                while (insertLine > 0 && !lines[insertLine - 1].match(/<t(head|body|foot)/)) {
-                  insertLine--
-                }
-              } else if (actualTag === 'ul' || actualTag === 'ol') {
-                // 查找第一个 <li> 标签之前
-                while (insertLine > 0) {
-                  const prevLine = lines[insertLine - 1].trim()
-                  if (prevLine.includes('<li') || prevLine.includes('{') || prevLine.includes('.map(')) {
-                    break
-                  }
-                  insertLine--
-                }
-              } else if (actualTag === 'form') {
-                // 查找表单内容开始位置
-                while (insertLine > 0) {
-                  const prevLine = lines[insertLine - 1].trim()
-                  if (prevLine.includes('<div') || prevLine.includes('return') || prevLine.includes('{')) {
-                    break
-                  }
-                  insertLine--
-                }
-              } else {
-                // 通用处理：查找缩进更少的行或内容开始位置
-                while (insertLine > 0) {
-                  const prevLine = lines[insertLine - 1]
-                  const prevIndent = prevLine.match(/^(\s*)/)?.[1] || ''
-                  const prevTrimmed = prevLine.trim()
-
-                  // 如果遇到明显的块开始标记，停止
-                  if (prevTrimmed.includes('{') || prevTrimmed.includes('return') ||
-                      prevTrimmed.includes('<div') || prevIndent.length < indent.length) {
-                    break
-                  }
-                  insertLine--
-                }
+          // 特殊处理不同类型的标签
+          if (actualTag === 'tbody' || actualTag === 'thead' || actualTag === 'tfoot') {
+            while (insertLine > 0 && !lines[insertLine - 1].includes('<table')) {
+              insertLine--
+            }
+          } else if (actualTag === 'tr') {
+            while (insertLine > 0 && !lines[insertLine - 1].match(/<t(head|body|foot)/)) {
+              insertLine--
+            }
+          } else if (actualTag === 'ul' || actualTag === 'ol') {
+            // 查找第一个 <li> 标签之前
+            while (insertLine > 0) {
+              const prevLine = lines[insertLine - 1].trim()
+              if (prevLine.includes('<li') || prevLine.includes('{') || prevLine.includes('.map(')) {
+                break
               }
+              insertLine--
+            }
+          } else if (actualTag === 'form') {
+            // 查找表单内容开始位置
+            while (insertLine > 0) {
+              const prevLine = lines[insertLine - 1].trim()
+              if (prevLine.includes('<div') || prevLine.includes('return') || prevLine.includes('{')) {
+                break
+              }
+              insertLine--
+            }
+          } else {
+            // 通用处理：查找缩进更少的行或内容开始位置
+            while (insertLine > 0) {
+              const prevLine = lines[insertLine - 1]
+              const prevIndent = prevLine.match(/^(\s*)/)?.[1] || ''
+              const prevTrimmed = prevLine.trim()
 
-              // 插入开始标签
-              console.log(`🔧 AST 修复: 在第 ${insertLine + 1} 行插入 <${actualTag}>`)
-              console.log(`   错误行: ${errorLine}, 插入行: ${insertLine + 1}`)
-              console.log(`   插入内容: "${indent}<${actualTag}>"`)
-              lines.splice(insertLine, 0, `${indent}<${actualTag}>`)
-              return { fixed: true, code: lines.join('\n') }
+              // 如果遇到明显的块开始标记，停止
+              if (prevTrimmed.includes('{') || prevTrimmed.includes('return') ||
+                  prevTrimmed.includes('<div') || prevIndent.length < indent.length) {
+                break
+              }
+              insertLine--
             }
           }
+
+          // 插入开始标签
+          console.log(`🔧 AST 修复: 在第 ${insertLine + 1} 行插入 <${actualTag}>`)
+          console.log(`   错误行: ${errorLine}, 插入行: ${insertLine + 1}`)
+          console.log(`   插入内容: "${indent}<${actualTag}>"`)
+          lines.splice(insertLine, 0, `${indent}<${actualTag}>`)
+          return { fixed: true, code: lines.join('\n') }
         }
       }
     }
