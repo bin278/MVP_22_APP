@@ -24,7 +24,13 @@ CRITICAL RULES:
    CORRECT: const height = 400; <div style={{height}}> // ✓ Declared first
    WRONG: margin={{top, right, left, bottom}} // ✗ Variables not declared
    CORRECT: const top=5, right=5, left=5, bottom=5; margin={{top, right, left, bottom}} // ✓
-11. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, etc. Only use React's built-in hooks (useState, useEffect, useCallback, useMemo, useRef). If you need data, use useState and fetch it directly in useEffect.
+11. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, useCodeExecution, useAuth, etc.
+   Only use React's built-in hooks: useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
+   If you need data, use useState and fetch it directly in useEffect.
+   WRONG: const data = useChartData()
+   CORRECT: const [data, setData] = useState([]); useEffect(() => { fetch(...).then(setData) }, [])
+   WRONG: const { execute } = useCodeExecution()
+   CORRECT: const [result, setResult] = useState(null); const execute = () => { /* logic */ }
 12. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
 13. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 14. CRITICAL: Object property assignments MUST include value: { [key]: value } NOT { [key] }
@@ -135,7 +141,13 @@ CRITICAL RULES:
    CORRECT: const height = 400; <div style={{height}}> // ✓ Declared first
    WRONG: margin={{top, right, left, bottom}} // ✗ Variables not declared
    CORRECT: const top=5, right=5, left=5, bottom=5; margin={{top, right, left, bottom}} // ✓
-11. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, etc. Only use React's built-in hooks (useState, useEffect, useCallback, useMemo, useRef). If you need data, use useState and fetch it directly in useEffect.
+11. CRITICAL: NEVER use custom hooks like useChartData, useWebSocket, useData, useCodeExecution, useAuth, etc.
+   Only use React's built-in hooks: useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
+   If you need data, use useState and fetch it directly in useEffect.
+   WRONG: const data = useChartData()
+   CORRECT: const [data, setData] = useState([]); useEffect(() => { fetch(...).then(setData) }, [])
+   WRONG: const { execute } = useCodeExecution()
+   CORRECT: const [result, setResult] = useState(null); const execute = () => { /* logic */ }
 12. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
 13. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 14. CRITICAL: Object property assignments MUST include value: { [key]: value } NOT { [key] }
