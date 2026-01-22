@@ -296,65 +296,6 @@ export function autoFixCode(
       }
     }
 
-    // 修复 JSX 标签不匹配
-    if (error.includes('Expected corresponding JSX closing tag')) {
-      const filePathMatch = error.match(/^([^:]+):/)
-      if (filePathMatch) {
-        const errorPath = filePathMatch[1]
-        const filePath = findFileKey(errorPath)
-        if (filePath && fixedFiles[filePath]) {
-          let code = fixedFiles[filePath]
-
-          // 修复缺少 return 语句开始标签的情况
-          // 检查是否有 return ( 后面直接跟内容，但缺少包裹的标签
-          const returnPattern = /return\s*\(\s*\n([\s\S]*?)\n\s*\);/g
-          const returnMatches = code.match(returnPattern)
-          if (returnMatches) {
-            code = code.replace(returnPattern, (match, content) => {
-              // 检查内容是否已经有顶层标签
-              const trimmedContent = content.trim()
-              if (!trimmedContent.startsWith('<') || !trimmedContent.endsWith('>')) {
-                return `return (\n    <>\n${content}\n    </>\n  );`
-              }
-              return match
-            })
-          }
-
-          // 修复多余的闭合标签（先处理，避免后续修复产生冲突）
-          code = code.replace(/<\/div>\s*\n\s*<\/div>/g, '</div>')
-          code = code.replace(/<\/>\s*\n\s*<\/>/g, '</>')
-
-          // 修复 ResponsiveContainer/LineChart 标签顺序（只在明确错误时修复）
-          if (error.includes('Expected corresponding JSX closing tag for <ResponsiveContainer>')) {
-            code = code.replace(/<\/LineChart>\s*\n\s*<\/ResponsiveContainer>/g, '</ResponsiveContainer>\n      </LineChart>')
-          }
-
-          // 修复 JSX 标签不匹配 - 查找缺少开始标签的情况
-          // 检查是否有 </ul> 但缺少对应的 <ul>
-          if (error.includes('Expected corresponding JSX closing tag') && code.includes('</ul>')) {
-            const tagMatch = error.match(/closing tag for <(\w+)>/)
-            if (tagMatch) {
-              const parentTag = tagMatch[1]
-              // 在父标签后查找第一个 <li>，在它之前添加 <ul>
-              const pattern = new RegExp(`(<${parentTag}[^>]*>[\\s\\S]*?)(\\s*<li[^>]*>)`, 'g')
-              const before = code
-              code = code.replace(pattern, '$1\n        <ul>$2')
-              if (code !== before) {
-                console.log(`🔧 在 <${parentTag}> 后添加了缺失的 <ul> 标签`)
-              }
-            }
-          }
-
-          if (code !== fixedFiles[filePath]) {
-            fixedFiles[filePath] = code
-            fixedErrors.push(error)
-            fixed = true
-          }
-        }
-      }
-    }
-
-    if (fixed) continue
 
     // 原有的 JSX 标签不匹配修复
     if (error.includes('Expected corresponding JSX closing tag')) {
