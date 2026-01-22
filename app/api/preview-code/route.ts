@@ -935,6 +935,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 依赖分析
+    const { analyzeDependencies } = await import('@/lib/dependency-resolver')
+    const depAnalysis = analyzeDependencies(allFiles)
+
+    // 检查严重错误（缺失依赖）
+    const criticalIssues = depAnalysis.issues.filter(issue => issue.severity === 'error')
+    if (criticalIssues.length > 0) {
+      console.warn('⚠️ Dependency issues found:', criticalIssues)
+      const issueMessages = criticalIssues.map(issue => `- ${issue.message}`).join('\n')
+      console.warn(`Dependency warnings:\n${issueMessages}`)
+    }
+
+    // 记录警告（循环依赖等）
+    const warnings = depAnalysis.issues.filter(issue => issue.severity === 'warning')
+    if (warnings.length > 0) {
+      console.warn('⚠️ Dependency warnings:', warnings.map(w => w.message).join('; '))
+    }
+
     // 替换 App.jsx 中的组件导入为全局引用
     let processedAppCode = cleanCode
     for (const [filePath] of componentFiles) {
@@ -981,6 +999,27 @@ export async function POST(request: NextRequest) {
       const importList = imports.split(',').map((i: string) => i.trim())
       return importList.map((name: string) => `const ${name} = window.utils.${name};`).join('\n')
     })
+
+    // 预编译语法检查
+    const { checkSyntax } = await import('@/lib/syntax-checker')
+    const syntaxCheck = checkSyntax(processedAppCode, 'app.jsx')
+
+    if (!syntaxCheck.valid) {
+      console.error('❌ Syntax check failed:', syntaxCheck.errors)
+      const errorMessages = syntaxCheck.errors
+        .filter(e => e.severity === 'error')
+        .map(e => `Line ${e.line}:${e.column} - ${e.message}${e.suggestion ? `\n  Suggestion: ${e.suggestion}` : ''}`)
+        .join('\n')
+
+      return NextResponse.json(
+        {
+          error: 'Syntax validation failed',
+          details: `Found ${syntaxCheck.errors.length} syntax error(s):\n\n${errorMessages}`
+        },
+        { status: 400 }
+      )
+    }
+    console.log('✅ Syntax check passed')
 
     // 服务端 Babel 编译
     let compiledCode: string
@@ -1533,6 +1572,76 @@ export async function POST(request: NextRequest) {
 
       // 4. 最后注入主 App
       ${escapedCode}
+
+      // 运行时错误监控
+      (function() {
+        var errorContainer = null;
+        var errorList = [];
+
+        // 创建错误显示容器
+        function createErrorContainer() {
+          if (errorContainer) return;
+
+          errorContainer = document.createElement('div');
+          errorContainer.id = 'runtime-errors';
+          errorContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:200px;overflow-y:auto;background:#fee;border-top:2px solid #c00;padding:10px;font-family:monospace;font-size:12px;z-index:10000;display:none;';
+          document.body.appendChild(errorContainer);
+        }
+
+        // 显示错误
+        function showError(type, message, source, lineno, colno, error) {
+          createErrorContainer();
+
+          var errorInfo = {
+            type: type,
+            message: message,
+            source: source,
+            line: lineno,
+            column: colno,
+            stack: error ? error.stack : null,
+            timestamp: new Date().toISOString()
+          };
+
+          errorList.push(errorInfo);
+
+          var errorDiv = document.createElement('div');
+          errorDiv.style.cssText = 'margin-bottom:8px;padding:8px;background:#fff;border-left:3px solid #c00;';
+          errorDiv.innerHTML = '<strong style="color:#c00;">' + type + ':</strong> ' + message +
+            (lineno ? ' <span style="color:#666;">(Line ' + lineno + ':' + colno + ')</span>' : '') +
+            '<button onclick="this.parentElement.remove()" style="float:right;border:none;background:#ddd;padding:2px 8px;cursor:pointer;">×</button>';
+
+          errorContainer.appendChild(errorDiv);
+          errorContainer.style.display = 'block';
+
+          console.error('[Runtime Monitor]', type, message, errorInfo);
+        }
+
+        // 捕获全局错误
+        window.addEventListener('error', function(event) {
+          showError('Runtime Error', event.message, event.filename, event.lineno, event.colno, event.error);
+          return false; // 不阻止默认错误处理
+        });
+
+        // 捕获未处理的 Promise 拒绝
+        window.addEventListener('unhandledrejection', function(event) {
+          showError('Unhandled Promise Rejection', event.reason, '', 0, 0, null);
+        });
+
+        // 捕获 console.error
+        var originalConsoleError = console.error;
+        console.error = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var message = args.map(function(arg) {
+            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+          }).join(' ');
+
+          showError('Console Error', message, '', 0, 0, null);
+          originalConsoleError.apply(console, arguments);
+        };
+
+        // 导出错误列表供调试使用
+        window.__RUNTIME_ERRORS__ = errorList;
+      })();
 
       // 直接渲染（无需等待 Babel）
       (function() {
