@@ -635,6 +635,33 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
     errors.push('Missing required file: src/App.jsx or src/App.tsx')
   }
 
+  // 使用 Babel 编译验证 JSX/TSX 文件（优先级最高）
+  for (const [filePath, code] of Object.entries(files)) {
+    if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx')) continue
+
+    try {
+      const babel = require('@babel/standalone')
+      babel.transform(code, {
+        presets: ['react', 'typescript'],
+        filename: filePath,
+      })
+    } catch (err: any) {
+      // 简化错误信息，让 AI 更容易理解
+      let errorMsg = err.message
+      if (errorMsg.includes('Unexpected token')) {
+        errorMsg = `Syntax error: ${errorMsg}. Check JSX syntax, missing tags, or incorrect nesting.`
+      } else if (errorMsg.includes('Expected')) {
+        errorMsg = `Missing element: ${errorMsg}. Ensure all JSX elements are properly closed.`
+      }
+      errors.push(`${filePath}: ${errorMsg}`)
+    }
+  }
+
+  // 如果 Babel 验证失败，立即返回，不进行后续验证
+  if (errors.length > 0) {
+    return { valid: false, errors }
+  }
+
   // 收集所有文件中定义的 hooks 和组件
   const definedHooks = new Set<string>()
   const definedComponents = new Set<string>()
@@ -658,19 +685,116 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
     }
   }
 
-  // 检查每个文件中使用的 hooks 和变量
+  // 检查每个文件
   for (const [filePath, code] of Object.entries(files)) {
     if (!filePath.endsWith('.jsx') && !filePath.endsWith('.tsx') && !filePath.endsWith('.js') && !filePath.endsWith('.ts')) continue
 
-    // 检查 React 导入（如果使用了 React.xxx）
+    // 检查基本语法错误
+    // 1. 检查 return 后面不能直接跟声明语句
+    if (/return\s+(const|let|var|function|class)\s/.test(code)) {
+      errors.push(`${filePath}: Invalid return statement followed by declaration`)
+    }
+
+    // 1.5. 检查不完整的三元表达式
+    const ternaryPattern = /\?\s*[^:]+\s*(?:\)|;|,|\})/g
+    const ternaryMatches = code.match(ternaryPattern)
+    if (ternaryMatches) {
+      for (const match of ternaryMatches) {
+        if (!match.includes(':')) {
+          errors.push(`${filePath}: Incomplete ternary expression - missing ':' part`)
+          break
+        }
+      }
+    }
+
+    // 2. 检查 JSX 标签匹配（检查具体标签名）
+    const jsxOpenMatches = [...code.matchAll(/<([A-Z][a-zA-Z0-9]*)[^>]*?(?:>|\/?>)/g)]
+    const jsxCloseMatches = [...code.matchAll(/<\/([A-Z][a-zA-Z0-9]*)>/g)]
+
+    const openTags: string[] = []
+    for (const match of jsxOpenMatches) {
+      if (!match[0].endsWith('/>')) { // 不是自闭合标签
+        openTags.push(match[1])
+      }
+    }
+
+    const closeTags = jsxCloseMatches.map(m => m[1])
+
+    if (openTags.length !== closeTags.length) {
+      errors.push(`${filePath}: Unmatched JSX tags (${openTags.length} open, ${closeTags.length} close)`)
+    } else {
+      // 检查标签名是否匹配
+      for (let i = 0; i < Math.min(openTags.length, closeTags.length); i++) {
+        if (openTags[openTags.length - 1 - i] !== closeTags[i]) {
+          errors.push(`${filePath}: JSX tag mismatch - expected </${openTags[openTags.length - 1 - i]}> but found </${closeTags[i]}>`)
+          break
+        }
+      }
+    }
+
+    // 3. 检查相邻 JSX 元素（return 后有多个顶层元素）
+    const returnJsxPattern = /return\s*\(\s*\n?\s*(<[A-Z])/g
+    let returnMatch
+    while ((returnMatch = returnJsxPattern.exec(code)) !== null) {
+      const afterReturn = code.slice(returnMatch.index + returnMatch[0].length - 2)
+      const lines = afterReturn.split('\n').slice(0, 20)
+      let elementCount = 0
+      let depth = 0
+
+      for (const line of lines) {
+        const openMatches = line.match(/<[A-Z][a-zA-Z0-9]*[^>]*?>/g) || []
+        const closeMatches = line.match(/<\/[A-Z][a-zA-Z0-9]*>/g) || []
+        const selfCloseMatches = line.match(/<[A-Z][a-zA-Z0-9]*[^>]*?\/>/g) || []
+
+        depth += openMatches.length - selfCloseMatches.length - closeMatches.length
+
+        if (depth === 0 && (openMatches.length > 0 || selfCloseMatches.length > 0)) {
+          elementCount++
+        }
+
+        if (line.includes(')') && depth === 0) break
+      }
+
+      if (elementCount > 1) {
+        errors.push(`${filePath}: Adjacent JSX elements must be wrapped in an enclosing tag or fragment`)
+        break
+      }
+    }
+
+    // 4. 检查函数结构（return 是否在函数内）
+    const returnStatements = [...code.matchAll(/\breturn\s*[\(\{<]/g)]
+    for (const returnMatch of returnStatements) {
+      const beforeReturn = code.slice(0, returnMatch.index)
+      const functionMatches = beforeReturn.match(/\b(?:function|const|let|var)\s+\w+/g) || []
+      const openBraces = (beforeReturn.match(/\{/g) || []).length
+      const closeBraces = (beforeReturn.match(/\}/g) || []).length
+
+      if (functionMatches.length === 0 || openBraces <= closeBraces) {
+        errors.push(`${filePath}: 'return' outside of function`)
+        break
+      }
+    }
+
+    // 3. 检查括号匹配
+    const openParens = (code.match(/\(/g) || []).length
+    const closeParens = (code.match(/\)/g) || []).length
+    if (Math.abs(openParens - closeParens) > 5) {
+      errors.push(`${filePath}: Unmatched parentheses (${openParens} open, ${closeParens} close)`)
+    }
+
+    // 4. 检查是否有 javascript: 前缀（常见错误）
+    if (code.includes('javascript:')) {
+      errors.push(`${filePath}: Contains invalid 'javascript:' prefix`)
+    }
+
+    // 检查 React 导入
     if (/\bReact\.\w+/.test(code) && !/import\s+React/.test(code)) {
       errors.push(`${filePath}: Uses React but missing 'import React' statement`)
     }
 
-    // 检查常见的未定义变量（图表代码中常见）
+    // 检查常见的未定义变量
     const commonVars = ['left', 'right', 'top', 'bottom', 'width', 'height', 'x', 'y', 'value', 'data']
     for (const varName of commonVars) {
-      // 检查变量是否被使用但未声明
       const usageRegex = new RegExp(`\\b${varName}\\b(?!\\s*[=:])`, 'g')
       const declarationRegex = new RegExp(`(?:const|let|var)\\s+${varName}\\b`, 'g')
 
@@ -697,7 +821,85 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
   return { valid: errors.length === 0, errors }
 }
 
-// 异步代码生成
+// 文件排序函数：按优先级排序文件
+function sortFilesByPriority(files: string[]): string[] {
+  const priority: Record<string, number> = {
+    'package.json': 1,
+    '.css': 2,
+    'App.jsx': 3,
+    'App.tsx': 3,
+    'components/': 4,
+    'hooks/': 5,
+    'utils/': 6,
+    'README.md': 99
+  }
+
+  return files.sort((a, b) => {
+    const getPriority = (file: string) => {
+      for (const [key, value] of Object.entries(priority)) {
+        if (file.includes(key)) return value
+      }
+      return 50
+    }
+    return getPriority(a) - getPriority(b)
+  })
+}
+
+// 单文件生成函数
+async function generateSingleFile(
+  fileName: string,
+  userPrompt: string,
+  context: Record<string, string>,
+  model: string,
+  client: any,
+  modelConfig: any,
+  previousErrors?: string[]
+): Promise<string> {
+  const { CODE_GENERATION_SYSTEM_PROMPT } = require('@/lib/ai-prompts')
+
+  let filePrompt = `Generate ONLY the file: ${fileName}
+
+User requirement: ${userPrompt}
+
+${Object.keys(context).length > 0 ? `
+Already generated files:
+${Object.keys(context).map(f => `- ${f}`).join('\n')}
+
+Use these files as context but do NOT regenerate them.
+` : ''}
+
+${previousErrors && previousErrors.length > 0 ? `
+IMPORTANT: Previous attempt had these errors - FIX THEM:
+${previousErrors.map((err, i) => `${i + 1}. ${err}`).join('\n')}
+` : ''}
+
+Return ONLY the file content, no JSON wrapper, no explanations.`
+
+  if (fileName === 'package.json') {
+    filePrompt += `\n\nGenerate a valid package.json with React 18, Vite, and necessary dependencies.`
+  } else if (fileName.endsWith('.css')) {
+    filePrompt += `\n\nGenerate CSS styles. Use modern CSS with good defaults.`
+  } else if (fileName.endsWith('.jsx') || fileName.endsWith('.tsx')) {
+    filePrompt += `\n\n${CODE_GENERATION_SYSTEM_PROMPT}`
+  }
+
+  const completion = await client.chat.completions.create({
+    model: model,
+    messages: [
+      { role: 'system', content: filePrompt },
+      { role: 'user', content: `Generate ${fileName}` }
+    ],
+    max_tokens: Math.min(modelConfig?.maxTokens || 8192, 8192),
+    temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
+  })
+
+  let content = completion.choices[0]?.message?.content || ''
+  content = content.replace(/^```(?:json|jsx|tsx|css)?\n?/gm, '').replace(/\n?```$/gm, '').trim()
+
+  return content
+}
+
+// 异步代码生成（分步生成）
 async function generateCodeAsync(
   prompt: string,
   model: string,
@@ -717,19 +919,12 @@ async function generateCodeAsync(
   onProgress(10)
 
   try {
-    console.log('🤖 开始调用 AI API, model:', model)
-
-    // 构建系统提示词
-    let systemPrompt = CODE_GENERATION_SYSTEM_PROMPT + `
-
-Return JSON format:
-{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
-
-    let userPrompt = prompt.trim()
+    console.log('🤖 开始调用 AI API (分步生成), model:', model)
 
     // 如果是重试且有之前的代码，使用修复模式
     if (retryCount > 0 && previousErrors.length > 0 && previousCode) {
-      systemPrompt = `You are a code fixing assistant. Fix the errors in the provided code.
+      console.log('🔧 使用修复模式重试')
+      const systemPrompt = `You are a code fixing assistant. Fix the errors in the provided code.
 
 ERRORS TO FIX:
 ${previousErrors.map((err, i) => `${i + 1}. ${err}`).join('\n')}
@@ -743,7 +938,7 @@ INSTRUCTIONS:
 Return JSON format:
 {"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
 
-      userPrompt = `Fix these errors in the code:
+      const userPrompt = `Fix these errors in the code:
 
 ERRORS:
 ${previousErrors.join('\n')}
@@ -752,58 +947,173 @@ ORIGINAL CODE:
 ${JSON.stringify(previousCode, null, 2)}
 
 Return the COMPLETE fixed code in JSON format.`
+
+      const completion = await client.chat.completions.create({
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: modelConfig?.maxTokens || 16384,
+        temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
+      })
+
+      onProgress(80)
+      const generatedContent = completion.choices[0]?.message?.content || ''
+      const project = createProjectFromAIResponse(generatedContent)
+
+      // 验证并自动修复
+      const validation = validateGeneratedCode(project.files)
+      if (!validation.valid) {
+        const { autoFixCode } = require('@/lib/code-auto-fix')
+        const autoFix = autoFixCode(project.files, validation.errors)
+        if (autoFix.fixedErrors.length > 0) {
+          console.log(`🔧 [Auto-Fix] Fixed ${autoFix.fixedErrors.length} errors`)
+          project.files = autoFix.fixedFiles
+        }
+      }
+
+      onProgress(100)
+      return project
     }
 
-    const completion = await client.chat.completions.create({
+    // 第一步：获取文件列表（5%）
+    onProgress(5)
+    console.log('📋 [Step 1/2] 获取项目文件列表...')
+
+    const structurePrompt = `Based on this requirement: ${prompt}
+
+List ALL files needed for this project.
+Return ONLY a JSON array: ["package.json", "src/App.jsx", ...]`
+
+    const structureCompletion = await client.chat.completions.create({
       model: model,
       messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: userPrompt
-        }
+        { role: 'system', content: 'You are a project structure planner.' },
+        { role: 'user', content: structurePrompt }
       ],
-      max_tokens: modelConfig?.maxTokens || 16384,
-      temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
+      max_tokens: 2000,
+      temperature: 0.3,
     })
 
-    onProgress(80)
+    const fileListStr = structureCompletion.choices[0]?.message?.content || '[]'
+    let fileList = JSON.parse(fileListStr.replace(/```json\n?/g, '').replace(/\n?```/g, ''))
 
-    const generatedContent = completion.choices[0]?.message?.content || ''
-
-    // Log finish reason to check if response was truncated
-    const finishReason = completion.choices[0]?.finish_reason
-    console.log('📍 Finish reason:', finishReason)
-    if (finishReason === 'length') {
-      console.warn('⚠️ Response was truncated due to max_tokens limit!')
+    // 确保必需文件存在
+    const hasAppFile = fileList.some((f: string) => f.includes('App.jsx') || f.includes('App.tsx'))
+    if (!hasAppFile) {
+      fileList.push('src/App.jsx')
+    }
+    if (!fileList.includes('package.json')) {
+      fileList.push('package.json')
+    }
+    if (!fileList.includes('README.md')) {
+      fileList.push('README.md')
     }
 
-    console.log('✅ AI response length:', generatedContent.length)
+    const sortedFiles = sortFilesByPriority(fileList)
 
-    const project = createProjectFromAIResponse(generatedContent)
+    console.log(`📋 需要生成 ${sortedFiles.length} 个文件:`, sortedFiles)
 
-    // 验证生成的代码
-    console.log('🔍 [Validation] Starting code validation...')
-    console.log('🔍 [Validation] Files to validate:', Object.keys(project.files))
-    const validation = validateGeneratedCode(project.files)
-    console.log('🔍 [Validation] Result:', { valid: validation.valid, errors: validation.errors })
-
-    if (!validation.valid && retryCount < maxRetries) {
-      console.warn(`⚠️ Generated code has errors, retrying (${retryCount + 1}/${maxRetries}):`, validation.errors)
-      return generateCodeAsync(prompt, model, onProgress, retryCount + 1, validation.errors, project)
+    // 第二步：逐个生成文件（5% → 95%）
+    const project = {
+      files: {} as Record<string, string>,
+      projectName: 'generated-app'
     }
 
-    if (!validation.valid) {
-      console.error('❌ Generated code still has errors after retries:', validation.errors)
-    } else {
-      console.log('✅ [Validation] Code validation passed!')
+    for (let i = 0; i < sortedFiles.length; i++) {
+      const fileName = sortedFiles[i]
+      const progress = 5 + ((i + 1) / sortedFiles.length) * 90
+
+      console.log(`📦 [${i+1}/${sortedFiles.length}] 生成: ${fileName}`)
+
+      let fileRetryCount = 0
+      const maxFileRetries = 5
+      let fileErrors: string[] = []
+
+      while (fileRetryCount <= maxFileRetries) {
+        try {
+          // 生成文件（重试时传递错误信息）
+          const fileContent = await generateSingleFile(
+            fileName,
+            prompt,
+            project.files,
+            model,
+            client,
+            modelConfig,
+            fileRetryCount > 0 ? fileErrors : undefined
+          )
+
+          // 验证文件（包括依赖检查）
+          const tempFiles = { ...project.files, [fileName]: fileContent }
+          const validation = validateGeneratedCode(tempFiles)
+
+          // 检查当前文件的错误和依赖文件的错误
+          fileErrors = validation.errors.filter(err => {
+            if (err.startsWith(fileName)) return true
+            // 检查当前文件是否依赖有错误的文件
+            const errorFile = err.split(':')[0]
+            return fileContent.includes(`from './${errorFile.replace('src/', '')}`) ||
+                   fileContent.includes(`from './${errorFile}`)
+          })
+
+          if (fileErrors.length > 0) {
+            console.warn(`⚠️ ${fileName} 有 ${fileErrors.length} 个错误:`, fileErrors)
+
+            // 自动修复
+            const { autoFixCode } = require('@/lib/code-auto-fix')
+            const autoFix = autoFixCode({ [fileName]: fileContent }, fileErrors)
+
+            if (autoFix.fixedErrors.length > 0) {
+              console.log(`🔧 自动修复了 ${autoFix.fixedErrors.length} 个错误`)
+              project.files[fileName] = autoFix.fixedFiles[fileName]
+              break
+            }
+
+            // AI 重试
+            if (autoFix.remainingErrors.length > 0 && fileRetryCount < maxFileRetries) {
+              console.warn(`🔄 AI 重试 ${fileName} (${fileRetryCount + 1}/${maxFileRetries})`)
+              fileRetryCount++
+              continue
+            }
+
+            // 重试次数用完，仍有错误
+            console.error(`❌ ${fileName} 重试次数用完，仍有 ${autoFix.remainingErrors.length} 个错误`)
+          }
+
+          project.files[fileName] = fileContent
+          console.log(`✅ ${fileName} 完成`)
+          break
+
+        } catch (error) {
+          console.error(`❌ ${fileName} 失败:`, error)
+          if (fileRetryCount < maxFileRetries) {
+            fileRetryCount++
+            continue
+          }
+          throw error
+        }
+      }
+
+      onProgress(progress)
+    }
+
+    // 添加 README.md（如果不存在）
+    if (!project.files['README.md']) {
+      project.files['README.md'] = `# ${project.projectName || 'Generated Project'}
+
+This project was generated by AI.
+
+## Installation
+
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+`
     }
 
     onProgress(100)
-
     return project
 
   } catch (error: any) {
