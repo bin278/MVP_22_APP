@@ -46,10 +46,22 @@ function fixJSXTagsWithAST(code: string, filePath: string, errorMessage: string)
           } else if (actualTag === 'ul' || actualTag === 'ol') {
             // 查找第一个 <li> 标签之前
             while (insertLine > 0) {
-              const prevLine = lines[insertLine - 1].trim()
-              if (prevLine.includes('<li') || prevLine.includes('{') || prevLine.includes('.map(')) {
+              const prevLine = lines[insertLine - 1]
+              const prevTrimmed = prevLine.trim()
+
+              // 跳过不完整的标签（有 < 但没有对应的 >）
+              const openBrackets = (prevTrimmed.match(/</g) || []).length
+              const closeBrackets = (prevTrimmed.match(/>/g) || []).length
+              if (openBrackets > closeBrackets) {
+                insertLine--
+                continue
+              }
+
+              // 找到 <li 标签或 <nav 标签
+              if (prevTrimmed.includes('<li') || prevTrimmed.includes('<nav')) {
                 break
               }
+
               insertLine--
             }
           } else if (actualTag === 'form') {
