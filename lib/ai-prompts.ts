@@ -49,7 +49,12 @@ CRITICAL RULES:
 21. CRITICAL: if statements MUST have condition before else
    WRONG: } else {
    CORRECT: if (condition) { } else {
-22. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+22. CRITICAL: Adjacent JSX elements MUST be wrapped in a parent element or Fragment
+   WRONG: return ( <div>First</div> <div>Second</div> )
+   CORRECT: return ( <> <div>First</div> <div>Second</div> </> )
+   WRONG: {condition && <div>A</div> <div>B</div>}
+   CORRECT: {condition && <> <div>A</div> <div>B</div> </>}
+23. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
@@ -134,7 +139,12 @@ CRITICAL RULES:
 21. CRITICAL: if statements MUST have condition before else
    WRONG: } else {
    CORRECT: if (condition) { } else {
-22. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+22. CRITICAL: Adjacent JSX elements MUST be wrapped in a parent element or Fragment
+   WRONG: return ( <div>First</div> <div>Second</div> )
+   CORRECT: return ( <> <div>First</div> <div>Second</div> </> )
+   WRONG: {condition && <div>A</div> <div>B</div>}
+   CORRECT: {condition && <> <div>A</div> <div>B</div> </>}
+23. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
