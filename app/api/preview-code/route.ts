@@ -858,19 +858,95 @@ export async function POST(request: NextRequest) {
 
             componentScripts += `
       // Component: ${componentName}
-      try {
-        ${escapedComponentCode}
-        window.${componentName} = ${componentName};
-        console.log('✅ Loaded component: ${componentName}');
-      } catch(e) {
-        console.error('❌ Failed to load component ${componentName}:', e);
-        window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}}, '⚠️ Component "${componentName}" failed to load'); };
-      }
+      (function() {
+        try {
+          ${escapedComponentCode}
+
+          // 使用错误边界包装组件
+          var Original${componentName} = ${componentName};
+          window.${componentName} = function(props) {
+            try {
+              return React.createElement(Original${componentName}, props);
+            } catch (renderError) {
+              console.error('❌ Component ${componentName} render error:', renderError);
+              return React.createElement('div', {
+                style: {
+                  padding: '20px',
+                  margin: '10px',
+                  border: '2px solid #dc2626',
+                  borderRadius: '8px',
+                  backgroundColor: '#fef2f2',
+                  color: '#991b1b'
+                }
+              },
+                React.createElement('strong', null, '⚠️ ${componentName} Error'),
+                React.createElement('p', { style: { fontSize: '14px', marginTop: '8px' } }, renderError.message),
+                React.createElement('button', {
+                  onClick: function() { window.location.reload(); },
+                  style: {
+                    marginTop: '10px',
+                    padding: '6px 12px',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }
+                }, 'Reload Page')
+              );
+            }
+          };
+          console.log('✅ Loaded component: ${componentName}');
+        } catch(e) {
+          console.error('❌ Failed to load component ${componentName}:', e);
+          window.${componentName} = function() {
+            return React.createElement('div', {
+              style: {
+                padding: '20px',
+                margin: '10px',
+                border: '2px dashed #f59e0b',
+                borderRadius: '8px',
+                backgroundColor: '#fffbeb',
+                textAlign: 'center',
+                color: '#92400e'
+              }
+            }, '⚠️ Component "${componentName}" failed to load');
+          };
+        }
+      })();
 `
             console.log(`✅ Compiled component: ${componentName}`)
           } else {
             // 编译结果为空，创建占位符
-            componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #f59e0b',borderRadius:'8px',backgroundColor:'#fffbeb',textAlign:'center',color:'#92400e'}}, '⚠️ Component "${componentName}" not loaded'); };\n`
+            componentScripts += `
+window.${componentName} = function() {
+  return React.createElement('div', {
+    style: {
+      padding: '20px',
+      margin: '10px',
+      border: '2px dashed #f59e0b',
+      borderRadius: '8px',
+      backgroundColor: '#fffbeb',
+      color: '#92400e'
+    }
+  },
+    React.createElement('div', { style: { marginBottom: '12px' } },
+      React.createElement('strong', null, '⚠️ Component "${componentName}" not loaded')
+    ),
+    React.createElement('p', { style: { fontSize: '14px', color: '#78350f', marginBottom: '8px' } },
+      'This component failed to compile. The code may be empty or invalid.'
+    ),
+    React.createElement('details', { style: { fontSize: '12px', marginTop: '8px' } },
+      React.createElement('summary', { style: { cursor: 'pointer', color: '#92400e' } }, 'Troubleshooting'),
+      React.createElement('ul', { style: { marginTop: '8px', paddingLeft: '20px' } },
+        React.createElement('li', null, 'Check if the component file was generated'),
+        React.createElement('li', null, 'Verify the component has valid JSX syntax'),
+        React.createElement('li', null, 'Try regenerating with a simpler prompt')
+      )
+    )
+  );
+};
+`
             console.warn(`⚠️ Empty compilation result for component: ${componentName}`)
           }
         } catch (err: any) {
@@ -1572,6 +1648,68 @@ export async function POST(request: NextRequest) {
 
       // 4. 最后注入主 App
       ${escapedCode}
+
+      // 状态持久化系统
+      (function() {
+        var STATE_KEY = '__PREVIEW_STATE__';
+
+        // 初始化全局状态对象
+        window.__PREVIEW_STATE__ = {
+          components: {},
+          timestamp: Date.now()
+        };
+
+        // 从 localStorage 恢复状态
+        try {
+          var savedState = localStorage.getItem(STATE_KEY);
+          if (savedState) {
+            var parsed = JSON.parse(savedState);
+            // 只恢复 5 分钟内的状态
+            if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+              window.__PREVIEW_STATE__ = parsed;
+              console.log('✅ Restored state from localStorage');
+            } else {
+              localStorage.removeItem(STATE_KEY);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to restore state:', e);
+        }
+
+        // 保存状态到 localStorage
+        window.savePreviewState = function(componentName, state) {
+          try {
+            window.__PREVIEW_STATE__.components[componentName] = state;
+            window.__PREVIEW_STATE__.timestamp = Date.now();
+            localStorage.setItem(STATE_KEY, JSON.stringify(window.__PREVIEW_STATE__));
+          } catch (e) {
+            console.warn('Failed to save state:', e);
+          }
+        };
+
+        // 获取组件状态
+        window.getPreviewState = function(componentName) {
+          return window.__PREVIEW_STATE__.components[componentName] || null;
+        };
+
+        // 清除状态
+        window.clearPreviewState = function() {
+          window.__PREVIEW_STATE__ = { components: {}, timestamp: Date.now() };
+          localStorage.removeItem(STATE_KEY);
+          console.log('✅ Cleared preview state');
+        };
+
+        // 页面卸载前保存状态
+        window.addEventListener('beforeunload', function() {
+          try {
+            localStorage.setItem(STATE_KEY, JSON.stringify(window.__PREVIEW_STATE__));
+          } catch (e) {
+            // 忽略错误
+          }
+        });
+
+        console.log('✅ State persistence initialized');
+      })();
 
       // 运行时错误监控
       (function() {
