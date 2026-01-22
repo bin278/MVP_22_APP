@@ -723,6 +723,7 @@ export async function POST(request: NextRequest) {
               .replace(/export\s+default\s+/g, '')
               .replace(/export\s+/g, '')
               .replace(/\btypescript\b/g, '')
+              .replace(/\bjavascript\b/g, '')
 
             hookScripts += `
               // Hook: ${hookName}
@@ -777,6 +778,7 @@ export async function POST(request: NextRequest) {
               .replace(/export\s+default\s+/g, '')
               .replace(/export\s+/g, '')
               .replace(/\btypescript\b/g, '')
+              .replace(/\bjavascript\b/g, '')
 
             utilScripts += `
               // Util: ${fileName}
