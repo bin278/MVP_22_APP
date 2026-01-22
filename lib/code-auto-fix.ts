@@ -88,6 +88,9 @@ function fixJSXTagsWithAST(code: string, filePath: string): { fixed: boolean; co
               }
 
               // 插入开始标签
+              console.log(`🔧 AST 修复: 在第 ${insertLine + 1} 行插入 <${actualTag}>`)
+              console.log(`   错误行: ${errorLine}, 插入行: ${insertLine + 1}`)
+              console.log(`   插入内容: "${indent}<${actualTag}>"`)
               lines.splice(insertLine, 0, `${indent}<${actualTag}>`)
               return { fixed: true, code: lines.join('\n') }
             }
@@ -136,19 +139,29 @@ export function autoFixCode(
 
     // 优先使用 AST 修复 JSX 标签问题
     if (error.includes('Expected corresponding JSX closing tag')) {
+      console.log(`🔍 检测到 JSX 标签错误，尝试 AST 修复`)
       const filePathMatch = error.match(/^([^:]+):/)
       if (filePathMatch) {
         const errorPath = filePathMatch[1]
         const filePath = findFileKey(errorPath)
+        console.log(`   错误路径: ${errorPath}, 找到文件: ${filePath}`)
         if (filePath && fixedFiles[filePath]) {
+          console.log(`   调用 fixJSXTagsWithAST...`)
           const result = fixJSXTagsWithAST(fixedFiles[filePath], filePath)
+          console.log(`   修复结果: ${result.fixed}`)
           if (result.fixed) {
             fixedFiles[filePath] = result.code
             fixedErrors.push(error)
             fixed = true
             console.log(`✅ AST 修复成功: JSX 标签不匹配`)
+          } else {
+            console.log(`❌ AST 修复失败`)
           }
+        } else {
+          console.log(`   未找到文件或文件内容为空`)
         }
+      } else {
+        console.log(`   无法从错误信息中提取文件路径`)
       }
     }
 
