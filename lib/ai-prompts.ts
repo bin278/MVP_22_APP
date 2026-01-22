@@ -84,6 +84,14 @@ CRITICAL RULES:
    CORRECT: <div><nav>...</nav></div>
    WRONG: <header><nav>...</div></header>  // </div> should be </nav>
    CORRECT: <header><nav>...</nav></header>
+   CRITICAL: EVERY closing tag MUST have a matching opening tag
+   WRONG: <button>...</button></li></ul>  // missing <li> and <ul>
+   CORRECT: <ul><li><button>...</button></li></ul>
+   WRONG: </nav> or </ul> without opening tag
+   CORRECT: <nav>...</nav> and <ul>...</ul>
+   CRITICAL: When using lists, ALWAYS include both <ul> and <li> tags
+   WRONG: <li>Item</li></ul>  // missing <ul>
+   CORRECT: <ul><li>Item</li></ul>
 25. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
@@ -204,6 +212,14 @@ CRITICAL RULES:
    CORRECT: <div><nav>...</nav></div>
    WRONG: <header><nav>...</div></header>  // </div> should be </nav>
    CORRECT: <header><nav>...</nav></header>
+   CRITICAL: EVERY closing tag MUST have a matching opening tag
+   WRONG: <button>...</button></li></ul>  // missing <li> and <ul>
+   CORRECT: <ul><li><button>...</button></li></ul>
+   WRONG: </nav> or </ul> without opening tag
+   CORRECT: <nav>...</nav> and <ul>...</ul>
+   CRITICAL: When using lists, ALWAYS include both <ul> and <li> tags
+   WRONG: <li>Item</li></ul>  // missing <ul>
+   CORRECT: <ul><li>Item</li></ul>
 25. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions

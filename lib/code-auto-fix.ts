@@ -318,16 +318,62 @@ export function autoFixCode(
           let code = fixedFiles[filePath]
           const lines = code.split('\n')
 
-          // 找到错误行的标签并替换
+          // 找到错误行的标签
           if (errorLine > 0 && errorLine <= lines.length) {
             const errorLineContent = lines[errorLine - 1]
-            const wrongTagMatch = errorLineContent.match(/<\/(\w+)>/)
-            if (wrongTagMatch) {
-              const wrongTag = wrongTagMatch[1]
-              if (wrongTag !== expectedTag) {
-                lines[errorLine - 1] = errorLineContent.replace(`</${wrongTag}>`, `</${expectedTag}>`)
-                code = lines.join('\n')
+            const closingTagMatch = errorLineContent.match(/<\/(\w+)>/)
+            if (closingTagMatch) {
+              const actualTag = closingTagMatch[1]
+              const indent = errorLineContent.match(/^(\s*)/)?.[1] || ''
+
+              // 向上查找合适位置插入开始标签
+              let insertLine = errorLine - 1
+
+              // 特殊处理：tbody/thead/tfoot 应该在 table 之后
+              if (actualTag === 'tbody' || actualTag === 'thead' || actualTag === 'tfoot') {
+                while (insertLine > 0) {
+                  const prevLine = lines[insertLine - 1]
+                  if (prevLine.includes('<table')) {
+                    break
+                  }
+                  insertLine--
+                }
               }
+              // 特殊处理：tr 应该在 thead/tbody/tfoot 之后
+              else if (actualTag === 'tr') {
+                while (insertLine > 0) {
+                  const prevLine = lines[insertLine - 1]
+                  if (prevLine.includes('<thead') || prevLine.includes('<tbody') || prevLine.includes('<tfoot')) {
+                    break
+                  }
+                  insertLine--
+                }
+              }
+              // 特殊处理：ul/ol 应该在第一个 li 之前
+              else if (actualTag === 'ul' || actualTag === 'ol') {
+                while (insertLine > 0) {
+                  const prevLine = lines[insertLine - 1]
+                  if (prevLine.trim().startsWith('<li')) {
+                    break
+                  }
+                  insertLine--
+                }
+              }
+              // 通用处理：查找缩进更少的行
+              else {
+                while (insertLine > 0) {
+                  const prevLine = lines[insertLine - 1]
+                  const prevIndent = prevLine.match(/^(\s*)/)?.[1] || ''
+                  if (prevIndent.length < indent.length) {
+                    break
+                  }
+                  insertLine--
+                }
+              }
+
+              // 在找到的位置插入开始标签
+              lines.splice(insertLine, 0, `${indent}<${actualTag}>`)
+              code = lines.join('\n')
             }
           }
 

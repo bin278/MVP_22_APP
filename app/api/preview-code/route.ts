@@ -641,30 +641,153 @@ export async function POST(request: NextRequest) {
 
     // 处理多文件组件
     let componentScripts = ''
-    // 排除的非组件文件和目录
-    const excludedFiles = ['src/App.jsx', 'src/App.tsx', 'src/index.css', 'src/index.ts', 'src/index.tsx', 'src/main.tsx', 'src/main.ts']
-    const excludedDirs = ['src/services/', 'src/types/', 'src/utils/', 'src/lib/', 'src/api/', 'src/config/']
+    let hookScripts = ''
+    let utilScripts = 'window.utils = window.utils || {};\n'
 
-    // 支持多种组件路径格式（包括 hooks）
-    const componentFiles = Object.entries(allFiles).filter(([path]) => {
-      // 排除特定目录
-      if (excludedDirs.some(dir => path.startsWith(dir))) {
-        return false
+    // 排除的非组件文件和目录（只排除后端代码）
+    const excludedFiles = ['src/App.jsx', 'src/App.tsx', 'src/index.css', 'src/index.ts', 'src/index.tsx', 'src/main.tsx', 'src/main.ts']
+    const excludedDirs = ['src/services/', 'src/api/', 'src/app/', 'app/']
+
+    // 文件分类
+    const hookFiles: [string, string][] = []
+    const utilFiles: [string, string][] = []
+    const componentFiles: [string, string][] = []
+
+    // 遍历所有文件并分类
+    for (const [filePath, fileCode] of Object.entries(allFiles)) {
+      if (excludedFiles.includes(filePath)) continue
+      if (excludedDirs.some(dir => filePath.startsWith(dir))) continue
+
+      // 解码 HTML 实体
+      const code = String(fileCode)
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+
+      if (filePath.includes('/hooks/') || filePath.includes('\\hooks\\') || filePath.startsWith('hooks/')) {
+        hookFiles.push([filePath, code])
+      } else if (filePath.includes('/utils/') || filePath.includes('\\utils\\') || filePath.startsWith('utils/')) {
+        utilFiles.push([filePath, code])
+      } else if (filePath.includes('/components/') || filePath.includes('\\components\\') || filePath.startsWith('components/')) {
+        if (filePath.endsWith('.jsx') || filePath.endsWith('.tsx')) {
+          componentFiles.push([filePath, code])
+        }
+      } else if (filePath.startsWith('src/') && (filePath.endsWith('.jsx') || filePath.endsWith('.tsx'))) {
+        componentFiles.push([filePath, code])
       }
-      // 原有逻辑：src/components/ 目录
-      if (path.startsWith('src/components/') || path.startsWith('components/') || path.includes('/components/')) {
-        return path.endsWith('.jsx') || path.endsWith('.tsx')
-      }
-      // 新增：src/ 目录下的组件和 hooks 文件（排除入口文件）
-      if (path.startsWith('src/') && !excludedFiles.includes(path)) {
-        return path.endsWith('.jsx') || path.endsWith('.tsx')
-      }
-      return false
-    })
+    }
 
     console.log('📁 All files received:', Object.keys(allFiles))
     console.log('📁 All files content lengths:', Object.entries(allFiles).map(([k, v]) => `${k}: ${String(v).length}`))
+    console.log('📁 Hook files found:', hookFiles.map(([p]) => p))
+    console.log('📁 Util files found:', utilFiles.map(([p]) => p))
     console.log('📁 Component files found:', componentFiles.map(([p]) => p))
+
+    // 编译 Hook 文件
+    if (hookFiles.length > 0) {
+      console.log(`🔨 Processing ${hookFiles.length} hook files`)
+
+      for (const [filePath, fileCode] of hookFiles) {
+        const hookName = filePath.split('/').pop()?.replace(/\.(ts|tsx|js|jsx)$/, '') || ''
+        if (!hookName) continue
+
+        console.log(`📄 Compiling hook: ${hookName}`)
+
+        try {
+          let hookCode = String(fileCode).trim()
+
+          // 修复换行符
+          if (hookCode.includes('\\n') && !hookCode.includes('\n')) {
+            hookCode = hookCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ')
+          }
+
+          // 移除 import 语句
+          hookCode = hookCode.replace(/^import\s+.*?['"];?\s*$/gm, '')
+          // 移除 export 关键字
+          hookCode = hookCode.replace(/export\s+(default\s+)?(function|const|let|var)\s+/g, '$2 ')
+
+          // 使用 Babel 编译
+          const result = babel.transformSync(hookCode, {
+            presets: [
+              [presetReact, { runtime: 'classic' }],
+              [presetTypescript, { isTSX: false, allExtensions: true }]
+            ],
+            filename: `${hookName}.ts`
+          })
+
+          if (result?.code) {
+            hookScripts += `
+              // Hook: ${hookName}
+              (function() {
+                ${result.code}
+                if (typeof ${hookName} !== 'undefined') {
+                  window.${hookName} = ${hookName};
+                  console.log('✅ Registered hook: ${hookName}');
+                }
+              })();
+            `
+            console.log(`✅ Compiled hook: ${hookName}`)
+          }
+        } catch (err: any) {
+          console.warn(`⚠️ Failed to compile hook ${hookName}:`, err.message)
+        }
+      }
+    }
+
+    // 编译工具函数文件
+    if (utilFiles.length > 0) {
+      console.log(`🔨 Processing ${utilFiles.length} util files`)
+
+      for (const [filePath, fileCode] of utilFiles) {
+        const fileName = filePath.split('/').pop()?.replace(/\.(ts|tsx|js|jsx)$/, '') || ''
+        if (!fileName) continue
+
+        console.log(`📄 Compiling util: ${fileName}`)
+
+        try {
+          let utilCode = String(fileCode).trim()
+
+          // 修复换行符
+          if (utilCode.includes('\\n') && !utilCode.includes('\n')) {
+            utilCode = utilCode.replace(/\\n/g, '\n').replace(/\\t/g, '  ')
+          }
+
+          // 移除 import 语句
+          utilCode = utilCode.replace(/^import\s+.*?['"];?\s*$/gm, '')
+          // 移除 export 关键字
+          utilCode = utilCode.replace(/export\s+(default\s+)?(function|const|let|var)\s+/g, '$2 ')
+
+          // 使用 Babel 编译
+          const result = babel.transformSync(utilCode, {
+            presets: [[presetTypescript, { isTSX: false, allExtensions: true }]],
+            filename: `${fileName}.ts`
+          })
+
+          if (result?.code) {
+            utilScripts += `
+              // Util: ${fileName}
+              (function() {
+                ${result.code}
+                // 尝试注册函数到 window.utils
+                try {
+                  if (typeof ${fileName} !== 'undefined') {
+                    window.utils.${fileName} = ${fileName};
+                    console.log('✅ Registered util: ${fileName}');
+                  }
+                } catch (e) {
+                  console.warn('Failed to register util ${fileName}:', e);
+                }
+              })();
+            `
+            console.log(`✅ Compiled util: ${fileName}`)
+          }
+        } catch (err: any) {
+          console.warn(`⚠️ Failed to compile util ${fileName}:`, err.message)
+        }
+      }
+    }
 
     if (componentFiles.length > 0) {
       console.log(`🔧 Processing ${componentFiles.length} component files`)
@@ -831,6 +954,33 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // 替换 Hook 导入
+    for (const [filePath] of hookFiles) {
+      const hookName = filePath.split('/').pop()?.replace(/\.(ts|tsx|js|jsx)$/, '') || ''
+      if (hookName) {
+        const hookPatterns = [
+          // import { useTheme } from '@/hooks/useTheme'
+          new RegExp(`import\\s+\\{\\s*${hookName}\\s*\\}\\s+from\\s+['"]@/hooks/${hookName}['"];?`, 'g'),
+          // import { useTheme } from './hooks/useTheme'
+          new RegExp(`import\\s+\\{\\s*${hookName}\\s*\\}\\s+from\\s+['"].*?/hooks/${hookName}['"];?`, 'g'),
+          // import useTheme from '@/hooks/useTheme'
+          new RegExp(`import\\s+${hookName}\\s+from\\s+['"]@/hooks/${hookName}['"];?`, 'g'),
+          new RegExp(`import\\s+${hookName}\\s+from\\s+['"].*?/hooks/${hookName}['"];?`, 'g'),
+        ]
+        for (const pattern of hookPatterns) {
+          processedAppCode = processedAppCode.replace(pattern, `const ${hookName} = window.${hookName};`)
+        }
+      }
+    }
+
+    // 替换工具函数导入
+    // import { formatDate, parseData } from '@/utils/format'
+    const utilImportPattern = /import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]@\/utils\/\w+['"];?/g
+    processedAppCode = processedAppCode.replace(utilImportPattern, (match, imports) => {
+      const importList = imports.split(',').map((i: string) => i.trim())
+      return importList.map((name: string) => `const ${name} = window.utils.${name};`).join('\n')
+    })
 
     // 服务端 Babel 编译
     let compiledCode: string
@@ -1372,10 +1522,16 @@ export async function POST(request: NextRequest) {
       // 自动生成的组件占位符
       ${placeholderScripts}
 
-      // Child components - 预编译的子组件
+      // 1. 先注入工具函数
+      ${utilScripts}
+
+      // 2. 再注入 Hooks
+      ${hookScripts}
+
+      // 3. 然后注入子组件
       ${componentScripts}
 
-      // Component code - 服务端已预编译
+      // 4. 最后注入主 App
       ${escapedCode}
 
       // 直接渲染（无需等待 Babel）

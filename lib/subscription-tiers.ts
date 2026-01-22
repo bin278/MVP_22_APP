@@ -13,21 +13,21 @@ export const SUBSCRIPTION_TIERS = {
     nameZh: '免费版',
     limits: {},
     maxRequests: 30,
-    models: ['qwen-turbo']
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-chat', 'deepseek-coder', 'glm-4.6']
   },
   pro: {
     name: 'Pro',
     nameZh: '专业版',
     limits: {},
     maxRequests: 500,
-    models: ['qwen-turbo', 'qwen-plus']
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-chat', 'deepseek-coder', 'glm-4.6']
   },
   enterprise: {
     name: 'Enterprise',
     nameZh: '企业版',
     limits: {},
     maxRequests: -1, // 无限
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max']
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-chat', 'deepseek-coder', 'glm-4.6']
   }
 };
 

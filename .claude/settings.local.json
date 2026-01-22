@@ -65,7 +65,8 @@
       "Bash(pnpm remove:*)",
       "Bash(Remove-Item -Recurse -Force .next)",
       "Bash(head:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(git show:*)"
     ]
   }
 }
