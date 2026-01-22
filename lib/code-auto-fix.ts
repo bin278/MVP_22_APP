@@ -82,6 +82,13 @@ export function autoFixCode(
             wasFixed = true
           }
 
+          // 修复对象属性中使用 === 而不是 : 的情况 (如: backgroundColor === 'dark')
+          const propertyWithComparison = /(\{[^}]*,\s*)([a-zA-Z_]\w*)\s+(===|!==)\s+/g
+          if (propertyWithComparison.test(code)) {
+            code = code.replace(propertyWithComparison, '$1$2: $2 $3 ')
+            wasFixed = true
+          }
+
           // 修复 map/filter 等回调中缺少 => 的情况 (如: .map(task: task.id)
           const mapCallbackMissingArrow = /\.(map|filter|reduce|forEach|find|some|every)\((\w+):\s+/g
           if (mapCallbackMissingArrow.test(code)) {
