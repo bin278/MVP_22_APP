@@ -6,6 +6,81 @@ export interface AutoFixResult {
   remainingErrors: string[]
 }
 
+/**
+ * 使用 AST 检测和修复 JSX 标签不匹配
+ */
+function fixJSXTagsWithAST(code: string, filePath: string): { fixed: boolean; code: string } {
+  try {
+    const babel = require('@babel/standalone')
+
+    // 尝试解析代码
+    try {
+      babel.transform(code, {
+        presets: ['react', 'typescript'],
+        filename: filePath
+      })
+      // 如果解析成功，说明没有 JSX 标签问题
+      return { fixed: false, code }
+    } catch (parseError: any) {
+      // 解析失败，尝试修复
+      if (parseError.message && parseError.message.includes('Expected corresponding JSX closing tag')) {
+        // 提取错误信息
+        const tagMatch = parseError.message.match(/closing tag for <(\w+)>/)
+        const lineMatch = parseError.message.match(/:(\d+):/)
+
+        if (tagMatch && lineMatch) {
+          const expectedTag = tagMatch[1]
+          const errorLine = parseInt(lineMatch[1])
+          const lines = code.split('\n')
+
+          if (errorLine > 0 && errorLine <= lines.length) {
+            const errorLineContent = lines[errorLine - 1]
+            const closingTagMatch = errorLineContent.match(/<\/(\w+)>/)
+
+            if (closingTagMatch) {
+              const actualTag = closingTagMatch[1]
+              const indent = errorLineContent.match(/^(\s*)/)?.[1] || ''
+
+              // 查找插入位置
+              let insertLine = errorLine - 1
+
+              // 特殊处理不同类型的标签
+              if (actualTag === 'tbody' || actualTag === 'thead' || actualTag === 'tfoot') {
+                while (insertLine > 0 && !lines[insertLine - 1].includes('<table')) {
+                  insertLine--
+                }
+              } else if (actualTag === 'tr') {
+                while (insertLine > 0 && !lines[insertLine - 1].match(/<t(head|body|foot)/)) {
+                  insertLine--
+                }
+              } else if (actualTag === 'ul' || actualTag === 'ol') {
+                while (insertLine > 0 && !lines[insertLine - 1].trim().startsWith('<li')) {
+                  insertLine--
+                }
+              } else {
+                // 通用处理：查找缩进更少的行
+                while (insertLine > 0) {
+                  const prevIndent = lines[insertLine - 1].match(/^(\s*)/)?.[1] || ''
+                  if (prevIndent.length < indent.length) break
+                  insertLine--
+                }
+              }
+
+              // 插入开始标签
+              lines.splice(insertLine, 0, `${indent}<${actualTag}>`)
+              return { fixed: true, code: lines.join('\n') }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // AST 修复失败，返回原代码
+  }
+
+  return { fixed: false, code }
+}
+
 export function autoFixCode(
   files: Record<string, string>,
   errors: string[]
@@ -37,6 +112,26 @@ export function autoFixCode(
       console.log(`🔍 处理错误文件: ${filePathMatch[1]}`)
       console.log(`   错误信息: ${error}`)
     }
+
+    // 优先使用 AST 修复 JSX 标签问题
+    if (error.includes('Expected corresponding JSX closing tag')) {
+      const filePathMatch = error.match(/^([^:]+):/)
+      if (filePathMatch) {
+        const errorPath = filePathMatch[1]
+        const filePath = findFileKey(errorPath)
+        if (filePath && fixedFiles[filePath]) {
+          const result = fixJSXTagsWithAST(fixedFiles[filePath], filePath)
+          if (result.fixed) {
+            fixedFiles[filePath] = result.code
+            fixedErrors.push(error)
+            fixed = true
+            console.log(`✅ AST 修复成功: JSX 标签不匹配`)
+          }
+        }
+      }
+    }
+
+    if (fixed) continue
 
     // 修复不完整的三元表达式和 switch case 赋值错误
     if (error.includes('expected ":"') || error.includes('expected ","') || error.includes('Invalid left-hand side in assignment') || error.includes('Unexpected token')) {
