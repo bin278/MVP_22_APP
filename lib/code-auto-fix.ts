@@ -31,6 +31,13 @@ export function autoFixCode(
   for (const error of errors) {
     let fixed = false
 
+    // 打印错误的文件路径
+    const filePathMatch = error.match(/^([^:]+):/)
+    if (filePathMatch) {
+      console.log(`🔍 处理错误文件: ${filePathMatch[1]}`)
+      console.log(`   错误信息: ${error}`)
+    }
+
     // 修复不完整的三元表达式和 switch case 赋值错误
     if (error.includes('expected ":"') || error.includes('expected ","') || error.includes('Invalid left-hand side in assignment') || error.includes('Unexpected token')) {
       const filePathMatch = error.match(/^([^:]+):/)
