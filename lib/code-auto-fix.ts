@@ -9,40 +9,30 @@ export interface AutoFixResult {
 /**
  * 使用 AST 检测和修复 JSX 标签不匹配
  */
-function fixJSXTagsWithAST(code: string, filePath: string): { fixed: boolean; code: string } {
+function fixJSXTagsWithAST(code: string, filePath: string, errorMessage: string): { fixed: boolean; code: string } {
   try {
-    const babel = require('@babel/standalone')
+    // 直接从错误信息中提取标签和行号
+    const tagMatch = errorMessage.match(/closing tag for <(\w+)>/)
+    const lineMatch = errorMessage.match(/\((\d+):/)
 
-    // 尝试解析代码
-    try {
-      babel.transform(code, {
-        presets: ['react', 'typescript'],
-        filename: filePath
-      })
-      // 如果解析成功，说明没有 JSX 标签问题
-      return { fixed: false, code }
-    } catch (parseError: any) {
-      // 解析失败，尝试修复
-      if (parseError.message && parseError.message.includes('Expected corresponding JSX closing tag')) {
-        // 提取错误信息
-        const tagMatch = parseError.message.match(/closing tag for <(\w+)>/)
-        const lineMatch = parseError.message.match(/:(\d+):/)
+    console.log(`🔧 fixJSXTagsWithAST 被调用`)
+    console.log(`   标签匹配: ${tagMatch?.[1]}, 行号匹配: ${lineMatch?.[1]}`)
 
-        if (tagMatch && lineMatch) {
-          const expectedTag = tagMatch[1]
-          const errorLine = parseInt(lineMatch[1])
-          const lines = code.split('\n')
+    if (tagMatch && lineMatch) {
+      const expectedTag = tagMatch[1]
+      const errorLine = parseInt(lineMatch[1])
+      const lines = code.split('\n')
 
-          if (errorLine > 0 && errorLine <= lines.length) {
-            const errorLineContent = lines[errorLine - 1]
-            const closingTagMatch = errorLineContent.match(/<\/(\w+)>/)
+      if (errorLine > 0 && errorLine <= lines.length) {
+        const errorLineContent = lines[errorLine - 1]
+        const closingTagMatch = errorLineContent.match(/<\/(\w+)>/)
 
-            if (closingTagMatch) {
-              const actualTag = closingTagMatch[1]
-              const indent = errorLineContent.match(/^(\s*)/)?.[1] || ''
+        if (closingTagMatch) {
+          const actualTag = closingTagMatch[1]
+          const indent = errorLineContent.match(/^(\s*)/)?.[1] || ''
 
-              // 查找插入位置
-              let insertLine = errorLine - 1
+          // 查找插入位置
+          let insertLine = errorLine - 1
 
               // 特殊处理不同类型的标签
               if (actualTag === 'tbody' || actualTag === 'thead' || actualTag === 'tfoot') {
@@ -147,7 +137,7 @@ export function autoFixCode(
         console.log(`   错误路径: ${errorPath}, 找到文件: ${filePath}`)
         if (filePath && fixedFiles[filePath]) {
           console.log(`   调用 fixJSXTagsWithAST...`)
-          const result = fixJSXTagsWithAST(fixedFiles[filePath], filePath)
+          const result = fixJSXTagsWithAST(fixedFiles[filePath], filePath, error)
           console.log(`   修复结果: ${result.fixed}`)
           if (result.fixed) {
             fixedFiles[filePath] = result.code
