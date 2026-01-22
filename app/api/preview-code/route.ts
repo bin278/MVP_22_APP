@@ -718,10 +718,11 @@ export async function POST(request: NextRequest) {
           })
 
           if (result?.code) {
-            // 移除编译后代码中的 export 语句
+            // 移除编译后代码中的 export 语句和其他问题
             let compiledHookCode = result.code
               .replace(/export\s+default\s+/g, '')
               .replace(/export\s+/g, '')
+              .replace(/\btypescript\b/g, '')
 
             hookScripts += `
               // Hook: ${hookName}
@@ -771,10 +772,11 @@ export async function POST(request: NextRequest) {
           })
 
           if (result?.code) {
-            // 移除编译后代码中的 export 语句
+            // 移除编译后代码中的 export 语句和其他问题
             let compiledUtilCode = result.code
               .replace(/export\s+default\s+/g, '')
               .replace(/export\s+/g, '')
+              .replace(/\btypescript\b/g, '')
 
             utilScripts += `
               // Util: ${fileName}
