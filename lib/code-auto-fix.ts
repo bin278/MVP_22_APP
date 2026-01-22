@@ -54,14 +54,35 @@ function fixJSXTagsWithAST(code: string, filePath: string): { fixed: boolean; co
                   insertLine--
                 }
               } else if (actualTag === 'ul' || actualTag === 'ol') {
-                while (insertLine > 0 && !lines[insertLine - 1].trim().startsWith('<li')) {
+                // 查找第一个 <li> 标签之前
+                while (insertLine > 0) {
+                  const prevLine = lines[insertLine - 1].trim()
+                  if (prevLine.includes('<li') || prevLine.includes('{') || prevLine.includes('.map(')) {
+                    break
+                  }
+                  insertLine--
+                }
+              } else if (actualTag === 'form') {
+                // 查找表单内容开始位置
+                while (insertLine > 0) {
+                  const prevLine = lines[insertLine - 1].trim()
+                  if (prevLine.includes('<div') || prevLine.includes('return') || prevLine.includes('{')) {
+                    break
+                  }
                   insertLine--
                 }
               } else {
-                // 通用处理：查找缩进更少的行
+                // 通用处理：查找缩进更少的行或内容开始位置
                 while (insertLine > 0) {
-                  const prevIndent = lines[insertLine - 1].match(/^(\s*)/)?.[1] || ''
-                  if (prevIndent.length < indent.length) break
+                  const prevLine = lines[insertLine - 1]
+                  const prevIndent = prevLine.match(/^(\s*)/)?.[1] || ''
+                  const prevTrimmed = prevLine.trim()
+
+                  // 如果遇到明显的块开始标记，停止
+                  if (prevTrimmed.includes('{') || prevTrimmed.includes('return') ||
+                      prevTrimmed.includes('<div') || prevIndent.length < indent.length) {
+                    break
+                  }
                   insertLine--
                 }
               }
