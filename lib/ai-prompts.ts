@@ -10,9 +10,19 @@ IMPORTANT: User requirements may be in Chinese or English. Treat both languages 
 CRITICAL RULES:
 1. Return ONLY the React component code with necessary imports
 2. Use modern React hooks (useState, useEffect, etc.) and functional components
-3. Include inline styles or Tailwind classes for styling
-4. Make it visually appealing and responsive
-5. ALWAYS declare variables and hooks BEFORE the return statement
+3. MUST use inline styles (style={{...}}) for ALL styling to ensure preview works correctly
+   CRITICAL: Use RICH and DETAILED inline styles including:
+   - Typography: fontFamily, fontSize, fontWeight, lineHeight, letterSpacing
+   - Colors: Use gradients, shadows (boxShadow), opacity
+   - Spacing: Generous padding, margin for visual breathing room
+   - Layout: flexbox/grid with proper alignment and gaps
+   - Effects: borderRadius, boxShadow, transitions (use CSS-in-JS for hover effects)
+   - Responsive: Use percentage widths, maxWidth, minHeight
+   You may optionally generate a .css file for downloaded code, but components MUST work with inline styles alone
+4. Make it visually appealing and responsive with rich colors, padding, margins, and modern design
+5. CRITICAL: If generating multiple files/components, the main App component MUST import and use ALL other components - DO NOT recreate functionality with simple HTML
+   IMPORTANT: DO NOT generate separate hook files (useXxx.js) or utility files - implement all logic directly in components with useState/useEffect
+6. ALWAYS declare variables and hooks BEFORE the return statement
 6. The return statement must ONLY contain JSX expressions
 7. NEVER use "javascript:" prefix or similar invalid tokens
 8. NEVER use undefined variables - all variables must be declared with const/let/var before use
@@ -24,16 +34,16 @@ CRITICAL RULES:
    CORRECT: const height = 400; <div style={{height}}> // ✓ Declared first
    WRONG: margin={{top, right, left, bottom}} // ✗ Variables not declared
    CORRECT: const top=5, right=5, left=5, bottom=5; margin={{top, right, left, bottom}} // ✓
-11. CRITICAL: NEVER EVER use custom hooks. ONLY use these React built-in hooks:
+11. CRITICAL: NEVER use custom hooks or external libraries. ONLY use React built-in hooks:
    - useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
-   FORBIDDEN: useChartData, useWebSocket, useData, useCodeExecution, useAuth, useTheme, useRouter, useForm, useQuery, useMutation, or ANY other custom hook
-   If you need functionality, implement it directly with useState and useEffect.
-   WRONG: const theme = useTheme()
-   CORRECT: const [theme, setTheme] = useState('light')
-   WRONG: const data = useChartData()
-   CORRECT: const [data, setData] = useState([]); useEffect(() => { fetch(...).then(setData) }, [])
-   WRONG: const { execute } = useCodeExecution()
-   CORRECT: const [result, setResult] = useState(null); const execute = () => { /* logic */ }
+   FORBIDDEN: useLocalStorage, useWebSocket, io (socket.io), axios, lodash, or ANY custom hook/library
+   Implement functionality directly with useState and useEffect.
+   WRONG: const [value] = useLocalStorage('key', 'default')
+   CORRECT: const [value, setValue] = useState(() => localStorage.getItem('key') || 'default'); useEffect(() => { localStorage.setItem('key', value) }, [value])
+   WRONG: const socket = io('url')
+   CORRECT: const [socket, setSocket] = useState(null); useEffect(() => { const ws = new WebSocket('url'); setSocket(ws) }, [])
+   WRONG: import { createContext } from 'react'
+   CORRECT: import React from 'react'; const MyContext = React.createContext()
 12. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
 13. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 14. CRITICAL: Object property assignments MUST include value: { [key]: value } NOT { [key] }
@@ -92,6 +102,12 @@ CRITICAL RULES:
    CRITICAL: When using lists, ALWAYS include both <ul> and <li> tags
    WRONG: <li>Item</li></ul>  // missing <ul>
    CORRECT: <ul><li>Item</li></ul>
+25. CRITICAL: Parentheses and braces MUST be balanced
+   WRONG: function foo() { return (value } // mismatched ) and }
+   CORRECT: function foo() { return (value) }
+   WRONG: const obj = { key: 'value' ) // mismatched } and )
+   CORRECT: const obj = { key: 'value' }
+   Every opening ( must have closing ), every { must have closing }
 25. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
@@ -138,8 +154,16 @@ IMPORTANT: User requirements may be in Chinese or English. Treat both languages 
 CRITICAL RULES:
 1. Return ONLY the React component code without any imports or exports
 2. Use modern React hooks (useState, useEffect, etc.) and functional components
-3. Include inline styles or Tailwind classes for styling
-4. Make it visually appealing and responsive
+3. MUST use inline styles (style={{...}}) for ALL styling to ensure preview works correctly
+   CRITICAL: Use RICH and DETAILED inline styles including:
+   - Typography: fontFamily, fontSize, fontWeight, lineHeight, letterSpacing
+   - Colors: Use gradients, shadows (boxShadow), opacity
+   - Spacing: Generous padding, margin for visual breathing room
+   - Layout: flexbox/grid with proper alignment and gaps
+   - Effects: borderRadius, boxShadow, transitions (use CSS-in-JS for hover effects)
+   - Responsive: Use percentage widths, maxWidth, minHeight
+   You may optionally generate a .css file for downloaded code, but components MUST work with inline styles alone
+4. Make it visually appealing and responsive with rich colors, padding, margins, and modern design
 5. ALWAYS declare variables and hooks BEFORE the return statement
 6. The return statement must ONLY contain JSX expressions
 7. NEVER use "javascript:" prefix or similar invalid tokens
@@ -152,16 +176,16 @@ CRITICAL RULES:
    CORRECT: const height = 400; <div style={{height}}> // ✓ Declared first
    WRONG: margin={{top, right, left, bottom}} // ✗ Variables not declared
    CORRECT: const top=5, right=5, left=5, bottom=5; margin={{top, right, left, bottom}} // ✓
-11. CRITICAL: NEVER EVER use custom hooks. ONLY use these React built-in hooks:
+11. CRITICAL: NEVER use custom hooks or external libraries. ONLY use React built-in hooks:
    - useState, useEffect, useCallback, useMemo, useRef, useContext, useReducer
-   FORBIDDEN: useChartData, useWebSocket, useData, useCodeExecution, useAuth, useTheme, useRouter, useForm, useQuery, useMutation, or ANY other custom hook
-   If you need functionality, implement it directly with useState and useEffect.
-   WRONG: const theme = useTheme()
-   CORRECT: const [theme, setTheme] = useState('light')
-   WRONG: const data = useChartData()
-   CORRECT: const [data, setData] = useState([]); useEffect(() => { fetch(...).then(setData) }, [])
-   WRONG: const { execute } = useCodeExecution()
-   CORRECT: const [result, setResult] = useState(null); const execute = () => { /* logic */ }
+   FORBIDDEN: useLocalStorage, useWebSocket, io (socket.io), axios, lodash, or ANY custom hook/library
+   Implement functionality directly with useState and useEffect.
+   WRONG: const [value] = useLocalStorage('key', 'default')
+   CORRECT: const [value, setValue] = useState(() => localStorage.getItem('key') || 'default'); useEffect(() => { localStorage.setItem('key', value) }, [value])
+   WRONG: const socket = io('url')
+   CORRECT: const [socket, setSocket] = useState(null); useEffect(() => { const ws = new WebSocket('url'); setSocket(ws) }, [])
+   WRONG: import { createContext } from 'react'
+   CORRECT: import React from 'react'; const MyContext = React.createContext()
 12. ONLY use standard HTML elements (div, button, input, etc.) or components you define in the same file
 13. NEVER reference external components like Editor, Chart, FormGenerator, etc. unless you define them first
 14. CRITICAL: Object property assignments MUST include value: { [key]: value } NOT { [key] }
@@ -220,6 +244,12 @@ CRITICAL RULES:
    CRITICAL: When using lists, ALWAYS include both <ul> and <li> tags
    WRONG: <li>Item</li></ul>  // missing <ul>
    CORRECT: <ul><li>Item</li></ul>
+25. CRITICAL: Parentheses and braces MUST be balanced
+   WRONG: function foo() { return (value } // mismatched ) and }
+   CORRECT: function foo() { return (value) }
+   WRONG: const obj = { key: 'value' ) // mismatched } and )
+   CORRECT: const obj = { key: 'value' }
+   Every opening ( must have closing ), every { must have closing }
 25. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions

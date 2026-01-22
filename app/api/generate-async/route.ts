@@ -870,6 +870,7 @@ async function generateSingleFile(
 ): Promise<string> {
   const { CODE_GENERATION_SYSTEM_PROMPT } = require('@/lib/ai-prompts')
 
+  let systemPrompt = ''
   let filePrompt = `Generate ONLY the file: ${fileName}
 
 User requirement: ${userPrompt}
@@ -889,18 +890,18 @@ ${previousErrors.map((err, i) => `${i + 1}. ${err}`).join('\n')}
 Return ONLY the file content, no JSON wrapper, no explanations.`
 
   if (fileName === 'package.json') {
-    filePrompt += `\n\nGenerate a valid package.json with React 18, Vite, and necessary dependencies.`
+    systemPrompt = 'Generate a valid package.json with React 18, Vite, and necessary dependencies.'
   } else if (fileName.endsWith('.css')) {
-    filePrompt += `\n\nGenerate CSS styles. Use modern CSS with good defaults.`
+    systemPrompt = 'Generate CSS styles. Use modern CSS with good defaults.'
   } else if (fileName.endsWith('.jsx') || fileName.endsWith('.tsx')) {
-    filePrompt += `\n\n${CODE_GENERATION_SYSTEM_PROMPT}`
+    systemPrompt = CODE_GENERATION_SYSTEM_PROMPT
   }
 
   const completion = await client.chat.completions.create({
     model: model,
     messages: [
-      { role: 'system', content: filePrompt },
-      { role: 'user', content: `Generate ${fileName}` }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: filePrompt }
     ],
     max_tokens: Math.min(modelConfig?.maxTokens || 8192, 8192),
     temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE!),
