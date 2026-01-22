@@ -54,7 +54,12 @@ CRITICAL RULES:
    CORRECT: return ( <> <div>First</div> <div>Second</div> </> )
    WRONG: {condition && <div>A</div> <div>B</div>}
    CORRECT: {condition && <> <div>A</div> <div>B</div> </>}
-23. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+23. CRITICAL: ALL variables MUST be declared before use - NEVER reference undefined variables
+   WRONG: const result = item.map(x => x * 2)  // item not declared
+   CORRECT: const items = [1,2,3]; const result = items.map(x => x * 2)
+   WRONG: <div>{data.map(item => <span>{value}</span>)}</div>  // value not declared
+   CORRECT: <div>{data.map(item => <span>{item.value}</span>)}</div>
+24. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
@@ -144,7 +149,12 @@ CRITICAL RULES:
    CORRECT: return ( <> <div>First</div> <div>Second</div> </> )
    WRONG: {condition && <div>A</div> <div>B</div>}
    CORRECT: {condition && <> <div>A</div> <div>B</div> </>}
-23. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
+23. CRITICAL: ALL variables MUST be declared before use - NEVER reference undefined variables
+   WRONG: const result = item.map(x => x * 2)  // item not declared
+   CORRECT: const items = [1,2,3]; const result = items.map(x => x * 2)
+   WRONG: <div>{data.map(item => <span>{value}</span>)}</div>  // value not declared
+   CORRECT: <div>{data.map(item => <span>{item.value}</span>)}</div>
+24. CRITICAL: Generate PURE JAVASCRIPT (.jsx) code, NOT TypeScript (.tsx)
    - NEVER use TypeScript type annotations like : string, : number, : Type
    - NEVER use interface or type definitions
    - NEVER use return type annotations like (): Type => or (params): Type =>
