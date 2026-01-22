@@ -102,6 +102,9 @@ CRITICAL RULES:
    CRITICAL: When using lists, ALWAYS include both <ul> and <li> tags
    WRONG: <li>Item</li></ul>  // missing <ul>
    CORRECT: <ul><li>Item</li></ul>
+   CRITICAL: When using select/option, ALWAYS include both tags
+   WRONG: {items.map(item => ( {item.name} </option> ))}  // missing <option>
+   CORRECT: {items.map(item => ( <option key={item.id}>{item.name}</option> ))}
 25. CRITICAL: Parentheses and braces MUST be balanced
    WRONG: function foo() { return (value } // mismatched ) and }
    CORRECT: function foo() { return (value) }
@@ -244,6 +247,9 @@ CRITICAL RULES:
    CRITICAL: When using lists, ALWAYS include both <ul> and <li> tags
    WRONG: <li>Item</li></ul>  // missing <ul>
    CORRECT: <ul><li>Item</li></ul>
+   CRITICAL: When using select/option, ALWAYS include both tags
+   WRONG: {items.map(item => ( {item.name} </option> ))}  // missing <option>
+   CORRECT: {items.map(item => ( <option key={item.id}>{item.name}</option> ))}
 25. CRITICAL: Parentheses and braces MUST be balanced
    WRONG: function foo() { return (value } // mismatched ) and }
    CORRECT: function foo() { return (value) }
