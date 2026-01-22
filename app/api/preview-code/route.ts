@@ -718,10 +718,15 @@ export async function POST(request: NextRequest) {
           })
 
           if (result?.code) {
+            // 移除编译后代码中的 export 语句
+            let compiledHookCode = result.code
+              .replace(/export\s+default\s+/g, '')
+              .replace(/export\s+/g, '')
+
             hookScripts += `
               // Hook: ${hookName}
               (function() {
-                ${result.code}
+                ${compiledHookCode}
                 if (typeof ${hookName} !== 'undefined') {
                   window.${hookName} = ${hookName};
                   console.log('✅ Registered hook: ${hookName}');
@@ -766,10 +771,15 @@ export async function POST(request: NextRequest) {
           })
 
           if (result?.code) {
+            // 移除编译后代码中的 export 语句
+            let compiledUtilCode = result.code
+              .replace(/export\s+default\s+/g, '')
+              .replace(/export\s+/g, '')
+
             utilScripts += `
               // Util: ${fileName}
               (function() {
-                ${result.code}
+                ${compiledUtilCode}
                 // 尝试注册函数到 window.utils
                 try {
                   if (typeof ${fileName} !== 'undefined') {
