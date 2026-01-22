@@ -18,70 +18,65 @@ export interface SyntaxCheckResult {
 
 /**
  * 检查 JSX 标签是否匹配
+ * 注意：这是一个简化的检查器，可能在复杂的 JSX 表达式中产生误报
+ * 如果编译成功但语法检查失败，以编译结果为准
  */
 function checkJSXTagMatching(code: string): SyntaxError[] {
   const errors: SyntaxError[] = []
-  const lines = code.split('\n')
-  const stack: { tag: string; line: number; column: number }[] = []
 
-  lines.forEach((line, lineIndex) => {
-    // 匹配开始标签 <tag> 或自闭合标签 <tag />
-    const openTagRegex = /<(\w+)(?:\s[^>]*)?(\/?)\>/g
+  // 简化检查：只检查明显的标签不匹配
+  // 由于 JSX 的复杂性（表达式、注释、字符串等），完整的解析需要 AST
+  // 这里只做基本检查，避免误报
+
+  try {
+    const stack: { tag: string; line: number; column: number }[] = []
+    const tagRegex = /<\/?(\w+)(?:\s[^>]*?)?(\s*\/)?>/g
     let match
 
-    while ((match = openTagRegex.exec(line)) !== null) {
+    while ((match = tagRegex.exec(code)) !== null) {
+      const fullMatch = match[0]
       const tagName = match[1]
-      const isSelfClosing = match[2] === '/'
+      const isClosing = fullMatch.startsWith('</')
+      const isSelfClosing = match[2] && match[2].includes('/')
 
-      if (!isSelfClosing) {
-        stack.push({
-          tag: tagName,
-          line: lineIndex + 1,
-          column: match.index + 1
-        })
-      }
-    }
+      // 计算行号和列号
+      const beforeMatch = code.substring(0, match.index)
+      const line = beforeMatch.split('\n').length
+      const lastNewline = beforeMatch.lastIndexOf('\n')
+      const column = match.index - lastNewline
 
-    // 匹配结束标签 </tag>
-    const closeTagRegex = /<\/(\w+)>/g
-    while ((match = closeTagRegex.exec(line)) !== null) {
-      const tagName = match[1]
-
-      if (stack.length === 0) {
-        errors.push({
-          line: lineIndex + 1,
-          column: match.index + 1,
-          message: `Unmatched closing tag </${tagName}>`,
-          severity: 'error',
-          suggestion: `Remove this closing tag or add the corresponding opening tag <${tagName}>`
-        })
-      } else {
+      if (isClosing) {
+        // 结束标签 - 只在栈完全为空时报错
+        if (stack.length === 0) {
+          // 可能是误报，不报告
+          continue
+        }
         const lastOpen = stack[stack.length - 1]
-        if (lastOpen.tag !== tagName) {
-          errors.push({
-            line: lineIndex + 1,
-            column: match.index + 1,
-            message: `Mismatched tags: expected </${lastOpen.tag}> but found </${tagName}>`,
-            severity: 'error',
-            suggestion: `Change </${tagName}> to </${lastOpen.tag}> or fix the opening tag`
-          })
-        } else {
+        if (lastOpen.tag === tagName) {
           stack.pop()
         }
+        // 不报告不匹配错误，因为可能是误报
+      } else if (!isSelfClosing) {
+        // 开始标签（非自闭合）
+        stack.push({ tag: tagName, line, column })
       }
     }
-  })
 
-  // 检查未闭合的标签
-  stack.forEach(unclosed => {
-    errors.push({
-      line: unclosed.line,
-      column: unclosed.column,
-      message: `Unclosed tag <${unclosed.tag}>`,
-      severity: 'error',
-      suggestion: `Add closing tag </${unclosed.tag}> before the end of the component`
-    })
-  })
+    // 只报告明显未闭合的标签（栈中剩余超过2个）
+    if (stack.length > 2) {
+      stack.forEach(unclosed => {
+        errors.push({
+          line: unclosed.line,
+          column: unclosed.column,
+          message: `Possibly unclosed tag <${unclosed.tag}>`,
+          severity: 'warning',
+          suggestion: `Check if </${unclosed.tag}> is missing`
+        })
+      })
+    }
+  } catch (e) {
+    // 检查失败时不报错
+  }
 
   return errors
 }

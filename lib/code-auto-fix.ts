@@ -331,14 +331,14 @@ export function autoFixCode(
             wasFixed = true
           }
 
-          // 修复三元表达式中缺少包裹元素的 JSX (? ( {xxx 模式)
-          const ternaryJSXPattern = /(\?\s*\(\s*\n\s*)(\{[^<])/g
-          if (ternaryJSXPattern.test(code)) {
-            code = code.replace(ternaryJSXPattern, '$1<>$2')
-            // 找到对应的结束位置并添加 </>
-            code = code.replace(/(\}[\s\n]*\)\s*)(\)\s*:\s*)/g, '$1</>\n$2')
-            wasFixed = true
-          }
+          // 已禁用：修复三元表达式中缺少包裹元素的 JSX
+          // 原因：正则表达式过于激进，会在不该添加的地方插入闭合标签，破坏正常代码
+          // const ternaryJSXPattern = /(\?\s*\(\s*\n\s*)(\{[^<])/g
+          // if (ternaryJSXPattern.test(code)) {
+          //   code = code.replace(ternaryJSXPattern, '$1<>$2')
+          //   code = code.replace(/(\}[\s\n]*\)\s*)(\)\s*:\s*)/g, '$1</>\n$2')
+          //   wasFixed = true
+          // }
 
           if (wasFixed) {
             fixedFiles[filePath] = code
