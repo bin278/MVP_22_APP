@@ -18,7 +18,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConversationSidebar } from "@/components/conversation-sidebar"
 import { ModelSelector } from "@/components/model-selector"
-import { SUBSCRIPTION_TIERS, getDefaultModel, AVAILABLE_MODELS, canUseModel, type SubscriptionTier } from "@/lib/subscription-tiers"
+import { SUBSCRIPTION_TIERS, getDefaultModel, AVAILABLE_MODELS, canUseModel, getMaxFiles, type SubscriptionTier } from "@/lib/subscription-tiers"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 interface Message {
@@ -356,7 +356,7 @@ function GeneratePageContent() {
     setTimeout(async () => {
       let pollCount = 0
       let consecutive404Count = 0
-      const maxPolls = 300 // 5分钟 (300 * 1秒)
+      const maxPolls = 600 // 10分钟 (600 * 1秒)
       const maxConsecutive404 = 5 // 最多连续5次404
 
       const pollInterval = setInterval(async () => {
@@ -423,16 +423,9 @@ function GeneratePageContent() {
             setAsyncTaskId(null)
           }
         } catch (error) {
-          pollCount++
-
-          // 如果网络错误，继续轮询几次
-          if (pollCount >= maxPolls) {
-            clearInterval(pollInterval)
-            setError('网络错误，请检查连接后重试')
-            setIsGenerating(false)
-            setCurrentTaskId(null)
-            setAsyncTaskId(null)
-          }
+          console.error('轮询请求失败:', error)
+          // 网络错误时不增加 pollCount，继续轮询
+          // 只有在超过最大轮询次数时才停止
         }
       }, 1000) // 每1秒检查一次
     }, 500) // 延迟500ms开始轮询

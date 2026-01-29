@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { AVAILABLE_MODELS, canUseModel, type SubscriptionTier } from '@/lib/subscription-tiers'
+import { CODE_GENERATION_SYSTEM_PROMPT, CODE_GENERATION_SYSTEM_PROMPT_FREE } from '@/lib/ai-prompts'
 import { requireAuth } from '@/lib/auth/auth'
 import { add } from '@/lib/database/cloudbase'
 import { recordRecommendationUsage } from '@/lib/subscription/usage-tracker'
@@ -75,7 +76,7 @@ function splitSimplePrompt(prompt: string, segments: string[]): void {
     segments.push(`${prompt}，请先创建基础结构。`);
     segments.push(`${prompt}，请完善功能和样式。`);
   } else if (promptLength < 200) {
-    // 中等提示：分成2-3个段落
+    // 中等提示：分成2-3��段落
     segments.push(`${prompt}，第一部分：基础实现。`);
     segments.push(`${prompt}，第二部分：功能完善。`);
   } else {
@@ -83,6 +84,76 @@ function splitSimplePrompt(prompt: string, segments: string[]): void {
     segments.push(`${prompt.substring(0, promptLength / 3)}...，第一阶段实现。`);
     segments.push(`${prompt.substring(promptLength / 3, 2 * promptLength / 3)}...，第二阶段完善。`);
     segments.push(`${prompt.substring(2 * promptLength / 3)}，第三阶段集成。`);
+  }
+}
+
+// 根据订阅层级生成项目生成的系统提示词
+function getProjectGenerationPrompt(tier: SubscriptionTier): string {
+  if (tier === 'free') {
+    // 免费版：严格限制只生成4个文件
+    return `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
+
+CRITICAL FILE REQUIREMENTS - MUST FOLLOW EXACTLY:
+- You MUST generate EXACTLY 4 files, NO MORE, NO LESS:
+  1. src/App.jsx (main component)
+  2. src/index.css (styles)
+  3. package.json (dependencies)
+  4. README.md (documentation)
+- DO NOT create ANY other files
+- DO NOT create src/components/ directory
+- DO NOT create src/utils/ directory
+- DO NOT create any additional .jsx or .js files
+- ALL component code MUST be in src/App.jsx only
+
+CODE RULES - VERY IMPORTANT:
+- Use pure JavaScript/JSX only, NO TypeScript
+- NO type annotations (no : string, : number, : React.FC, etc.)
+- NO interface or type definitions
+- NO generics like useState<string>(), just use useState()
+- ALL code in single App.jsx file - NO separate component files
+- Use basic React hooks: useState, useEffect
+- Keep component under 150 lines
+- Simple inline styles with Tailwind CSS classes
+- No complex patterns (no Context, Redux, custom hooks)
+- Focus on clarity over features
+- CRITICAL: All ternary expressions MUST be complete with both branches
+  - CORRECT: \${duration ? (currentTime / duration) * 100 : 0}%
+  - WRONG: \${duration ? (currentTime / duration) * 100 }% (missing : part)
+- CRITICAL: JSX table structure must be correct:
+  - <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
+
+Return JSON with EXACTLY these 4 files:
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`;
+  } else {
+    // 付费版（pro/enterprise）：允许生成更多文件和组件
+    return `Generate a React app as JSON. You can create multiple files and components as needed.
+
+FILE REQUIREMENTS:
+- Required base files: src/App.jsx, src/index.css, package.json, README.md
+- You CAN create additional files as needed:
+  - src/components/ directory for reusable components
+  - src/utils/ directory for utility functions
+  - src/hooks/ directory for custom hooks
+  - Additional .jsx or .js files as needed
+- Organize code into logical modules and components
+
+CODE RULES - VERY IMPORTANT:
+- Use pure JavaScript/JSX only, NO TypeScript
+- NO type annotations (no : string, : number, : React.FC, etc.)
+- NO interface or type definitions
+- NO generics like useState<string>(), just use useState()
+- Use React hooks: useState, useEffect, custom hooks allowed
+- Break down complex components into smaller reusable components
+- Use Tailwind CSS classes for styling
+- Follow React best practices and patterns
+- CRITICAL: All ternary expressions MUST be complete with both branches
+  - CORRECT: \${duration ? (currentTime / duration) * 100 : 0}%
+  - WRONG: \${duration ? (currentTime / duration) * 100 }% (missing : part)
+- CRITICAL: JSX table structure must be correct:
+  - <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
+
+Return JSON with all necessary files:
+{"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"...","src/components/Component.jsx":"..."},"projectName":"my-app"}`;
   }
 }
 
@@ -356,14 +427,24 @@ async function startAsyncFallback(
           role: 'system',
           content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Required files: src/App.jsx, src/index.css, package.json, README.md
+CRITICAL FILE REQUIREMENTS - MUST FOLLOW EXACTLY:
+- You MUST generate EXACTLY 4 files, NO MORE, NO LESS:
+  1. src/App.jsx (main component)
+  2. src/index.css (styles)
+  3. package.json (dependencies)
+  4. README.md (documentation)
+- DO NOT create ANY other files
+- DO NOT create src/components/ directory
+- DO NOT create src/utils/ directory
+- DO NOT create any additional .jsx or .js files
+- ALL component code MUST be in src/App.jsx only
 
 CODE RULES - VERY IMPORTANT:
 - Use pure JavaScript/JSX only, NO TypeScript
 - NO type annotations (no : string, : number, : React.FC, etc.)
 - NO interface or type definitions
 - NO generics like useState<string>(), just use useState()
-- Single component only (no src/components/, src/utils/, etc.)
+- ALL code in single App.jsx file - NO separate component files
 - Use basic React hooks: useState, useEffect
 - Keep component under 150 lines
 - Simple inline styles with Tailwind CSS classes
@@ -375,7 +456,7 @@ CODE RULES - VERY IMPORTANT:
 - CRITICAL: JSX table structure must be correct:
   - <table><thead><tr><th>...</th></tr></thead><tbody>...</tbody></table>
 
-Return JSON:
+Return JSON with EXACTLY these 4 files:
 {"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
         },
         {
@@ -819,21 +900,31 @@ export async function POST(request: NextRequest) {
                 role: 'system',
                 content: `Generate a SIMPLE React app as JSON. Keep it minimal and easy to understand.
 
-Required files: src/App.jsx, src/index.css, package.json, README.md
+CRITICAL FILE REQUIREMENTS - MUST FOLLOW EXACTLY:
+- You MUST generate EXACTLY 4 files, NO MORE, NO LESS:
+  1. src/App.jsx (main component)
+  2. src/index.css (styles)
+  3. package.json (dependencies)
+  4. README.md (documentation)
+- DO NOT create ANY other files
+- DO NOT create src/components/ directory
+- DO NOT create src/utils/ directory
+- DO NOT create any additional .jsx or .js files
+- ALL component code MUST be in src/App.jsx only
 
 CODE RULES - VERY IMPORTANT:
 - Use pure JavaScript/JSX only, NO TypeScript
 - NO type annotations (no : string, : number, : React.FC, etc.)
 - NO interface or type definitions
 - NO generics like useState<string>(), just use useState()
-- Single component only (no src/components/, src/utils/, etc.)
+- ALL code in single App.jsx file - NO separate component files
 - Use basic React hooks: useState, useEffect
 - Keep component under 150 lines
 - Simple inline styles with Tailwind CSS classes
 - No complex patterns (no Context, Redux, custom hooks)
 - Focus on clarity over features
 
-Return JSON:
+Return JSON with EXACTLY these 4 files:
 {"files":{"src/App.jsx":"...","src/index.css":"...","package.json":"...","README.md":"..."},"projectName":"my-app"}`
               },
               {

@@ -13,21 +13,24 @@ export const SUBSCRIPTION_TIERS = {
     nameZh: '免费版',
     limits: {},
     maxRequests: 30,
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-chat', 'deepseek-coder', 'glm-4.6']
+    maxFiles: 4, // 免费版最多生成4个文件：App.jsx, index.css, package.json, README.md
+    models: ['qwen-turbo', 'deepseek-coder'] // 基础模型
   },
   pro: {
     name: 'Pro',
     nameZh: '专业版',
     limits: {},
     maxRequests: 500,
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-chat', 'deepseek-coder', 'glm-4.6']
+    maxFiles: -1, // 无限制
+    models: ['qwen-turbo', 'qwen-plus', 'deepseek-coder', 'glm-4.6'] // 基础+中级模型
   },
   enterprise: {
     name: 'Enterprise',
     nameZh: '企业版',
     limits: {},
     maxRequests: -1, // 无限
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-chat', 'deepseek-coder', 'glm-4.6']
+    maxFiles: -1, // 无限制
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-coder', 'glm-4.6'] // 全部模型
   }
 };
 
@@ -35,17 +38,6 @@ export const SUBSCRIPTION_TIERS = {
  * 可用模型配置
  */
 export const AVAILABLE_MODELS = {
-  'deepseek-chat': {
-    id: 'deepseek-chat',
-    name: 'DeepSeek Chat',
-    nameZh: 'DeepSeek 对话',
-    description: 'General purpose AI assistant',
-    descriptionZh: '通用AI助手',
-    provider: 'deepseek',
-    contextWindow: 32768,
-    maxTokens: 16384,
-    pricing: { input: 0.001, output: 0.002 }
-  },
   'deepseek-coder': {
     id: 'deepseek-coder',
     name: 'DeepSeek Coder',
@@ -142,4 +134,20 @@ export function getModelConfig(modelId: string) {
  */
 export function getAllAvailableModelIds(): string[] {
   return Object.keys(AVAILABLE_MODELS);
+}
+
+/**
+ * 获取订阅层级的最大文件数限制
+ */
+export function getMaxFiles(tier: SubscriptionTier): number {
+  return SUBSCRIPTION_TIERS[tier].maxFiles;
+}
+
+/**
+ * 检查文件数是否超过限制
+ */
+export function canGenerateFiles(tier: SubscriptionTier, fileCount: number): boolean {
+  const maxFiles = getMaxFiles(tier);
+  if (maxFiles === -1) return true; // 无限制
+  return fileCount <= maxFiles;
 }

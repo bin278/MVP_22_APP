@@ -3,6 +3,78 @@ import * as babel from '@babel/core'
 import presetReact from '@babel/preset-react'
 import presetTypescript from '@babel/preset-typescript'
 
+// 沙箱模式：为每个组件单独编译，失败时返回降级组件
+interface CompileResult {
+  success: boolean
+  code?: string
+  error?: string
+  componentName: string
+  fallback?: string
+}
+
+function compileComponentSafely(code: string, componentName: string, babelConfig: any): CompileResult {
+  try {
+    const compiled = babel.transformSync(code, {
+      ...babelConfig,
+      filename: `${componentName}.tsx`
+    })
+    return {
+      success: true,
+      code: compiled?.code || '',
+      componentName
+    }
+  } catch (error: any) {
+    const errorMsg = error?.message || 'Unknown compilation error'
+    const stack = error?.stack || ''
+    return {
+      success: false,
+      error: errorMsg,
+      componentName,
+      fallback: createFallbackComponent(componentName, errorMsg, stack)
+    }
+  }
+}
+
+// 生成错误占位符组件（带详细错误信息和可折叠堆栈）
+function createFallbackComponent(name: string, error: string, stack?: string): string {
+  const escapedError = error.replace(/'/g, "\\'").replace(/\n/g, '\\n')
+  const escapedStack = stack ? stack.replace(/'/g, "\\'").replace(/\n/g, '\\n') : ''
+
+  return `
+window.${name} = function() {
+  const [showDetails, setShowDetails] = window.React.useState(false);
+  return window.React.createElement('div', {
+    style: {
+      padding: '20px',
+      border: '2px solid #f44336',
+      borderRadius: '8px',
+      backgroundColor: '#ffebee',
+      margin: '10px 0'
+    }
+  }, [
+    window.React.createElement('div', { key: 'icon', style: { fontSize: '24px', marginBottom: '10px' } }, '⚠️'),
+    window.React.createElement('h4', {
+      key: 'title',
+      style: { margin: '0 0 8px 0', color: '#c62828' }
+    }, '${name} 组件渲染失败'),
+    window.React.createElement('p', {
+      key: 'error',
+      style: { margin: '0 0 12px 0', color: '#666', fontSize: '14px' }
+    }, '错误: ${escapedError}'),
+    ${escapedStack ? `window.React.createElement('button', {
+      key: 'toggle',
+      onClick: function() { setShowDetails(!showDetails); },
+      style: { padding: '4px 8px', fontSize: '12px', cursor: 'pointer', marginBottom: '8px' }
+    }, showDetails ? '隐藏详情' : '显示详情'),
+    showDetails && window.React.createElement('pre', {
+      key: 'stack',
+      style: { marginTop: '12px', padding: '8px', backgroundColor: '#fff', fontSize: '11px', overflow: 'auto', maxHeight: '200px' }
+    }, '${escapedStack}')` : 'null'}
+  ]);
+};
+`
+}
+
 // 验证生成的代码是否有明显错误
 function validateGeneratedCode(code: string, allFiles: Record<string, string>): { valid: boolean; errors: string[]; warnings: string[] } {
   const errors: string[] = []
@@ -806,6 +878,15 @@ export async function POST(request: NextRequest) {
     if (componentFiles.length > 0) {
       console.log(`🔧 Processing ${componentFiles.length} component files`)
 
+      // 共享 Babel 配置以提高性能
+      const babelConfig = {
+        presets: [
+          [presetReact, { runtime: 'classic' }],
+          [presetTypescript, { isTSX: true, allExtensions: true }]
+        ],
+        compact: false
+      }
+
       for (const [filePath, fileCode] of componentFiles) {
         let componentCode = '' // 移到外层作用域
         let componentName = '' // 移到外层作用域
@@ -845,17 +926,11 @@ export async function POST(request: NextRequest) {
             .replace(/export\s+\*/g, '')  // export *
             .replace(/^export\s+/gm, '')  // 行首的 export
 
-          // 编译组件
-          const result = babel.transformSync(componentCode, {
-            presets: [
-              [presetReact, { runtime: 'classic' }],
-              [presetTypescript, { isTSX: true, allExtensions: true }]
-            ],
-            filename: `${componentName}.tsx`,
-          })
+          // 使用沙箱模式编译组件
+          const compileResult = compileComponentSafely(componentCode, componentName, babelConfig)
 
-          if (result?.code) {
-            let compiledCode = result.code
+          if (compileResult.success && compileResult.code) {
+            let compiledCode = compileResult.code
 
             // 移除编译后代码中残留的 export 语句
             compiledCode = compiledCode
@@ -932,99 +1007,19 @@ export async function POST(request: NextRequest) {
       })();
 `
             console.log(`✅ Compiled component: ${componentName}`)
+          } else if (!compileResult.success && compileResult.fallback) {
+            // 编译失败，使用沙箱生成的降级组件
+            componentScripts += compileResult.fallback
+            console.warn(`⚠️ Component ${componentName} compilation failed, using fallback. Error: ${compileResult.error}`)
           } else {
             // 编译结果为空，创建占位符
-            componentScripts += `
-window.${componentName} = function() {
-  return React.createElement('div', {
-    style: {
-      padding: '20px',
-      margin: '10px',
-      border: '2px dashed #f59e0b',
-      borderRadius: '8px',
-      backgroundColor: '#fffbeb',
-      color: '#92400e'
-    }
-  },
-    React.createElement('div', { style: { marginBottom: '12px' } },
-      React.createElement('strong', null, '⚠️ Component "${componentName}" not loaded')
-    ),
-    React.createElement('p', { style: { fontSize: '14px', color: '#78350f', marginBottom: '8px' } },
-      'This component failed to compile. The code may be empty or invalid.'
-    ),
-    React.createElement('details', { style: { fontSize: '12px', marginTop: '8px' } },
-      React.createElement('summary', { style: { cursor: 'pointer', color: '#92400e' } }, 'Troubleshooting'),
-      React.createElement('ul', { style: { marginTop: '8px', paddingLeft: '20px' } },
-        React.createElement('li', null, 'Check if the component file was generated'),
-        React.createElement('li', null, 'Verify the component has valid JSX syntax'),
-        React.createElement('li', null, 'Try regenerating with a simpler prompt')
-      )
-    )
-  );
-};
-`
+            componentScripts += createFallbackComponent(componentName, 'Empty compilation result', '')
             console.warn(`⚠️ Empty compilation result for component: ${componentName}`)
           }
         } catch (err: any) {
-          console.warn(`⚠️ Failed to compile component ${filePath}:`, err.message)
-
-          // 尝试自动修复（最多3次）
-          const { autoFixCode } = require('@/lib/code-auto-fix')
-          let fixedCode = componentCode
-          let retryCount = 0
-          const maxRetries = 3
-
-          while (retryCount < maxRetries) {
-            const errorMsg = `${filePath}: ${err.message}`
-            const autoFix = autoFixCode({ [filePath]: fixedCode }, [errorMsg])
-
-            if (autoFix.fixedErrors.length > 0) {
-              console.log(`🔧 自动修复了 ${autoFix.fixedErrors.length} 个错误，重新编译`)
-              const newFixedCode = autoFix.fixedFiles[filePath]
-
-              // 检测循环修复：如果代码没有变化，停止重试
-              if (newFixedCode === fixedCode) {
-                console.warn(`⚠️ 自动修复未改变代码，停止重试`)
-                componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
-                break
-              }
-
-              fixedCode = newFixedCode
-
-              try {
-                const result = babel.transformSync(fixedCode, {
-                  presets: [
-                    [presetReact, { runtime: 'classic' }],
-                    [presetTypescript, { isTSX: true, allExtensions: true }]
-                  ],
-                  filename: `${componentName}.tsx`,
-                })
-
-                if (result?.code) {
-                  const escapedComponentCode = result.code
-                    .replace(/<\/script>/gi, '<\\/script>')
-                    .replace(/<!--/g, '<\\!--')
-                    .replace(/-->/g, '--\\>')
-                    .replace(/export\s+default\s+/g, '')
-                    .replace(/export\s+/g, '')
-                  componentScripts += `\nwindow.${componentName} = ${escapedComponentCode};\n`
-                  console.log(`✅ 修复后编译成功: ${componentName}`)
-                  break
-                }
-              } catch (retryErr: any) {
-                console.warn(`⚠️ 修复后仍然编译失败: ${retryErr.message}`)
-                err = retryErr
-                retryCount++
-                if (retryCount >= maxRetries) {
-                  componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
-                }
-              }
-            } else {
-              // 没有修复，退出循环
-              componentScripts += `window.${componentName} = function() { return React.createElement('div', {style:{padding:'20px',margin:'10px',border:'2px dashed #dc2626',borderRadius:'8px',backgroundColor:'#fef2f2',textAlign:'center',color:'#991b1b'}}, '⚠️ Component "${componentName}" compile error'); };\n`
-              break
-            }
-          }
+          // 捕获预处理阶段的错误（在调用 compileComponentSafely 之前）
+          console.warn(`⚠️ Failed to process component ${filePath}:`, err.message)
+          componentScripts += createFallbackComponent(componentName, err.message, err.stack)
         }
       }
     }
