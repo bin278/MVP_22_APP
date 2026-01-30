@@ -110,7 +110,7 @@ async function getCloudBaseStats(today: Date, weekAgo: Date, monthAgo: Date): Pr
 
     const usersResult = await db.collection(CloudBaseCollections.USERS).get();
     const paymentsResult = await db.collection(CloudBaseCollections.PAYMENTS).get();
-    const subscriptionsResult = await db.collection(CloudBaseCollections.SUBSCRIPTIONS).get();
+    const subscriptionsResult = await db.collection(CloudBaseCollections.USER_SUBSCRIPTIONS).get();
 
     return calculateStats(
       usersResult.data || [],
