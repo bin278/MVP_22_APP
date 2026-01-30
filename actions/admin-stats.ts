@@ -144,33 +144,33 @@ function calculateStats(
   const mau = users.filter((u: any) => u.last_active_at && new Date(u.last_active_at) >= monthAgo).length;
 
   const totalPayments = payments.length;
-  const completedPayments = payments.filter((p: any) => p.status === "completed").length;
+  const completedPayments = payments.filter((p: any) => (p.status || "completed") === "completed").length;
   const pendingPayments = payments.filter((p: any) => p.status === "pending").length;
 
   const totalRevenue = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "USD")
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "USD")
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const todayRevenue = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "USD" && new Date(p.created_at) >= today)
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "USD" && new Date(p.created_at) >= today)
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const weekRevenue = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "USD" && new Date(p.created_at) >= weekAgo)
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "USD" && new Date(p.created_at) >= weekAgo)
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const monthRevenue = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "USD" && new Date(p.created_at) >= monthAgo)
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "USD" && new Date(p.created_at) >= monthAgo)
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
   const totalRevenueCny = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "CNY")
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "CNY")
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const todayRevenueCny = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "CNY" && new Date(p.created_at) >= today)
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "CNY" && new Date(p.created_at) >= today)
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const weekRevenueCny = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "CNY" && new Date(p.created_at) >= weekAgo)
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "CNY" && new Date(p.created_at) >= weekAgo)
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const monthRevenueCny = payments
-    .filter((p: any) => p.status === "completed" && p.currency === "CNY" && new Date(p.created_at) >= monthAgo)
+    .filter((p: any) => (p.status || "completed") === "completed" && p.currency === "CNY" && new Date(p.created_at) >= monthAgo)
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
   const totalSubscriptions = subscriptions.length;
