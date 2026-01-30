@@ -135,13 +135,31 @@ function calculateStats(
   monthAgo: Date
 ): DashboardStats {
   const totalUsers = users.length;
-  const todayUsers = users.filter((u: any) => new Date(u.created_at) >= today).length;
-  const weekUsers = users.filter((u: any) => new Date(u.created_at) >= weekAgo).length;
-  const monthUsers = users.filter((u: any) => new Date(u.created_at) >= monthAgo).length;
+  const todayUsers = users.filter((u: any) => {
+    const createdAt = u.created_at || u.createdAt;
+    return createdAt && new Date(createdAt) >= today;
+  }).length;
+  const weekUsers = users.filter((u: any) => {
+    const createdAt = u.created_at || u.createdAt;
+    return createdAt && new Date(createdAt) >= weekAgo;
+  }).length;
+  const monthUsers = users.filter((u: any) => {
+    const createdAt = u.created_at || u.createdAt;
+    return createdAt && new Date(createdAt) >= monthAgo;
+  }).length;
 
-  const dau = users.filter((u: any) => u.last_active_at && new Date(u.last_active_at) >= today).length;
-  const wau = users.filter((u: any) => u.last_active_at && new Date(u.last_active_at) >= weekAgo).length;
-  const mau = users.filter((u: any) => u.last_active_at && new Date(u.last_active_at) >= monthAgo).length;
+  const dau = users.filter((u: any) => {
+    const lastActiveAt = u.last_active_at || u.lastActiveAt;
+    return lastActiveAt && new Date(lastActiveAt) >= today;
+  }).length;
+  const wau = users.filter((u: any) => {
+    const lastActiveAt = u.last_active_at || u.lastActiveAt;
+    return lastActiveAt && new Date(lastActiveAt) >= weekAgo;
+  }).length;
+  const mau = users.filter((u: any) => {
+    const lastActiveAt = u.last_active_at || u.lastActiveAt;
+    return lastActiveAt && new Date(lastActiveAt) >= monthAgo;
+  }).length;
 
   const totalPayments = payments.length;
   const completedPayments = payments.filter((p: any) => (p.status || "completed") === "completed").length;
