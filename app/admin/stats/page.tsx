@@ -28,6 +28,10 @@ import {
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
+// Get database provider from environment variable
+const databaseProvider = process.env.NEXT_PUBLIC_DATABASE_PROVIDER || "cloudbase";
+const isCN = databaseProvider !== "supabase";
+
 export default function AdminStatsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [dailyUsers, setDailyUsers] = useState<DailyStats[]>([]);
@@ -171,54 +175,52 @@ export default function AdminStatsPage() {
       {/* Revenue Stats */}
       <div>
         <h2 className="text-xl font-semibold mb-4">收入统计</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>美元收入</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">总收入:</span>
-                <span className="font-bold">${stats.revenue.total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">今日:</span>
-                <span>${stats.revenue.today.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">本周:</span>
-                <span>${stats.revenue.thisWeek.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">本月:</span>
-                <span>${stats.revenue.thisMonth.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>人民币收入</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">总收入:</span>
-                <span className="font-bold">¥{stats.revenueCny.total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">今日:</span>
-                <span>¥{stats.revenueCny.today.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">本周:</span>
-                <span>¥{stats.revenueCny.thisWeek.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">本月:</span>
-                <span>¥{stats.revenueCny.thisMonth.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{isCN ? "人民币收入" : "美元收入"}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {isCN ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">总收入:</span>
+                  <span className="font-bold">¥{stats.revenueCny.total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">今日:</span>
+                  <span>¥{stats.revenueCny.today.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">本周:</span>
+                  <span>¥{stats.revenueCny.thisWeek.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">本月:</span>
+                  <span>¥{stats.revenueCny.thisMonth.toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">总收入:</span>
+                  <span className="font-bold">${stats.revenue.total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">今日:</span>
+                  <span>${stats.revenue.today.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">本周:</span>
+                  <span>${stats.revenue.thisWeek.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">本月:</span>
+                  <span>${stats.revenue.thisMonth.toFixed(2)}</span>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Orders & Subscriptions */}
