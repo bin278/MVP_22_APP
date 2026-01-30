@@ -1,7 +1,9 @@
 "use server";
 
 import { verifyAdminSession } from "@/utils/session";
-import { createClient } from "@/lib/supabase/server";
+import { getDatabaseProvider } from "@/lib/database";
+import { getSupabaseAdmin } from "@/lib/database/supabase";
+import { getCloudBaseDatabase, CloudBaseCollections } from "@/lib/database/cloudbase-client";
 import { revalidatePath } from "next/cache";
 
 export interface SocialLink {
@@ -9,6 +11,7 @@ export interface SocialLink {
   platform: string;
   url: string;
   icon: string;
+  region: "global" | "cn" | "all";
   order: number;
   visible: boolean;
   created_at: string;
@@ -16,7 +19,7 @@ export interface SocialLink {
 }
 
 /**
- * Get all social links
+ * Get all social links from the configured database
  */
 export async function getSocialLinks() {
   const isAuthenticated = await verifyAdminSession();
@@ -25,15 +28,34 @@ export async function getSocialLinks() {
   }
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("social_links")
-      .select("*")
-      .order("order", { ascending: true });
+    const provider = getDatabaseProvider();
 
-    if (error) throw error;
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) {
+        return [];
+      }
 
-    return data as SocialLink[];
+      const { data, error } = await supabase
+        .from("social_links")
+        .select("*")
+        .order("order", { ascending: true });
+
+      if (error) throw error;
+
+      return data as SocialLink[];
+    } else {
+      const db = getCloudBaseDatabase();
+      const result = await db
+        .collection(CloudBaseCollections.SOCIAL_LINKS)
+        .orderBy("order", "asc")
+        .get();
+
+      return (result.data || []).map((link: any) => ({
+        id: link._id || link.id,
+        ...link,
+      })) as SocialLink[];
+    }
   } catch (error) {
     console.error("Get social links error:", error);
     throw error;
@@ -50,26 +72,42 @@ export async function createSocialLink(formData: FormData) {
   }
 
   try {
-    const supabase = await createClient();
-
     const linkData = {
       platform: formData.get("platform") as string,
       url: formData.get("url") as string,
       icon: formData.get("icon") as string,
+      region: formData.get("region") as "global" | "cn" | "all",
       order: parseInt(formData.get("order") as string) || 0,
       visible: formData.get("visible") === "true",
     };
 
-    const { data, error } = await supabase
-      .from("social_links")
-      .insert(linkData)
-      .select()
-      .single();
+    const provider = getDatabaseProvider();
 
-    if (error) throw error;
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    revalidatePath("/admin/social-links");
-    return { success: true, data };
+      const { data, error } = await supabase
+        .from("social_links")
+        .insert(linkData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      revalidatePath("/admin/social-links");
+      return { success: true, data };
+    } else {
+      const db = getCloudBaseDatabase();
+      const result = await db.collection(CloudBaseCollections.SOCIAL_LINKS).add({
+        ...linkData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      revalidatePath("/admin/social-links");
+      return { success: true, data: { id: result.id } };
+    }
   } catch (error) {
     console.error("Create social link error:", error);
     return { success: false, error: "Failed to create social link" };
@@ -86,28 +124,40 @@ export async function updateSocialLink(id: string, formData: FormData) {
   }
 
   try {
-    const supabase = await createClient();
-
     const linkData = {
       platform: formData.get("platform") as string,
       url: formData.get("url") as string,
       icon: formData.get("icon") as string,
+      region: formData.get("region") as "global" | "cn" | "all",
       order: parseInt(formData.get("order") as string) || 0,
       visible: formData.get("visible") === "true",
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from("social_links")
-      .update(linkData)
-      .eq("id", id)
-      .select()
-      .single();
+    const provider = getDatabaseProvider();
 
-    if (error) throw error;
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    revalidatePath("/admin/social-links");
-    return { success: true, data };
+      const { data, error } = await supabase
+        .from("social_links")
+        .update(linkData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      revalidatePath("/admin/social-links");
+      return { success: true, data };
+    } else {
+      const db = getCloudBaseDatabase();
+      await db.collection(CloudBaseCollections.SOCIAL_LINKS).doc(id).update(linkData);
+
+      revalidatePath("/admin/social-links");
+      return { success: true };
+    }
   } catch (error) {
     console.error("Update social link error:", error);
     return { success: false, error: "Failed to update social link" };
@@ -124,11 +174,18 @@ export async function deleteSocialLink(id: string) {
   }
 
   try {
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    const { error } = await supabase.from("social_links").delete().eq("id", id);
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    if (error) throw error;
+      const { error } = await supabase.from("social_links").delete().eq("id", id);
+      if (error) throw error;
+    } else {
+      const db = getCloudBaseDatabase();
+      await db.collection(CloudBaseCollections.SOCIAL_LINKS).doc(id).remove();
+    }
 
     revalidatePath("/admin/social-links");
     return { success: true };
@@ -148,14 +205,25 @@ export async function toggleSocialLinkVisibility(id: string, visible: boolean) {
   }
 
   try {
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    const { error } = await supabase
-      .from("social_links")
-      .update({ visible, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    if (error) throw error;
+      const { error } = await supabase
+        .from("social_links")
+        .update({ visible, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
+    } else {
+      const db = getCloudBaseDatabase();
+      await db.collection(CloudBaseCollections.SOCIAL_LINKS).doc(id).update({
+        visible,
+        updated_at: new Date().toISOString(),
+      });
+    }
 
     revalidatePath("/admin/social-links");
     return { success: true };

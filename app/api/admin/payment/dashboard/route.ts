@@ -54,12 +54,14 @@ export async function GET(request: NextRequest) {
 
       payments.forEach((p: any) => {
         stats.totalCount++;
-        if (p.status === "completed") {
+        // Handle legacy data without status field (assume completed)
+        const status = p.status || "completed";
+        if (status === "completed") {
           stats.completedCount++;
           stats.totalAmount += p.amount || 0;
-        } else if (p.status === "pending") {
+        } else if (status === "pending") {
           stats.pendingCount++;
-        } else if (p.status === "failed") {
+        } else if (status === "failed") {
           stats.failedCount++;
         }
       });
@@ -100,13 +102,13 @@ export async function GET(request: NextRequest) {
       stats,
       payments: payments.map((p: any) => ({
         id: p._id || p.id,
-        transactionId: p.transaction_id,
+        transactionId: p.transaction_id || p._id || p.id,
         amount: p.amount,
         currency: p.currency,
-        status: p.status,
-        method: p.payment_method,
+        status: p.status || "completed",
+        method: p.payment_method || p.metadata?.planType || "unknown",
         createdAt: p.created_at,
-        completedAt: p.completed_at,
+        completedAt: p.completed_at || p.created_at,
       })),
     });
   } catch (error: any) {

@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS social_links (
   platform TEXT NOT NULL,
   url TEXT NOT NULL,
   icon TEXT,
+  region TEXT NOT NULL DEFAULT 'all',
   "order" INTEGER DEFAULT 0,
   visible BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -174,8 +175,10 @@ CREATE TABLE IF NOT EXISTS social_links (
 
 CREATE INDEX IF NOT EXISTS idx_social_links_order ON social_links("order");
 CREATE INDEX IF NOT EXISTS idx_social_links_visible ON social_links(visible);
+CREATE INDEX IF NOT EXISTS idx_social_links_region ON social_links(region);
 
 COMMENT ON TABLE social_links IS '社交链接表';
+COMMENT ON COLUMN social_links.region IS '区域: global, cn, all';
 
 -- ============================================
 -- 8. 创建默认管理员用户
