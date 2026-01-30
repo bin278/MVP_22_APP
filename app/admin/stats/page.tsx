@@ -28,9 +28,8 @@ import {
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
-// Get database provider from environment variable
-const databaseProvider = process.env.NEXT_PUBLIC_DATABASE_PROVIDER || "cloudbase";
-const isCN = databaseProvider !== "supabase";
+// Get auth provider from environment variable (consistent with other features)
+const isCN = process.env.NEXT_PUBLIC_AUTH_PROVIDER !== 'supabase';
 
 export default function AdminStatsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
