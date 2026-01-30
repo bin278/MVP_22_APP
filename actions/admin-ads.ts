@@ -1,7 +1,9 @@
 "use server";
 
 import { verifyAdminSession } from "@/utils/session";
-import { createClient } from "@/lib/supabase/server";
+import { getDatabaseProvider } from "@/lib/database";
+import { getSupabaseAdmin } from "@/lib/database/supabase";
+import { getCloudBaseDatabase, CloudBaseCollections } from "@/lib/database/cloudbase-client";
 import { revalidatePath } from "next/cache";
 
 export interface Ad {
@@ -27,34 +29,48 @@ export interface Ad {
 }
 
 /**
- * Get all ads
+ * Get all ads from the configured database
  */
-export async function getAds(
-  region?: "global" | "cn" | "all",
-  status?: "active" | "inactive" | "scheduled"
-) {
+export async function getAds(status?: "active" | "inactive" | "scheduled") {
   const isAuthenticated = await verifyAdminSession();
   if (!isAuthenticated) {
     throw new Error("Unauthorized");
   }
 
   try {
-    const supabase = await createClient();
-    let query = supabase.from("ads").select("*").order("priority", { ascending: false });
+    const provider = getDatabaseProvider();
 
-    if (region && region !== "all") {
-      query = query.or(`region.eq.${region},region.eq.all`);
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) {
+        return [];
+      }
+
+      let query = supabase.from("ads").select("*").order("priority", { ascending: false });
+
+      if (status) {
+        query = query.eq("status", status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return data as Ad[];
+    } else {
+      const db = getCloudBaseDatabase();
+      const collection = db.collection(CloudBaseCollections.ADS);
+
+      let query: any = {};
+      if (status) {
+        query.status = status;
+      }
+
+      const result = await collection.where(query).orderBy("priority", "desc").get();
+      return (result.data || []).map((ad: any) => ({
+        id: ad._id || ad.id,
+        ...ad,
+      })) as Ad[];
     }
-
-    if (status) {
-      query = query.eq("status", status);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    return data as Ad[];
   } catch (error) {
     console.error("Get ads error:", error);
     throw error;
@@ -71,16 +87,33 @@ export async function getAd(id: string) {
   }
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("ads")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const provider = getDatabaseProvider();
 
-    if (error) throw error;
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    return data as Ad;
+      const { data, error } = await supabase
+        .from("ads")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) throw error;
+      return data as Ad;
+    } else {
+      const db = getCloudBaseDatabase();
+      const result = await db.collection(CloudBaseCollections.ADS).doc(id).get();
+
+      if (!result.data || result.data.length === 0) {
+        throw new Error("Ad not found");
+      }
+
+      return {
+        id: result.data[0]._id || result.data[0].id,
+        ...result.data[0],
+      } as Ad;
+    }
   } catch (error) {
     console.error("Get ad error:", error);
     throw error;
@@ -97,11 +130,6 @@ export async function createAd(formData: FormData) {
   }
 
   try {
-    const supabase = await createClient();
-
-    const startAt = formData.get("start_at") as string;
-    const endAt = formData.get("end_at") as string;
-
     const adData = {
       title: formData.get("title") as string,
       description: formData.get("description") as string,
@@ -112,25 +140,42 @@ export async function createAd(formData: FormData) {
       link_type: formData.get("link_type") as "external" | "internal" | "download",
       position: formData.get("position") as "left" | "right" | "top" | "bottom",
       platform: formData.get("platform") as string,
-      region: formData.get("region") as "global" | "cn" | "all",
+      region: "all" as "global" | "cn" | "all", // Default to "all" since region field is removed from form
       status: formData.get("status") as "active" | "inactive" | "scheduled",
       priority: parseInt(formData.get("priority") as string) || 0,
-      start_at: startAt || null,
-      end_at: endAt || null,
+      start_at: formData.get("start_at") as string || null,
+      end_at: formData.get("end_at") as string || null,
       impressions: 0,
       clicks: 0,
     };
 
-    const { data, error } = await supabase
-      .from("ads")
-      .insert(adData)
-      .select()
-      .single();
+    const provider = getDatabaseProvider();
 
-    if (error) throw error;
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    revalidatePath("/admin/ads");
-    return { success: true, data };
+      const { data, error } = await supabase
+        .from("ads")
+        .insert(adData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      revalidatePath("/admin/ads");
+      return { success: true, data };
+    } else {
+      const db = getCloudBaseDatabase();
+      const result = await db.collection(CloudBaseCollections.ADS).add({
+        ...adData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      revalidatePath("/admin/ads");
+      return { success: true, data: { id: result.id } };
+    }
   } catch (error) {
     console.error("Create ad error:", error);
     return { success: false, error: "Failed to create ad" };
@@ -147,11 +192,6 @@ export async function updateAd(id: string, formData: FormData) {
   }
 
   try {
-    const supabase = await createClient();
-
-    const startAt = formData.get("start_at") as string;
-    const endAt = formData.get("end_at") as string;
-
     const adData = {
       title: formData.get("title") as string,
       description: formData.get("description") as string,
@@ -162,25 +202,38 @@ export async function updateAd(id: string, formData: FormData) {
       link_type: formData.get("link_type") as "external" | "internal" | "download",
       position: formData.get("position") as "left" | "right" | "top" | "bottom",
       platform: formData.get("platform") as string,
-      region: formData.get("region") as "global" | "cn" | "all",
+      region: "all" as "global" | "cn" | "all", // Default to "all" since region field is removed from form
       status: formData.get("status") as "active" | "inactive" | "scheduled",
       priority: parseInt(formData.get("priority") as string) || 0,
-      start_at: startAt || null,
-      end_at: endAt || null,
+      start_at: formData.get("start_at") as string || null,
+      end_at: formData.get("end_at") as string || null,
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from("ads")
-      .update(adData)
-      .eq("id", id)
-      .select()
-      .single();
+    const provider = getDatabaseProvider();
 
-    if (error) throw error;
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    revalidatePath("/admin/ads");
-    return { success: true, data };
+      const { data, error } = await supabase
+        .from("ads")
+        .update(adData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      revalidatePath("/admin/ads");
+      return { success: true, data };
+    } else {
+      const db = getCloudBaseDatabase();
+      await db.collection(CloudBaseCollections.ADS).doc(id).update(adData);
+
+      revalidatePath("/admin/ads");
+      return { success: true };
+    }
   } catch (error) {
     console.error("Update ad error:", error);
     return { success: false, error: "Failed to update ad" };
@@ -197,11 +250,18 @@ export async function deleteAd(id: string) {
   }
 
   try {
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    const { error } = await supabase.from("ads").delete().eq("id", id);
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    if (error) throw error;
+      const { error } = await supabase.from("ads").delete().eq("id", id);
+      if (error) throw error;
+    } else {
+      const db = getCloudBaseDatabase();
+      await db.collection(CloudBaseCollections.ADS).doc(id).remove();
+    }
 
     revalidatePath("/admin/ads");
     return { success: true };
@@ -221,14 +281,25 @@ export async function toggleAdStatus(id: string, status: "active" | "inactive") 
   }
 
   try {
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    const { error } = await supabase
-      .from("ads")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    if (provider === "supabase") {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) throw new Error("Supabase not available");
 
-    if (error) throw error;
+      const { error } = await supabase
+        .from("ads")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
+    } else {
+      const db = getCloudBaseDatabase();
+      await db.collection(CloudBaseCollections.ADS).doc(id).update({
+        status,
+        updated_at: new Date().toISOString(),
+      });
+    }
 
     revalidatePath("/admin/ads");
     return { success: true };

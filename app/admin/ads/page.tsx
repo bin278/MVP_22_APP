@@ -24,7 +24,7 @@ export default function AdminAdsPage() {
   async function loadAds() {
     setLoading(true);
     try {
-      const data = await getAds("all", filter === "all" ? undefined : filter);
+      const data = await getAds(filter === "all" ? undefined : filter);
       setAds(data);
     } catch (error) {
       console.error("Failed to load ads:", error);
@@ -146,10 +146,6 @@ export default function AdminAdsPage() {
                   <span>{ad.position}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">区域:</span>
-                  <span>{ad.region}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-muted-foreground">优先级:</span>
                   <span>{ad.priority}</span>
                 </div>
@@ -257,19 +253,6 @@ export default function AdminAdsPage() {
             <div>
               <Label htmlFor="platform">平台</Label>
               <Input id="platform" name="platform" defaultValue={editingAd?.platform || "web"} required />
-            </div>
-            <div>
-              <Label htmlFor="region">区域</Label>
-              <Select name="region" defaultValue={editingAd?.region || "all"}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="global">全球</SelectItem>
-                  <SelectItem value="cn">中国</SelectItem>
-                  <SelectItem value="all">全部</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label htmlFor="status">状态</Label>
