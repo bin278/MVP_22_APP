@@ -98,8 +98,8 @@ async function getSupabaseStats(today: Date, weekAgo: Date, monthAgo: Date): Pro
     .select("id, amount, currency, status, created_at");
 
   const { data: subscriptions } = await supabase
-    .from("subscriptions")
-    .select("id, plan");
+    .from("user_subscriptions")
+    .select("id, plan_type");
 
   return calculateStats(users || [], payments || [], subscriptions || [], today, weekAgo, monthAgo);
 }
@@ -176,7 +176,10 @@ function calculateStats(
   const totalSubscriptions = subscriptions.length;
   const byPlan: Record<string, number> = {};
   subscriptions.forEach((s: any) => {
-    byPlan[s.plan] = (byPlan[s.plan] || 0) + 1;
+    const plan = s.plan_type || s.plan; // Support both field names
+    if (plan) {
+      byPlan[plan] = (byPlan[plan] || 0) + 1;
+    }
   });
 
   return {
