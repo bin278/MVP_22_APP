@@ -106,6 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(cloudBaseUser)
                 setSession(sessionData)
 
+                // 同步用户数据到数据库
+                fetch('/api/auth/sync-user', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: session.access_token })
+                }).catch(err => console.error('[Auth Context] 同步用户数据失败:', err))
+
                 // 保存认证状态到 localStorage
                 import('./auth/auth-state-manager').then(({ saveAuthState }) => {
                   saveAuthState(
