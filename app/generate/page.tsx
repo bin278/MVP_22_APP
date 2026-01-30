@@ -20,6 +20,7 @@ import { ConversationSidebar } from "@/components/conversation-sidebar"
 import { ModelSelector } from "@/components/model-selector"
 import { SUBSCRIPTION_TIERS, getDefaultModel, AVAILABLE_MODELS, canUseModel, getMaxFiles, type SubscriptionTier } from "@/lib/subscription-tiers"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AdBanner } from "@/components/ad-banner"
 
 interface Message {
   id: string
@@ -3070,11 +3071,16 @@ function GeneratePageContent() {
                 </>
               ) : (
                 <div className="flex h-[76vh] items-center justify-center rounded-xl border border-dashed border-border bg-card/50">
-                  <div className="text-center">
-                    <Sparkles className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">
-                      {language === "en" ? "Your generated code will appear here" : "生成的代码将显示在这里"}
-                    </p>
+                  <div className="text-center space-y-6">
+                    <div>
+                      <Sparkles className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
+                      <p className="text-muted-foreground">
+                        {language === "en" ? "Your generated code will appear here" : "生成的代码将显示在这里"}
+                      </p>
+                    </div>
+                    <div className="max-w-2xl mx-auto px-4">
+                      <AdBanner position="generate" limit={1} />
+                    </div>
                   </div>
                 </div>
               )}

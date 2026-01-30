@@ -6,6 +6,7 @@ import { HeroSection } from "@/components/hero-section"
 import { FeaturesSection } from "@/components/features-section"
 import { ExamplesSection } from "@/components/examples-section"
 import { Footer } from "@/components/footer"
+import { AdBanner } from "@/components/ad-banner"
 import { parseWxMpLoginCallback, clearWxMpLoginParams } from "@/lib/wechat-mp"
 
 export default function HomePage() {
@@ -113,11 +114,13 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <Header language={language} setLanguage={handleLanguageChange} />
+      <AdBanner position="top" limit={1} />
       <main>
         <HeroSection language={language} />
         <FeaturesSection language={language} />
         <ExamplesSection language={language} />
       </main>
+      <AdBanner position="bottom" limit={1} />
       <Footer language={language} />
     </div>
   )
