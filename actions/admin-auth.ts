@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getDatabaseProvider } from "@/lib/database";
 import { createClient } from "@/lib/supabase/server";
+import { getCloudBaseDatabase, CloudBaseCollections } from "@/lib/database/cloudbase-client";
 import { verifyPassword } from "@/utils/password";
 import {
   createAdminSession,
@@ -27,35 +29,71 @@ export async function adminLogin(formData: FormData): Promise<ActionResult> {
   }
 
   try {
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    // Query admin_users table
-    const { data: admin, error } = await supabase
-      .from("admin_users")
-      .select("id, username, password_hash")
-      .eq("username", username)
-      .single();
+    if (provider === "supabase") {
+      const supabase = await createClient();
 
-    if (error || !admin) {
-      return { success: false, error: "用户名或密码错误" };
+      // Query admin_users table
+      const { data: admin, error } = await supabase
+        .from("admin_users")
+        .select("id, username, password_hash")
+        .eq("username", username)
+        .single();
+
+      if (error || !admin) {
+        return { success: false, error: "用户名或密码错误" };
+      }
+
+      // Verify password
+      const isValid = await verifyPassword(password, admin.password_hash);
+      if (!isValid) {
+        return { success: false, error: "用户名或密码错误" };
+      }
+
+      // Update last login time
+      await supabase
+        .from("admin_users")
+        .update({ last_login_at: new Date().toISOString() })
+        .eq("id", admin.id);
+
+      // Create session
+      await createAdminSession(admin.id, admin.username);
+
+      return { success: true };
+    } else {
+      // CloudBase
+      const db = getCloudBaseDatabase();
+      const result = await db
+        .collection(CloudBaseCollections.ADMIN_USERS)
+        .where({ username })
+        .get();
+
+      if (!result.data || result.data.length === 0) {
+        return { success: false, error: "用户名或密码错误" };
+      }
+
+      const admin = result.data[0];
+
+      // Verify password
+      const isValid = await verifyPassword(password, admin.password_hash);
+      if (!isValid) {
+        return { success: false, error: "用户名或密码错误" };
+      }
+
+      // Update last login time
+      await db
+        .collection(CloudBaseCollections.ADMIN_USERS)
+        .doc(admin._id)
+        .update({
+          last_login_at: new Date().toISOString(),
+        });
+
+      // Create session
+      await createAdminSession(admin._id, admin.username);
+
+      return { success: true };
     }
-
-    // Verify password
-    const isValid = await verifyPassword(password, admin.password_hash);
-    if (!isValid) {
-      return { success: false, error: "用户名或密码错误" };
-    }
-
-    // Update last login time
-    await supabase
-      .from("admin_users")
-      .update({ last_login_at: new Date().toISOString() })
-      .eq("id", admin.id);
-
-    // Create session
-    await createAdminSession(admin.id, admin.username);
-
-    return { success: true };
   } catch (error) {
     console.error("Login error:", error);
     return { success: false, error: "登录失败，请稍后重试" };
@@ -80,14 +118,36 @@ export async function getCurrentAdmin() {
   }
 
   try {
-    const supabase = await createClient();
-    const { data: admin } = await supabase
-      .from("admin_users")
-      .select("id, username, created_at")
-      .eq("id", session.userId)
-      .single();
+    const provider = getDatabaseProvider();
 
-    return admin;
+    if (provider === "supabase") {
+      const supabase = await createClient();
+      const { data: admin } = await supabase
+        .from("admin_users")
+        .select("id, username, created_at")
+        .eq("id", session.userId)
+        .single();
+
+      return admin;
+    } else {
+      // CloudBase
+      const db = getCloudBaseDatabase();
+      const result = await db
+        .collection(CloudBaseCollections.ADMIN_USERS)
+        .doc(session.userId)
+        .get();
+
+      if (!result.data || result.data.length === 0) {
+        return null;
+      }
+
+      const admin = result.data[0];
+      return {
+        id: admin._id,
+        username: admin.username,
+        created_at: admin.created_at,
+      };
+    }
   } catch (error) {
     console.error("Get current admin error:", error);
     return null;
@@ -127,43 +187,81 @@ export async function changePassword(
       return { success: false, error: "会话已过期" };
     }
 
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    // Get current password hash
-    const { data: admin } = await supabase
-      .from("admin_users")
-      .select("password_hash")
-      .eq("id", session.userId)
-      .single();
+    if (provider === "supabase") {
+      const supabase = await createClient();
 
-    if (!admin) {
-      return { success: false, error: "用户不存在" };
+      // Get current password hash
+      const { data: admin } = await supabase
+        .from("admin_users")
+        .select("password_hash")
+        .eq("id", session.userId)
+        .single();
+
+      if (!admin) {
+        return { success: false, error: "用户不存在" };
+      }
+
+      // Verify current password
+      const isValid = await verifyPassword(currentPassword, admin.password_hash);
+      if (!isValid) {
+        return { success: false, error: "当前密码错误" };
+      }
+
+      // Hash new password
+      const { hashPassword } = await import("@/utils/password");
+      const newPasswordHash = await hashPassword(newPassword);
+
+      // Update password
+      const { error } = await supabase
+        .from("admin_users")
+        .update({
+          password_hash: newPasswordHash,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", session.userId);
+
+      if (error) {
+        return { success: false, error: "密码更新失败" };
+      }
+
+      return { success: true };
+    } else {
+      // CloudBase
+      const db = getCloudBaseDatabase();
+      const result = await db
+        .collection(CloudBaseCollections.ADMIN_USERS)
+        .doc(session.userId)
+        .get();
+
+      if (!result.data || result.data.length === 0) {
+        return { success: false, error: "用户不存在" };
+      }
+
+      const admin = result.data[0];
+
+      // Verify current password
+      const isValid = await verifyPassword(currentPassword, admin.password_hash);
+      if (!isValid) {
+        return { success: false, error: "当前密码错误" };
+      }
+
+      // Hash new password
+      const { hashPassword } = await import("@/utils/password");
+      const newPasswordHash = await hashPassword(newPassword);
+
+      // Update password
+      await db
+        .collection(CloudBaseCollections.ADMIN_USERS)
+        .doc(session.userId)
+        .update({
+          password_hash: newPasswordHash,
+          updated_at: new Date().toISOString(),
+        });
+
+      return { success: true };
     }
-
-    // Verify current password
-    const isValid = await verifyPassword(currentPassword, admin.password_hash);
-    if (!isValid) {
-      return { success: false, error: "当前密码错误" };
-    }
-
-    // Hash new password
-    const { hashPassword } = await import("@/utils/password");
-    const newPasswordHash = await hashPassword(newPassword);
-
-    // Update password
-    const { error } = await supabase
-      .from("admin_users")
-      .update({
-        password_hash: newPasswordHash,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", session.userId);
-
-    if (error) {
-      return { success: false, error: "密码更新失败" };
-    }
-
-    return { success: true };
   } catch (error) {
     console.error("Change password error:", error);
     return { success: false, error: "密码更新失败，请稍后重试" };

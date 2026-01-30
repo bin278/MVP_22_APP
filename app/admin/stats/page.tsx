@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   getDashboardStats,
   getDailyActiveUsers,
@@ -30,7 +29,6 @@ import {
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
 export default function AdminStatsPage() {
-  const [source, setSource] = useState<"all" | "global" | "cn">("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [dailyUsers, setDailyUsers] = useState<DailyStats[]>([]);
   const [dailyRevenue, setDailyRevenue] = useState<RevenueStats[]>([]);
@@ -38,15 +36,15 @@ export default function AdminStatsPage() {
 
   useEffect(() => {
     loadData();
-  }, [source]);
+  }, []);
 
   async function loadData() {
     setLoading(true);
     try {
       const [statsData, usersData, revenueData] = await Promise.all([
-        getDashboardStats(source),
-        getDailyActiveUsers(source, 30),
-        getDailyRevenue(source, 30),
+        getDashboardStats(),
+        getDailyActiveUsers(30),
+        getDailyRevenue(30),
       ]);
 
       setStats(statsData);
@@ -82,28 +80,8 @@ export default function AdminStatsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div>
         <h1 className="text-3xl font-bold">数据统计</h1>
-        <div className="flex gap-2">
-          <Button
-            variant={source === "all" ? "default" : "outline"}
-            onClick={() => setSource("all")}
-          >
-            全部
-          </Button>
-          <Button
-            variant={source === "global" ? "default" : "outline"}
-            onClick={() => setSource("global")}
-          >
-            国际版
-          </Button>
-          <Button
-            variant={source === "cn" ? "default" : "outline"}
-            onClick={() => setSource("cn")}
-          >
-            国内版
-          </Button>
-        </div>
       </div>
 
       {/* User Stats */}

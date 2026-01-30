@@ -22,11 +22,13 @@ export function getCloudBaseApp() {
   const secretKey = process.env.CLOUDBASE_SECRET_KEY || process.env.TENCENT_CLOUD_SECRET_KEY;
 
   if (!envId) {
-    throw new Error('Missing NEXT_PUBLIC_WECHAT_CLOUDBASE_ID or TENCENT_CLOUD_ENV_ID environment variable');
+    console.warn('CloudBase not configured: Missing TENCENT_CLOUD_ENV_ID environment variable');
+    return null;
   }
 
   if (!secretId || !secretKey) {
-    throw new Error('Missing CLOUDBASE_SECRET_ID/CLOUDBASE_SECRET_KEY or TENCENT_CLOUD_SECRET_ID/TENCENT_CLOUD_SECRET_KEY environment variables');
+    console.warn('CloudBase not configured: Missing CLOUDBASE_SECRET_ID/CLOUDBASE_SECRET_KEY environment variables');
+    return null;
   }
 
   cachedApp = cloudbase.init({
@@ -43,6 +45,9 @@ export function getCloudBaseApp() {
  */
 export function getCloudBaseDatabase() {
   const app = getCloudBaseApp();
+  if (!app) {
+    throw new Error('CloudBase not configured');
+  }
   return app.database();
 }
 
@@ -79,6 +84,12 @@ export const CloudBaseCollections = {
   USER_SUBSCRIPTIONS: 'user_subscriptions',
   PAYMENTS: 'payments',
   SUBSCRIPTIONS: 'subscriptions',
+
+  // 管理后台相关
+  ADMIN_USERS: 'admin_users',
+  ADS: 'ads',
+  RELEASES: 'releases',
+  SOCIAL_LINKS: 'social_links',
 } as const;
 
 /**

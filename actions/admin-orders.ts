@@ -1,7 +1,9 @@
 "use server";
 
 import { verifyAdminSession } from "@/utils/session";
+import { getDatabaseProvider } from "@/lib/database";
 import { createClient } from "@/lib/supabase/server";
+import { getCloudBaseDatabase, CloudBaseCollections } from "@/lib/database/cloudbase-client";
 
 export interface Payment {
   id: string;
@@ -28,22 +30,43 @@ export async function getPayments(status?: string, limit: number = 100) {
   }
 
   try {
-    const supabase = await createClient();
-    let query = supabase
-      .from("payments")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const provider = getDatabaseProvider();
 
-    if (status) {
-      query = query.eq("status", status);
+    if (provider === "supabase") {
+      const supabase = await createClient();
+      let query = supabase
+        .from("payments")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (status) {
+        query = query.eq("status", status);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      return data as Payment[];
+    } else {
+      // CloudBase
+      const db = getCloudBaseDatabase();
+      let query = db
+        .collection(CloudBaseCollections.PAYMENTS)
+        .orderBy("created_at", "desc")
+        .limit(limit);
+
+      if (status) {
+        query = query.where({ status });
+      }
+
+      const result = await query.get();
+      return result.data.map((item: any) => ({
+        ...item,
+        id: item._id,
+      })) as Payment[];
     }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    return data as Payment[];
   } catch (error) {
     console.error("Get payments error:", error);
     throw error;
@@ -60,16 +83,33 @@ export async function updatePaymentStatus(id: string, status: string) {
   }
 
   try {
-    const supabase = await createClient();
+    const provider = getDatabaseProvider();
 
-    const { error } = await supabase
-      .from("payments")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    if (provider === "supabase") {
+      const supabase = await createClient();
 
-    if (error) throw error;
+      const { error } = await supabase
+        .from("payments")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", id);
 
-    return { success: true };
+      if (error) throw error;
+
+      return { success: true };
+    } else {
+      // CloudBase
+      const db = getCloudBaseDatabase();
+
+      await db
+        .collection(CloudBaseCollections.PAYMENTS)
+        .doc(id)
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        });
+
+      return { success: true };
+    }
   } catch (error) {
     console.error("Update payment status error:", error);
     return { success: false, error: "Failed to update payment status" };
