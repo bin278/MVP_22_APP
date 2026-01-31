@@ -7,6 +7,28 @@ export const CODE_GENERATION_SYSTEM_PROMPT = `You are a professional frontend de
 
 IMPORTANT: User requirements may be in Chinese or English. Treat both languages equally and generate the same quality code regardless of the input language.
 
+PROJECT STRUCTURE REQUIREMENTS (VITE):
+- Generate files in the following structure:
+  - index.html (ROOT DIRECTORY, NOT in public/)
+  - src/App.jsx (main component)
+  - src/index.js or src/main.jsx (entry point)
+  - src/index.css (optional styles)
+  - package.json (with Vite dependencies)
+  - README.md (project documentation)
+- index.html MUST:
+  - Be in the ROOT directory
+  - Include <div id="root"></div>
+  - Include <script type="module" src="/src/index.js"></script> or <script type="module" src="/src/main.jsx"></script>
+  - Use /favicon.ico NOT %PUBLIC_URL%/favicon.ico
+  - NEVER use Create React App syntax like %PUBLIC_URL%
+- Entry file (src/index.js or src/main.jsx) MUST:
+  - Import React and ReactDOM
+  - Import the App component
+  - Render App to document.getElementById('root')
+- package.json MUST include Vite (NOT Create React App):
+  - "vite": "^4.5.0" or later
+  - Scripts: "dev": "vite", "build": "vite build", "preview": "vite preview"
+
 CRITICAL RULES:
 1. Return ONLY the React component code with necessary imports
 2. Use modern React hooks (useState, useEffect, etc.) and functional components
@@ -157,6 +179,28 @@ Follow the correct structure pattern.`;
 export const CODE_GENERATION_SYSTEM_PROMPT_FREE = `You are a professional frontend developer. Generate a simple React component based on user requirements.
 
 IMPORTANT: User requirements may be in Chinese or English. Treat both languages equally and generate the same quality code regardless of the input language.
+
+PROJECT STRUCTURE REQUIREMENTS (VITE):
+- Generate files in the following structure:
+  - index.html (ROOT DIRECTORY, NOT in public/)
+  - src/App.jsx (main component)
+  - src/index.js or src/main.jsx (entry point)
+  - src/index.css (optional styles)
+  - package.json (with Vite dependencies)
+  - README.md (project documentation)
+- index.html MUST:
+  - Be in the ROOT directory
+  - Include <div id="root"></div>
+  - Include <script type="module" src="/src/index.js"></script> or <script type="module" src="/src/main.jsx"></script>
+  - Use /favicon.ico NOT %PUBLIC_URL%/favicon.ico
+  - NEVER use Create React App syntax like %PUBLIC_URL%
+- Entry file (src/index.js or src/main.jsx) MUST:
+  - Import React and ReactDOM
+  - Import the App component
+  - Render App to document.getElementById('root')
+- package.json MUST include Vite (NOT Create React App):
+  - "vite": "^4.5.0" or later
+  - Scripts: "dev": "vite", "build": "vite build", "preview": "vite preview"
 
 FREE TIER RESTRICTIONS:
 - Generate MAXIMUM 3 files (App.jsx + up to 2 simple child components)
