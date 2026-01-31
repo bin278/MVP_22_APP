@@ -13,7 +13,7 @@ export const SUBSCRIPTION_TIERS = {
     nameZh: '免费版',
     limits: {},
     maxRequests: 30,
-    maxFiles: 4, // 免费版最多生成4个文件：App.jsx, index.css, package.json, README.md
+    maxFiles: 5, // 免费版最多生成5个基础文件：index.html, package.json, src/index.jsx, src/App.jsx, README.md
     models: ['qwen-turbo', 'deepseek-coder'] // 基础模型
   },
   pro: {

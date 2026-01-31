@@ -12,8 +12,90 @@ export async function downloadAsProperZip(project: GeneratedProject) {
   try {
     const zip = new JSZip()
 
+    // Fix index.html location if it's in public/ folder (Create React App structure)
+    const files = { ...project.files }
+    if (files['public/index.html'] && !files['index.html']) {
+      console.warn('⚠️ Fixing index.html location: moving from public/ to root directory')
+      files['index.html'] = files['public/index.html']
+      delete files['public/index.html']
+    }
+
+    // Create index.html if missing (for Vite projects)
+    if (!files['index.html']) {
+      console.warn('⚠️ index.html is missing, creating default one')
+
+      // Detect entry file by checking actual file structure
+      let entryFile = '/src/index.jsx'
+      if (files['src/main.jsx']) {
+        entryFile = '/src/main.jsx'
+      } else if (files['src/index.jsx']) {
+        entryFile = '/src/index.jsx'
+      } else if (files['src/main.js']) {
+        entryFile = '/src/main.js'
+      } else if (files['src/index.js']) {
+        entryFile = '/src/index.js'
+      } else if (files['src/main.tsx']) {
+        entryFile = '/src/main.tsx'
+      } else if (files['src/index.tsx']) {
+        entryFile = '/src/index.tsx'
+      }
+
+      files['index.html'] = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Generated React App" />
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="${entryFile}"></script>
+  </body>
+</html>`
+      console.log(`✅ Auto-created index.html with entry file: ${entryFile}`)
+    }
+
+    // Create entry file if missing (for Vite projects)
+    const hasEntryFile = files['src/main.jsx'] || files['src/index.jsx'] ||
+                         files['src/main.js'] || files['src/index.js'] ||
+                         files['src/main.tsx'] || files['src/index.tsx']
+
+    if (!hasEntryFile) {
+      console.warn('⚠️ Entry file is missing, creating default src/index.jsx')
+
+      // Detect App component location
+      let appImport = './App.jsx'
+      if (files['src/App.jsx']) {
+        appImport = './App.jsx'
+      } else if (files['src/App.tsx']) {
+        appImport = './App.tsx'
+      } else if (files['src/App.js']) {
+        appImport = './App.js'
+      } else if (files['src/components/App.jsx']) {
+        appImport = './components/App.jsx'
+      } else if (files['src/components/App.tsx']) {
+        appImport = './components/App.tsx'
+      }
+
+      files['src/index.jsx'] = `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from '${appImport}';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);`
+      console.log(`✅ Auto-created src/index.jsx with App import: ${appImport}`)
+    }
+
     // Create directory structure and add files
-    Object.entries(project.files).forEach(([filePath, content]) => {
+    Object.entries(files).forEach(([filePath, content]) => {
       zip.file(filePath, content)
     })
 

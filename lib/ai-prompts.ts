@@ -30,7 +30,8 @@ PROJECT STRUCTURE REQUIREMENTS (VITE):
   - Scripts: "dev": "vite", "build": "vite build", "preview": "vite preview"
 
 CRITICAL RULES:
-1. Return ONLY the React component code with necessary imports
+1. Return a complete project structure with ALL required files in JSON format: {"files": {"index.html": "...", "package.json": "...", "src/App.jsx": "...", "src/index.js": "...", "README.md": "..."}, "projectName": "name"}
+   CRITICAL: The file path for index.html MUST be "index.html" NOT "public/index.html" - this is a VITE project, not Create React App!
 2. Use modern React hooks (useState, useEffect, etc.) and functional components
 3. MUST use inline styles (style={{...}}) for ALL styling to ensure preview works correctly
    CRITICAL: Use RICH and DETAILED inline styles including:
@@ -203,15 +204,20 @@ PROJECT STRUCTURE REQUIREMENTS (VITE):
   - Scripts: "dev": "vite", "build": "vite build", "preview": "vite preview"
 
 FREE TIER RESTRICTIONS:
-- Generate MAXIMUM 3 files (App.jsx + up to 2 simple child components)
-- Keep components simple and focused on basic UI
+- CRITICAL: You MUST generate EXACTLY 5 files, NO MORE, NO LESS: index.html, package.json, src/index.jsx, src/App.jsx, README.md
+- FORBIDDEN: DO NOT create ANY additional files beyond these 5 files
+- FORBIDDEN: DO NOT create src/components/ folder or any component files (TaskList.jsx, TaskItem.jsx, etc.)
+- FORBIDDEN: DO NOT create src/styles.css or any separate CSS files - use inline styles only
+- ALL functionality MUST be implemented in a SINGLE App.jsx file
+- Keep the App component simple and focused on basic UI
 - DO NOT create separate utility files, hook files, or complex state management
 - DO NOT generate routing, API integration, or complex features
-- All logic must be implemented directly in components using basic useState/useEffect
-- Focus on simple, self-contained UI components only
+- All logic must be implemented directly in App.jsx using basic useState/useEffect
+- Focus on simple, self-contained UI in a single component
 
 CRITICAL RULES:
-1. Return ONLY the React component code with necessary imports
+1. Return a complete project structure with ALL required files in JSON format: {"files": {"index.html": "...", "package.json": "...", "src/App.jsx": "...", "src/index.js": "...", "README.md": "..."}, "projectName": "name"}
+   CRITICAL: The file path for index.html MUST be "index.html" NOT "public/index.html" - this is a VITE project, not Create React App!
 2. Use modern React hooks (useState, useEffect, etc.) and functional components
 3. MUST use inline styles (style={{...}}) for ALL styling to ensure preview works correctly
    CRITICAL: Use RICH and DETAILED inline styles including:
