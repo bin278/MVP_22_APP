@@ -501,8 +501,29 @@ Edit \`src/App.tsx\` to modify the application logic and UI.
       console.warn('⚠️ README.md is missing from generated files!')
     }
 
-    // 修复 index.html 文件,确保包含正确的入口脚本引用
-    if (parsed.files['index.html']) {
+    // 如果 AI 没有生成 index.html,自动创建一个默认的
+    if (!parsed.files['index.html']) {
+      console.warn('⚠️ index.html is missing, creating default one')
+      const entryFile = parsed.files['src/main.jsx'] ? '/src/main.jsx' : '/src/index.js'
+      parsed.files['index.html'] = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Generated React App" />
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="${entryFile}"></script>
+  </body>
+</html>`
+      console.log(`✅ 自动创建 index.html,入口文件: ${entryFile}`)
+    } else {
+      // 修复 index.html 文件,确保包含正确的入口脚本引用
       let indexHtml = parsed.files['index.html']
 
       // 移除 %PUBLIC_URL% 语法
