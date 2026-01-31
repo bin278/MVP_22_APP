@@ -103,11 +103,10 @@ export async function upsertUser(user: {
       .upsert({
         id: user.id,
         email: user.email,
-        name: user.name,
-        avatar: user.avatar,
+        full_name: user.name,
+        avatar_url: user.avatar,
         subscription_plan: 'free',
         subscription_status: 'active',
-        region: 'international',
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'id',
