@@ -470,6 +470,29 @@ Edit \`src/App.tsx\` to modify the application logic and UI.
 `
       console.log('✅ Added README.md')
 
+      // 如果 AI 没有生成 index.html,自动创建一个默认的
+      if (!files['index.html']) {
+        console.warn('⚠️ index.html is missing, creating default one')
+        const entryFile = files['src/main.jsx'] ? '/src/main.jsx' : '/src/index.js'
+        files['index.html'] = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Generated React App" />
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="${entryFile}"></script>
+  </body>
+</html>`
+        console.log(`✅ 自动创建 index.html,入口文件: ${entryFile}`)
+      }
+
       const fileNames = Object.keys(files)
       console.log(`📁 Extracted ${fileNames.length} files:`, fileNames.join(', '))
 
