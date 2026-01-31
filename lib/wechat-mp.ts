@@ -119,22 +119,35 @@ export function clearWxMpLoginParams(): void {
 
 /** 请求微信小程序原生登录（异步版本，更健壮） */
 export async function requestWxMpLogin(returnUrl?: string): Promise<boolean> {
+  console.log("[wechat-mp] requestWxMpLogin called");
+
   const mp = await waitForWxSDK();
   if (!mp) {
     console.warn("[wechat-mp] Not in WeChat MiniProgram environment or SDK not loaded");
     return false;
   }
 
+  console.log("[wechat-mp] WeChat SDK loaded successfully");
   const currentUrl = returnUrl || window.location.href;
+  console.log("[wechat-mp] Current URL:", currentUrl);
 
   if (typeof mp.navigateTo === "function") {
     const loginUrl = `/pages/webshell/login?returnUrl=${encodeURIComponent(currentUrl)}`;
-    mp.navigateTo({ url: loginUrl });
-    return true;
+    console.log("[wechat-mp] Attempting to navigate to:", loginUrl);
+
+    try {
+      mp.navigateTo({ url: loginUrl });
+      console.log("[wechat-mp] navigateTo called successfully");
+      return true;
+    } catch (error) {
+      console.error("[wechat-mp] navigateTo failed:", error);
+      return false;
+    }
   }
 
   // 备用方案：使用 postMessage
   if (typeof mp.postMessage === "function") {
+    console.log("[wechat-mp] Using postMessage fallback");
     mp.postMessage({ data: { type: "REQUEST_WX_LOGIN", returnUrl: currentUrl } });
     if (typeof mp.navigateBack === "function") {
       mp.navigateBack({ delta: 1 });
@@ -142,6 +155,7 @@ export async function requestWxMpLogin(returnUrl?: string): Promise<boolean> {
     return true;
   }
 
+  console.warn("[wechat-mp] No available method to trigger login");
   return false;
 }
 

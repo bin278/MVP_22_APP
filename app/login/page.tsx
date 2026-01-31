@@ -236,9 +236,19 @@ export default function LoginPage() {
   }
 
   const handleWechatLogin = async () => {
+    console.log('[WeChat Login] Button clicked, acceptTerms:', acceptTerms, 'isInMiniProgram:', isInMiniProgram)
+
     // 检查是否同意条款
     if (!acceptTerms) {
+      console.warn('[WeChat Login] Terms not accepted')
       setError(t('mustAcceptTerms'))
+      // 滚动到错误提示位置
+      setTimeout(() => {
+        const errorElement = document.querySelector('[role="alert"]')
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
       return
     }
 
@@ -248,7 +258,23 @@ export default function LoginPage() {
     try {
       // 如果在小程序环境，使用小程序原生登录
       if (isInMiniProgram) {
-        await requestWxMpLogin()
+        console.log('[WeChat Login] Using mini program login')
+        const result = await requestWxMpLogin()
+        console.log('[WeChat Login] Mini program login result:', result)
+
+        if (!result) {
+          setError('小程序登录失败，请确保在微信小程序环境中打开')
+          setIsWechatLoading(false)
+          return
+        }
+
+        // 小程序登录请求已发送，等待回调
+        // 设置超时，如果10秒内没有响应则重置状态
+        console.log('[WeChat Login] Waiting for mini program callback...')
+        setTimeout(() => {
+          setIsWechatLoading(false)
+          console.log('[WeChat Login] Timeout - reset loading state')
+        }, 10000)
         return
       }
 
@@ -442,8 +468,8 @@ export default function LoginPage() {
               </div>
             </div>
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+              <Alert variant="destructive" role="alert">
+                <AlertDescription className="font-medium">{error}</AlertDescription>
               </Alert>
             )}
 

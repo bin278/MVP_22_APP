@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -8,6 +8,7 @@ import { Sparkles, Globe, User, LogOut, Settings } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { isMiniProgram } from "@/lib/wechat-mp"
 
 interface HeaderProps {
   language: "en" | "zh"
@@ -35,6 +36,11 @@ export function Header({ language, setLanguage }: HeaderProps) {
   const t = translations[language]
   const { user, signOut, loading } = useAuth()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [isInMiniProgram, setIsInMiniProgram] = useState(false)
+
+  useEffect(() => {
+    setIsInMiniProgram(isMiniProgram())
+  }, [])
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -116,15 +122,19 @@ export function Header({ language, setLanguage }: HeaderProps) {
                     <span>Settings</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="cursor-pointer text-red-600 focus:text-red-600 text-sm"
-                  onClick={handleSignOut}
-                  disabled={isSigningOut}
-                >
-                  <LogOut className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span>{isSigningOut ? "Signing out..." : "Sign out"}</span>
-                </DropdownMenuItem>
+                {!isInMiniProgram && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer text-red-600 focus:text-red-600 text-sm"
+                      onClick={handleSignOut}
+                      disabled={isSigningOut}
+                    >
+                      <LogOut className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <span>{isSigningOut ? "Signing out..." : "Sign out"}</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
