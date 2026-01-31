@@ -501,6 +501,27 @@ Edit \`src/App.tsx\` to modify the application logic and UI.
       console.warn('⚠️ README.md is missing from generated files!')
     }
 
+    // 修复 index.html 文件,确保包含正确的入口脚本引用
+    if (parsed.files['index.html']) {
+      let indexHtml = parsed.files['index.html']
+
+      // 移除 %PUBLIC_URL% 语法
+      indexHtml = indexHtml.replace(/%PUBLIC_URL%\//g, '/')
+
+      // 检查是否已经包含入口脚本引用
+      if (!indexHtml.includes('<script') || !indexHtml.includes('/src/index.js') && !indexHtml.includes('/src/main.jsx')) {
+        // 在 </body> 之前添加入口脚本引用
+        const entryFile = parsed.files['src/main.jsx'] ? '/src/main.jsx' : '/src/index.js'
+        indexHtml = indexHtml.replace(
+          '</body>',
+          `    <script type="module" src="${entryFile}"></script>\n  </body>`
+        )
+        console.log(`✅ 自动添加入口脚本引用: ${entryFile}`)
+      }
+
+      parsed.files['index.html'] = indexHtml
+    }
+
     return parsed
   } catch (error) {
     console.warn('⚠️ Failed to parse AI response as JSON, using fallback:', error)
