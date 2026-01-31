@@ -53,3 +53,18 @@ clousbase
 软著申请材料/
 软著申请准备清单.md
 mornfront的三个安卓值/
+
+# Android sensitive files
+*.keystore
+*.jks
+android/app/*.keystore
+android/app/*.jks
+
+# Cloud functions
+cloud-functions/**/node_modules/
+cloud-functions/**/*.zip
+cloud-functions/**/*.tar.gz
+
+# Build outputs
+*.apk
+*.aab
