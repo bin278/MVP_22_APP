@@ -84,3 +84,15 @@ cloud-functions/**/*.tar.gz
 软件功能说明.md
 软件说明书.md
 预览系统*.md
+
+# Test and diagnostic scripts
+scripts/test-*.js
+scripts/check-*.js
+scripts/check-*.sql
+scripts/diagnose-*.js
+scripts/verify-*.js
+scripts/insert-test-*.sql
+scripts/fix-*.js
+scripts/quick-*.js
+scripts/quick-*.sh
+scripts/quick-*.bat
