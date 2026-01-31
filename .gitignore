@@ -68,3 +68,19 @@ cloud-functions/**/*.tar.gz
 # Build outputs
 *.apk
 *.aab
+
+# Internal documentation (keep only README.md)
+*-COMPLETE.md
+*-SUMMARY.md
+*-GUIDE.md
+*-IMPLEMENTATION*.md
+*-FIX*.md
+*-SETUP*.md
+*-MIGRATION*.md
+*-DEPLOYMENT*.md
+*ISOLATION*.md
+*INTL-*.md
+*CN-*.md
+软件功能说明.md
+软件说明书.md
+预览系统*.md
