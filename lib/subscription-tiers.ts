@@ -18,7 +18,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: 30,
     maxFiles: 5,
     models: isInternational
-      ? ['mistral-small', 'mistral-tiny']
+      ? ['mistral-small']
       : ['qwen-turbo', 'deepseek-coder']
   },
   pro: {
@@ -48,17 +48,6 @@ export const SUBSCRIPTION_TIERS = {
  */
 export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
   // 国际版模型配置
-  'mistral-tiny': {
-    id: 'mistral-tiny',
-    name: 'Mistral Tiny',
-    nameZh: 'Mistral Tiny',
-    description: 'Ultra-fast and cost-effective model',
-    descriptionZh: '超快速且经济的模型',
-    provider: 'mistral',
-    contextWindow: 32000,
-    maxTokens: 8192,
-    pricing: { input: 0.00025, output: 0.00025 }
-  },
   'mistral-small': {
     id: 'mistral-small',
     name: 'Mistral Small',
