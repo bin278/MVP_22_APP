@@ -184,6 +184,60 @@ function formatCodeString(code: string): string {
   return formatted
 }
 
+// 规范化文件名：确保文件有正确的扩展名
+function normalizeFileName(fileName: string, fileContent: any): string {
+  // 如果已经有扩展名，直接返回
+  if (/\.(jsx|tsx|js|ts|json|css|html|md)$/.test(fileName)) {
+    return fileName
+  }
+
+  // 如果文件内容是对象，根据键添加扩展名
+  if (fileContent && typeof fileContent === 'object') {
+    if ('jsx' in fileContent) return fileName + '.jsx'
+    if ('tsx' in fileContent) return fileName + '.tsx'
+    if ('js' in fileContent) return fileName + '.js'
+    if ('ts' in fileContent) return fileName + '.ts'
+    if ('json' in fileContent) return fileName + '.json'
+    if ('css' in fileContent) return fileName + '.css'
+    if ('html' in fileContent) return fileName + '.html'
+  }
+
+  // 根据文件路径推断扩展名
+  if (fileName.includes('App')) return fileName + '.jsx'
+  if (fileName.includes('component')) return fileName + '.jsx'
+  if (fileName.includes('index') && !fileName.includes('.')) return fileName + '.js'
+  if (fileName.includes('style')) return fileName + '.css'
+  if (fileName === 'package') return fileName + '.json'
+  if (fileName === 'README') return fileName + '.md'
+
+  return fileName
+}
+
+// 规范化项目文件：确保所有文件名都有正确的扩展名，并提取对象格式的内容
+function normalizeProjectFiles(files: Record<string, any>): Record<string, any> {
+  const normalized: Record<string, any> = {}
+
+  for (const [fileName, fileContent] of Object.entries(files)) {
+    const normalizedName = normalizeFileName(fileName, fileContent)
+
+    // 如果文件内容是对象，提取实际内容
+    let actualContent = fileContent
+    if (fileContent && typeof fileContent === 'object') {
+      if ('jsx' in fileContent) actualContent = fileContent.jsx
+      else if ('tsx' in fileContent) actualContent = fileContent.tsx
+      else if ('js' in fileContent) actualContent = fileContent.js
+      else if ('ts' in fileContent) actualContent = fileContent.ts
+      else if ('json' in fileContent) actualContent = fileContent.json
+      else if ('css' in fileContent) actualContent = fileContent.css
+      else if ('html' in fileContent) actualContent = fileContent.html
+    }
+
+    normalized[normalizedName] = actualContent
+  }
+
+  return normalized
+}
+
 // 创建项目结构（从 AI 返回的 JSON 解析）
 function createProjectFromAIResponse(aiContent: string): any {
   try {
@@ -504,6 +558,34 @@ Edit \`src/App.tsx\` to modify the application logic and UI.
 
     // 如果看起来完整，尝试直接解析
     const parsed = JSON.parse(jsonContent)
+
+    // 修复文件名：如果文件内容是对象，根据键添加扩展名
+    const fixedFiles: Record<string, any> = {}
+    for (const [fileName, fileContent] of Object.entries(parsed.files || {})) {
+      let fixedFileName = fileName
+
+      // 如果文件内容是对象，根据键添加扩展名
+      if (fileContent && typeof fileContent === 'object') {
+        if ('jsx' in fileContent && !fileName.endsWith('.jsx')) {
+          fixedFileName = fileName + '.jsx'
+        } else if ('tsx' in fileContent && !fileName.endsWith('.tsx')) {
+          fixedFileName = fileName + '.tsx'
+        } else if ('js' in fileContent && !fileName.endsWith('.js')) {
+          fixedFileName = fileName + '.js'
+        } else if ('ts' in fileContent && !fileName.endsWith('.ts')) {
+          fixedFileName = fileName + '.ts'
+        } else if ('json' in fileContent && !fileName.endsWith('.json')) {
+          fixedFileName = fileName + '.json'
+        } else if ('css' in fileContent && !fileName.endsWith('.css')) {
+          fixedFileName = fileName + '.css'
+        } else if ('html' in fileContent && !fileName.endsWith('.html')) {
+          fixedFileName = fileName + '.html'
+        }
+      }
+
+      fixedFiles[fixedFileName] = fileContent
+    }
+    parsed.files = fixedFiles
 
     // 记录生成的文件
     const fileNames = Object.keys(parsed.files || {})
@@ -1436,6 +1518,15 @@ async function processAsyncTask(task: GenerationTask, existingContent?: string, 
     if (isModification) {
       (projectResult as any).isModification = true
     }
+
+    // 规范化文件名：确保所有文件名都有正确的扩展名
+    if (projectResult.files) {
+      projectResult.files = normalizeProjectFiles(projectResult.files)
+      console.log('✅ [异步任务] 文件名已规范化')
+    }
+
+    // 调试：记录文件名
+    console.log('📁 [异步任务] 准备存储的文件名:', Object.keys(projectResult.files || {}))
 
     // 如果有conversationId，保存生成的代码到数据库
     if (task.conversationId) {

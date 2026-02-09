@@ -31,6 +31,11 @@ export async function getAdsByPosition(
   }
 ): Promise<Ad[]> {
   try {
+    // 如果 Supabase 未配置，返回空广告列表
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return [];
+    }
+
     const supabase = createClient();
 
     let query = supabase

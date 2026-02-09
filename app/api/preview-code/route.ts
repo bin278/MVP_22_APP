@@ -730,8 +730,24 @@ export async function POST(request: NextRequest) {
       if (excludedFiles.includes(filePath)) continue
       if (excludedDirs.some(dir => filePath.startsWith(dir))) continue
 
+      // 提取文件内容（处理对象格式）
+      let extractedCode = '';
+      if (typeof fileCode === 'string') {
+        extractedCode = fileCode;
+      } else if (fileCode && typeof fileCode === 'object') {
+        // 如果是对象，提取对应的键值
+        if ('jsx' in fileCode) extractedCode = (fileCode as any).jsx;
+        else if ('tsx' in fileCode) extractedCode = (fileCode as any).tsx;
+        else if ('js' in fileCode) extractedCode = (fileCode as any).js;
+        else if ('ts' in fileCode) extractedCode = (fileCode as any).ts;
+        else if ('json' in fileCode) extractedCode = (fileCode as any).json;
+        else if ('css' in fileCode) extractedCode = (fileCode as any).css;
+        else if ('html' in fileCode) extractedCode = (fileCode as any).html;
+        else extractedCode = JSON.stringify(fileCode, null, 2);
+      }
+
       // 解码 HTML 实体
-      const code = String(fileCode)
+      const code = String(extractedCode)
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&amp;/g, '&')

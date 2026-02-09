@@ -303,6 +303,60 @@ function GeneratePageContent() {
     return parts.length > 0 ? parts : content
   }
 
+  // 规范化文件名：确保文件有正确的扩展名
+  const normalizeFileName = (fileName: string, fileContent: any): string => {
+    // 如果已经有扩展名，直接返回
+    if (/\.(jsx|tsx|js|ts|json|css|html|md)$/.test(fileName)) {
+      return fileName
+    }
+
+    // 如果文件内容是对象，根据键添加扩展名
+    if (fileContent && typeof fileContent === 'object') {
+      if ('jsx' in fileContent) return fileName + '.jsx'
+      if ('tsx' in fileContent) return fileName + '.tsx'
+      if ('js' in fileContent) return fileName + '.js'
+      if ('ts' in fileContent) return fileName + '.ts'
+      if ('json' in fileContent) return fileName + '.json'
+      if ('css' in fileContent) return fileName + '.css'
+      if ('html' in fileContent) return fileName + '.html'
+    }
+
+    // 根据文件路径推断扩展名
+    if (fileName.includes('App')) return fileName + '.jsx'
+    if (fileName.includes('component')) return fileName + '.jsx'
+    if (fileName.includes('index') && !fileName.includes('.')) return fileName + '.js'
+    if (fileName.includes('style')) return fileName + '.css'
+    if (fileName === 'package') return fileName + '.json'
+    if (fileName === 'README') return fileName + '.md'
+
+    return fileName
+  }
+
+  // 规范化项目文件：确保所有文件名都有正确的扩展名，并提取对象格式的内容
+  const normalizeProjectFiles = (files: Record<string, any>): Record<string, any> => {
+    const normalized: Record<string, any> = {}
+
+    for (const [fileName, fileContent] of Object.entries(files)) {
+      const normalizedName = normalizeFileName(fileName, fileContent)
+
+      // 如果文件内容是对象，提取实际内容
+      let actualContent = fileContent
+      if (fileContent && typeof fileContent === 'object') {
+        if ('jsx' in fileContent) actualContent = fileContent.jsx
+        else if ('tsx' in fileContent) actualContent = fileContent.tsx
+        else if ('js' in fileContent) actualContent = fileContent.js
+        else if ('ts' in fileContent) actualContent = fileContent.ts
+        else if ('json' in fileContent) actualContent = fileContent.json
+        else if ('css' in fileContent) actualContent = fileContent.css
+        else if ('html' in fileContent) actualContent = fileContent.html
+      }
+
+      normalized[normalizedName] = actualContent
+    }
+
+    return normalized
+  }
+
   // 文件排序辅助函数：App.tsx/App.jsx 始终排在第一位
   const sortFilePaths = (files: Record<string, string>): string[] => {
     return Object.keys(files).sort((a, b) => {
@@ -471,17 +525,32 @@ function GeneratePageContent() {
         hasAccessToken: !!authSession?.accessToken
       })
 
+      // 调试：检查文件内容的类型
+      if (status.result.files) {
+        Object.keys(status.result.files).forEach(fileName => {
+          const fileContent = status.result.files[fileName];
+          console.log(`📄 文件 ${fileName} 类型:`, typeof fileContent, '是否包含 jsx 键:', fileContent && typeof fileContent === 'object' && 'jsx' in fileContent);
+          if (typeof fileContent === 'object') {
+            console.log(`📄 文件 ${fileName} 对象键:`, Object.keys(fileContent));
+          }
+        });
+      }
+
       // 检查是否是修改任务
       const isModification = status.result.isModification || false
 
       if (isModification) {
         // 修改任务：更新现有项目中的特定文件
         console.log('🔧 处理代码修改结果')
+
+        // 规范化修改结果的文件名和内容
+        const normalizedModifyResult = normalizeProjectFiles(status.result.files || {})
+
         setGeneratedProject(prev => {
-          if (!prev) return status.result
+          if (!prev) return { ...status.result, files: normalizedModifyResult }
           const updatedFiles = {
             ...prev.files,
-            [selectedFile]: status.result.files[selectedFile] || status.result.files['src/App.jsx'] || status.result.files['src/App.tsx'] || ''
+            [selectedFile]: normalizedModifyResult[selectedFile] || normalizedModifyResult['src/App.jsx'] || normalizedModifyResult['src/App.tsx'] || ''
           }
           return {
             ...prev,
@@ -528,9 +597,16 @@ function GeneratePageContent() {
       } else {
         // 生成任务：设置新项目
         console.log('🚀 处理代码生成结果')
-      setGeneratedProject(status.result)
+
+        // 规范化文件名和内容
+        const normalizedResult = {
+          ...status.result,
+          files: normalizeProjectFiles(status.result.files || {})
+        }
+
+      setGeneratedProject(normalizedResult)
       // 自动选择 App.jsx 或 App.tsx
-      const appFile = Object.keys(status.result.files || {}).find(f =>
+      const appFile = Object.keys(normalizedResult.files || {}).find(f =>
         f.includes('App.jsx') || f.includes('App.tsx')
       ) || 'src/App.jsx'
       setSelectedFile(appFile)
@@ -775,10 +851,11 @@ function GeneratePageContent() {
           
           setGeneratedProject({
             projectName: data.conversation.title || "Loaded Project",
-            files,
+            files: normalizeProjectFiles(files),
           })
           // 使用排序函数，确保第一个文件是 App.tsx/App.jsx
-          const sortedFiles = sortFilePaths(files)
+          const normalizedFiles = normalizeProjectFiles(files)
+          const sortedFiles = sortFilePaths(normalizedFiles)
           setSelectedFile(sortedFiles[0] || "src/App.jsx")
         } else {
           setGeneratedProject(null)
@@ -1565,7 +1642,22 @@ function GeneratePageContent() {
         f.endsWith('App.tsx') || f === 'src/App.tsx' || f.endsWith('App.jsx') || f === 'src/App.jsx'
       ) || selectedFile
 
-    const currentCode = generatedProject.files[previewFile] || ''
+    const currentCode = (() => {
+      const fileContent = generatedProject.files[previewFile];
+      if (typeof fileContent === 'string') {
+        return fileContent;
+      }
+      // 如果是对象，提取对应的键值
+      if (fileContent && typeof fileContent === 'object') {
+        if ('jsx' in fileContent) return (fileContent as any).jsx;
+        if ('tsx' in fileContent) return (fileContent as any).tsx;
+        if ('js' in fileContent) return (fileContent as any).js;
+        if ('ts' in fileContent) return (fileContent as any).ts;
+        return JSON.stringify(fileContent, null, 2);
+      }
+      return '';
+    })()
+
     if (!currentCode || currentCode.trim().length === 0) {
       setPreviewError('No code available to preview')
       console.log('❌ No code available for file:', previewFile)
@@ -3060,7 +3152,27 @@ function GeneratePageContent() {
                                   <span className="animate-pulse">▊</span>
                                 </>
                               ) : (
-                                generatedProject.files[selectedFile]
+                                (() => {
+                                  const fileContent = generatedProject.files[selectedFile];
+                                  if (typeof fileContent === 'string') {
+                                    return fileContent;
+                                  }
+                                  // 如果是对象，提取对应的键值
+                                  if (fileContent && typeof fileContent === 'object') {
+                                    // 尝试提取 jsx, json, css 等键
+                                    if ('jsx' in fileContent) return (fileContent as any).jsx;
+                                    if ('json' in fileContent) return (fileContent as any).json;
+                                    if ('css' in fileContent) return (fileContent as any).css;
+                                    if ('html' in fileContent) return (fileContent as any).html;
+                                    if ('js' in fileContent) return (fileContent as any).js;
+                                    if ('ts' in fileContent) return (fileContent as any).ts;
+                                    if ('tsx' in fileContent) return (fileContent as any).tsx;
+                                    // 如果没有匹配的键，使用 JSON.stringify
+                                    return JSON.stringify(fileContent, null, 2);
+                                  }
+                                  // 否则使用 JSON.stringify
+                                  return JSON.stringify(fileContent, null, 2);
+                                })()
                               )}
                             </code>
                           </pre>
