@@ -1025,12 +1025,16 @@ function validateGeneratedCode(files: Record<string, string>): { valid: boolean;
 function sortFilesByPriority(files: string[]): string[] {
   const priority: Record<string, number> = {
     'package.json': 1,
-    '.css': 2,
-    'App.jsx': 3,
-    'App.tsx': 3,
-    'components/': 4,
-    'hooks/': 5,
-    'utils/': 6,
+    'index.html': 2,
+    'index.js': 3,
+    'index.jsx': 3,
+    'main.jsx': 3,
+    'App.jsx': 4,
+    'App.tsx': 4,
+    '.css': 5,
+    'components/': 6,
+    'hooks/': 7,
+    'utils/': 8,
     'README.md': 99
   }
 
