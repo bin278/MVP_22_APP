@@ -129,6 +129,17 @@ function getAIClient(model: string) {
   const timeout = 180000
 
   switch (modelConfig.provider) {
+    case 'mistral':
+      console.log('🔑 使用 Mistral API:', {
+        baseURL: process.env.MISTRAL_BASE_URL || 'https://api.mistral.ai/v1',
+        hasKey: !!process.env.MISTRAL_API_KEY,
+        keyPrefix: process.env.MISTRAL_API_KEY?.substring(0, 10)
+      })
+      return new OpenAI({
+        apiKey: process.env.MISTRAL_API_KEY,
+        baseURL: process.env.MISTRAL_BASE_URL || 'https://api.mistral.ai/v1',
+        timeout,
+      })
     case 'dashscope':
       console.log('🔑 使用阿里云百炼 API:', {
         baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
@@ -158,8 +169,21 @@ function getAIClient(model: string) {
         baseURL: process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/',
         timeout,
       })
-    default:
+    case 'openai':
       console.log('🔑 使用 OpenAI API')
+      return new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout,
+      })
+    case 'anthropic':
+      console.log('🔑 使用 Anthropic API')
+      return new OpenAI({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+        baseURL: 'https://api.anthropic.com/v1',
+        timeout,
+      })
+    default:
+      console.log('🔑 使用 OpenAI API (默认)')
       return new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
         timeout,

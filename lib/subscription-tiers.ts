@@ -4,6 +4,9 @@
 
 export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
 
+// 检测是否为国际版
+const isInternational = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'supabase';
+
 /**
  * 订阅层级配置
  */
@@ -13,31 +16,128 @@ export const SUBSCRIPTION_TIERS = {
     nameZh: '免费版',
     limits: {},
     maxRequests: 30,
-    maxFiles: 5, // 免费版最多生成5个基础文件：index.html, package.json, src/index.jsx, src/App.jsx, README.md
-    models: ['qwen-turbo', 'deepseek-coder'] // 基础模型
+    maxFiles: 5,
+    models: isInternational
+      ? ['mistral-small', 'mistral-tiny']
+      : ['qwen-turbo', 'deepseek-coder']
   },
   pro: {
     name: 'Pro',
     nameZh: '专业版',
     limits: {},
     maxRequests: 500,
-    maxFiles: -1, // 无限制
-    models: ['qwen-turbo', 'qwen-plus', 'deepseek-coder', 'glm-4.6'] // 基础+中级模型
+    maxFiles: -1,
+    models: isInternational
+      ? ['gpt-3.5-turbo', 'gpt-4o-mini', 'claude-3-haiku', 'claude-3-5-sonnet']
+      : ['qwen-turbo', 'qwen-plus', 'deepseek-coder', 'glm-4.6']
   },
   enterprise: {
     name: 'Enterprise',
     nameZh: '企业版',
     limits: {},
-    maxRequests: -1, // 无限
-    maxFiles: -1, // 无限制
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-coder', 'glm-4.6'] // 全部模型
+    maxRequests: -1,
+    maxFiles: -1,
+    models: isInternational
+      ? ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o', 'claude-3-haiku', 'claude-3-5-sonnet', 'claude-3-opus']
+      : ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-coder', 'glm-4.6']
   }
 };
 
 /**
  * 可用模型配置
  */
-export const AVAILABLE_MODELS = {
+export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
+  // 国际版模型配置
+  'mistral-tiny': {
+    id: 'mistral-tiny',
+    name: 'Mistral Tiny',
+    nameZh: 'Mistral Tiny',
+    description: 'Ultra-fast and cost-effective model',
+    descriptionZh: '超快速且经济的模型',
+    provider: 'mistral',
+    contextWindow: 32000,
+    maxTokens: 8192,
+    pricing: { input: 0.00025, output: 0.00025 }
+  },
+  'mistral-small': {
+    id: 'mistral-small',
+    name: 'Mistral Small',
+    nameZh: 'Mistral Small',
+    description: 'Fast and efficient Mistral model',
+    descriptionZh: '快速高效的Mistral模型',
+    provider: 'mistral',
+    contextWindow: 32000,
+    maxTokens: 8192,
+    pricing: { input: 0.001, output: 0.003 }
+  },
+  'gpt-3.5-turbo': {
+    id: 'gpt-3.5-turbo',
+    name: 'GPT-3.5 Turbo',
+    nameZh: 'GPT-3.5 Turbo',
+    description: 'Fast and efficient OpenAI model',
+    descriptionZh: '快速高效的OpenAI模型',
+    provider: 'openai',
+    contextWindow: 16385,
+    maxTokens: 4096,
+    pricing: { input: 0.0005, output: 0.0015 }
+  },
+  'gpt-4o-mini': {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    nameZh: 'GPT-4o Mini',
+    description: 'Affordable and intelligent small model',
+    descriptionZh: '经济实惠的智能小模型',
+    provider: 'openai',
+    contextWindow: 128000,
+    maxTokens: 16384,
+    pricing: { input: 0.00015, output: 0.0006 }
+  },
+  'gpt-4o': {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    nameZh: 'GPT-4o',
+    description: 'Most capable OpenAI model',
+    descriptionZh: '最强大的OpenAI模型',
+    provider: 'openai',
+    contextWindow: 128000,
+    maxTokens: 16384,
+    pricing: { input: 0.0025, output: 0.01 }
+  },
+  'claude-3-haiku': {
+    id: 'claude-3-haiku',
+    name: 'Claude 3 Haiku',
+    nameZh: 'Claude 3 Haiku',
+    description: 'Fast and cost-effective Claude model',
+    descriptionZh: '快速且经济的Claude模型',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxTokens: 4096,
+    pricing: { input: 0.00025, output: 0.00125 }
+  },
+  'claude-3-5-sonnet': {
+    id: 'claude-3-5-sonnet',
+    name: 'Claude 3.5 Sonnet',
+    nameZh: 'Claude 3.5 Sonnet',
+    description: 'Balanced performance and intelligence',
+    descriptionZh: '性能与智能的平衡',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxTokens: 8192,
+    pricing: { input: 0.003, output: 0.015 }
+  },
+  'claude-3-opus': {
+    id: 'claude-3-opus',
+    name: 'Claude 3 Opus',
+    nameZh: 'Claude 3 Opus',
+    description: 'Most capable Claude model for complex tasks',
+    descriptionZh: '最强大的Claude模型，适合复杂任务',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxTokens: 4096,
+    pricing: { input: 0.015, output: 0.075 }
+  }
+} : {
+  // 国内版模型配置
   'deepseek-coder': {
     id: 'deepseek-coder',
     name: 'DeepSeek Coder',
@@ -117,9 +217,9 @@ export function canUseModel(tier: SubscriptionTier, modelId: string): boolean {
 export function getDefaultModel(tier?: SubscriptionTier): string {
   if (tier && SUBSCRIPTION_TIERS[tier]) {
     const tierModels = SUBSCRIPTION_TIERS[tier].models;
-    return tierModels[0] || 'qwen-turbo';
+    return tierModels[0] || (isInternational ? 'mistral-small' : 'qwen-turbo');
   }
-  return 'qwen-turbo';
+  return isInternational ? 'mistral-small' : 'qwen-turbo';
 }
 
 /**
@@ -148,6 +248,6 @@ export function getMaxFiles(tier: SubscriptionTier): number {
  */
 export function canGenerateFiles(tier: SubscriptionTier, fileCount: number): boolean {
   const maxFiles = getMaxFiles(tier);
-  if (maxFiles === -1) return true; // 无限制
+  if (maxFiles === -1) return true;
   return fileCount <= maxFiles;
 }
