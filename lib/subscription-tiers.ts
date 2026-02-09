@@ -18,7 +18,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: 30,
     maxFiles: 5,
     models: isInternational
-      ? ['codestral']
+      ? ['codestral-latest']
       : ['qwen-turbo', 'deepseek-coder']
   },
   pro: {
@@ -28,7 +28,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: 500,
     maxFiles: -1,
     models: isInternational
-      ? ['codestral', 'mistral-medium']
+      ? ['codestral-latest', 'mistral-medium-latest']
       : ['qwen-turbo', 'qwen-plus', 'deepseek-coder', 'glm-4.6']
   },
   enterprise: {
@@ -38,7 +38,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: -1,
     maxFiles: -1,
     models: isInternational
-      ? ['codestral', 'mistral-medium', 'mistral-large']
+      ? ['codestral-latest', 'mistral-medium-latest', 'mistral-large-latest']
       : ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-coder', 'glm-4.6']
   }
 };
@@ -48,8 +48,8 @@ export const SUBSCRIPTION_TIERS = {
  */
 export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
   // 国际版模型配置 - 仅 Mistral 模型
-  'codestral': {
-    id: 'codestral',
+  'codestral-latest': {
+    id: 'codestral-latest',
     name: 'Codestral',
     nameZh: 'Codestral',
     description: 'Specialized for code generation',
@@ -59,8 +59,8 @@ export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
     maxTokens: 8192,
     pricing: { input: 0.001, output: 0.003 }
   },
-  'mistral-medium': {
-    id: 'mistral-medium',
+  'mistral-medium-latest': {
+    id: 'mistral-medium-latest',
     name: 'Mistral Medium',
     nameZh: 'Mistral Medium',
     description: 'Balanced performance and cost',
@@ -70,8 +70,8 @@ export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
     maxTokens: 8192,
     pricing: { input: 0.0027, output: 0.0081 }
   },
-  'mistral-large': {
-    id: 'mistral-large',
+  'mistral-large-latest': {
+    id: 'mistral-large-latest',
     name: 'Mistral Large',
     nameZh: 'Mistral Large',
     description: 'Most capable Mistral model',

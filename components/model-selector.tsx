@@ -39,6 +39,7 @@ const translations = {
     free: "Free",
     basic: "Basic",
     pro: "Pro",
+    enterprise: "Enterprise",
     premium: "Premium",
   },
   zh: {
@@ -51,6 +52,7 @@ const translations = {
     free: "免费版",
     basic: "基础版",
     pro: "专业版",
+    enterprise: "企业版",
     premium: "旗舰版",
   },
 };
@@ -73,6 +75,7 @@ export function ModelSelector({
       case 'free': return <Zap className="h-3 w-3" />;
       case 'basic': return <Check className="h-3 w-3" />;
       case 'pro': return <Crown className="h-3 w-3" />;
+      case 'enterprise': return <Star className="h-3 w-3" />;
       case 'premium': return <Star className="h-3 w-3" />;
       default: return <Zap className="h-3 w-3" />;
     }
@@ -83,6 +86,7 @@ export function ModelSelector({
       case 'free': return 'bg-gray-100 text-gray-800';
       case 'basic': return 'bg-blue-100 text-blue-800';
       case 'pro': return 'bg-purple-100 text-purple-800';
+      case 'enterprise': return 'bg-yellow-100 text-yellow-800';
       case 'premium': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
