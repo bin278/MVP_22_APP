@@ -97,6 +97,17 @@ export function ModelSelector({
     return 'free';
   };
 
+  const tierPriority: Record<SubscriptionTier, number> = {
+    free: 0,
+    pro: 1,
+    enterprise: 2
+  };
+
+  const requiresUpgrade = (modelId: string): boolean => {
+    const modelTier = getModelTier(modelId);
+    return tierPriority[modelTier] > tierPriority[userTier];
+  };
+
   const currentModelConfig = AVAILABLE_MODELS[currentModel];
   const currentModelTier = getModelTier(currentModel);
 
@@ -163,14 +174,14 @@ export function ModelSelector({
           )}
 
           {/* 锁定的模型（需要升级） */}
-          {Object.values(AVAILABLE_MODELS).filter(model => !canUseModel(userTier, model.id)).length > 0 && (
+          {Object.values(AVAILABLE_MODELS).filter(model => requiresUpgrade(model.id)).length > 0 && (
             <>
               <div className="border-t my-2" />
               <div className="px-2 py-1 text-xs font-medium text-orange-600">
                 {t.lockedModels}
               </div>
               {Object.values(AVAILABLE_MODELS)
-                .filter(model => !canUseModel(userTier, model.id))
+                .filter(model => requiresUpgrade(model.id))
                 .map((model) => {
                   const modelTier = getModelTier(model.id);
                   return (

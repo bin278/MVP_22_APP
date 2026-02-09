@@ -18,7 +18,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: 30,
     maxFiles: 5,
     models: isInternational
-      ? ['mistral-small']
+      ? ['codestral']
       : ['qwen-turbo', 'deepseek-coder']
   },
   pro: {
@@ -28,7 +28,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: 500,
     maxFiles: -1,
     models: isInternational
-      ? ['gpt-3.5-turbo', 'gpt-4o-mini', 'claude-3-haiku', 'claude-3-5-sonnet']
+      ? ['codestral', 'mistral-medium']
       : ['qwen-turbo', 'qwen-plus', 'deepseek-coder', 'glm-4.6']
   },
   enterprise: {
@@ -38,7 +38,7 @@ export const SUBSCRIPTION_TIERS = {
     maxRequests: -1,
     maxFiles: -1,
     models: isInternational
-      ? ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o', 'claude-3-haiku', 'claude-3-5-sonnet', 'claude-3-opus']
+      ? ['codestral', 'mistral-medium', 'mistral-large']
       : ['qwen-turbo', 'qwen-plus', 'qwen-max', 'deepseek-coder', 'glm-4.6']
   }
 };
@@ -47,83 +47,39 @@ export const SUBSCRIPTION_TIERS = {
  * 可用模型配置
  */
 export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
-  // 国际版模型配置
-  'mistral-small': {
-    id: 'mistral-small-latest',
-    name: 'Mistral Small',
-    nameZh: 'Mistral Small',
-    description: 'Fast and efficient Mistral model',
-    descriptionZh: '快速高效的Mistral模型',
+  // 国际版模型配置 - 仅 Mistral 模型
+  'codestral': {
+    id: 'codestral',
+    name: 'Codestral',
+    nameZh: 'Codestral',
+    description: 'Specialized for code generation',
+    descriptionZh: '专为代码生成优化',
     provider: 'mistral',
     contextWindow: 32000,
     maxTokens: 8192,
     pricing: { input: 0.001, output: 0.003 }
   },
-  'gpt-3.5-turbo': {
-    id: 'gpt-3.5-turbo',
-    name: 'GPT-3.5 Turbo',
-    nameZh: 'GPT-3.5 Turbo',
-    description: 'Fast and efficient OpenAI model',
-    descriptionZh: '快速高效的OpenAI模型',
-    provider: 'openai',
-    contextWindow: 16385,
-    maxTokens: 4096,
-    pricing: { input: 0.0005, output: 0.0015 }
-  },
-  'gpt-4o-mini': {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    nameZh: 'GPT-4o Mini',
-    description: 'Affordable and intelligent small model',
-    descriptionZh: '经济实惠的智能小模型',
-    provider: 'openai',
-    contextWindow: 128000,
-    maxTokens: 16384,
-    pricing: { input: 0.00015, output: 0.0006 }
-  },
-  'gpt-4o': {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    nameZh: 'GPT-4o',
-    description: 'Most capable OpenAI model',
-    descriptionZh: '最强大的OpenAI模型',
-    provider: 'openai',
-    contextWindow: 128000,
-    maxTokens: 16384,
-    pricing: { input: 0.0025, output: 0.01 }
-  },
-  'claude-3-haiku': {
-    id: 'claude-3-haiku',
-    name: 'Claude 3 Haiku',
-    nameZh: 'Claude 3 Haiku',
-    description: 'Fast and cost-effective Claude model',
-    descriptionZh: '快速且经济的Claude模型',
-    provider: 'anthropic',
-    contextWindow: 200000,
-    maxTokens: 4096,
-    pricing: { input: 0.00025, output: 0.00125 }
-  },
-  'claude-3-5-sonnet': {
-    id: 'claude-3-5-sonnet',
-    name: 'Claude 3.5 Sonnet',
-    nameZh: 'Claude 3.5 Sonnet',
-    description: 'Balanced performance and intelligence',
-    descriptionZh: '性能与智能的平衡',
-    provider: 'anthropic',
-    contextWindow: 200000,
+  'mistral-medium': {
+    id: 'mistral-medium',
+    name: 'Mistral Medium',
+    nameZh: 'Mistral Medium',
+    description: 'Balanced performance and cost',
+    descriptionZh: '性能与成本的平衡',
+    provider: 'mistral',
+    contextWindow: 32000,
     maxTokens: 8192,
-    pricing: { input: 0.003, output: 0.015 }
+    pricing: { input: 0.0027, output: 0.0081 }
   },
-  'claude-3-opus': {
-    id: 'claude-3-opus',
-    name: 'Claude 3 Opus',
-    nameZh: 'Claude 3 Opus',
-    description: 'Most capable Claude model for complex tasks',
-    descriptionZh: '最强大的Claude模型，适合复杂任务',
-    provider: 'anthropic',
-    contextWindow: 200000,
-    maxTokens: 4096,
-    pricing: { input: 0.015, output: 0.075 }
+  'mistral-large': {
+    id: 'mistral-large',
+    name: 'Mistral Large',
+    nameZh: 'Mistral Large',
+    description: 'Most capable Mistral model',
+    descriptionZh: '最强大的Mistral模型',
+    provider: 'mistral',
+    contextWindow: 128000,
+    maxTokens: 8192,
+    pricing: { input: 0.004, output: 0.012 }
   }
 } : {
   // 国内版模型配置
