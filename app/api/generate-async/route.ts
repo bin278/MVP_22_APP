@@ -1250,6 +1250,18 @@ Return ONLY a JSON array: ["package.json", "src/App.jsx", ...]`
       fileList.push('README.md')
     }
 
+    // 确保只有一个入口文件
+    const entryFiles = fileList.filter((f: string) =>
+      f.includes('index.js') || f.includes('index.jsx') || f.includes('main.jsx')
+    )
+    if (entryFiles.length > 1) {
+      // 保留第一个入口文件，删除其他的
+      const firstEntry = entryFiles[0]
+      fileList = fileList.filter((f: string) =>
+        f === firstEntry || (!f.includes('index.js') && !f.includes('index.jsx') && !f.includes('main.jsx'))
+      )
+    }
+
     const sortedFiles = sortFilesByPriority(fileList)
 
     // 免费用户文件数限制
