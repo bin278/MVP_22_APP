@@ -49,7 +49,7 @@ export const SUBSCRIPTION_TIERS = {
 export const AVAILABLE_MODELS: Record<string, any> = isInternational ? {
   // 国际版模型配置
   'mistral-small': {
-    id: 'mistral-small',
+    id: 'mistral-small-latest',
     name: 'Mistral Small',
     nameZh: 'Mistral Small',
     description: 'Fast and efficient Mistral model',

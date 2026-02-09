@@ -1085,7 +1085,7 @@ Return ONLY the file content, no JSON wrapper, no explanations.`
   }
 
   const completion = await client.chat.completions.create({
-    model: model,
+    model: modelConfig?.id || model,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: filePrompt }
@@ -1154,7 +1154,7 @@ ${JSON.stringify(previousCode, null, 2)}
 Return the COMPLETE fixed code in JSON format.`
 
       const completion = await client.chat.completions.create({
-        model: model,
+        model: modelConfig?.id || model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -1222,7 +1222,7 @@ List ALL files needed for this project.
 Return ONLY a JSON array: ["package.json", "src/App.jsx", ...]`
 
     const structureCompletion = await client.chat.completions.create({
-      model: model,
+      model: modelConfig?.id || model,
       messages: [
         { role: 'system', content: 'You are a project structure planner.' },
         { role: 'user', content: structurePrompt }
